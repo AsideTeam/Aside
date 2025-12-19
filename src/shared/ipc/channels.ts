@@ -1,50 +1,95 @@
 /**
- * IPC Channel Names (상수 - 오타 방지)
+ * IPC Channel Names - Main ↔ Renderer 통신 채널 정의
  *
- * 구조: 네임스페이스로 그룹핑하여 관리 용이하게
- * Main ↔ Renderer 사이의 "API 주소록"
+ * 책임: IPC 채널 상수만 정의 (오타 방지, 타입 안전성)
+ * - 구현 로직은 여기에 없음
+ * - 각 채널의 요청/응답 타입은 payloads.ts에서 정의
+ *
+ * 구조화:
+ * - 네임스페이스로 그룹핑 (APP, WINDOW, TAB, NAV, SIDEBAR)
+ * - 각 채널 간 이름 중복 방지 (채널명 + 의도가 명확)
+ * - `as const`로 리터럴 타입 보장
+ *
+ * 사용 예:
+ *   import { IPC_CHANNELS } from '@shared/ipc';
+ *   ipcMain.handle(IPC_CHANNELS.TAB.CREATE, handler);
  */
 
+/**
+ * IPC 채널 상수
+ *
+ * 네이밍 규칙: 도메인:작업
+ * - tab:create (탭 생성)
+ * - nav:navigate (URL로 이동)
+ * - sidebar:toggle (사이드바 토글)
+ *
+ * Event 채널 (Main → Renderer 단방향):
+ * - tabs:updated (탭 목록이 바뀜)
+ * - nav:state-changed (앞/뒤로 가기 가능 상태 변경)
+ *
+ * Request/Response 채널 (양방향):
+ * - tab:create → request에 URL, response에 tabId
+ * - nav:navigate → request에 URL, response에 성공/실패
+ */
 export const IPC_CHANNELS = {
-  // ===== APP =====
+  // ===== APP 영역 =====
   APP: {
+    /** 앱이 준비됨 (모든 초기화 완료) */
     READY: 'app:ready',
+    /** 앱 종료 요청 */
     QUIT: 'app:quit',
   },
 
-  // ===== WINDOW =====
+  // ===== WINDOW 영역 (Renderer에서 Main으로 요청) =====
   WINDOW: {
+    /** 윈도우 최소화 */
     MINIMIZE: 'window:minimize',
+    /** 윈도우 최대화/복원 토글 */
     MAXIMIZE: 'window:maximize',
+    /** 윈도우 닫기 */
     CLOSE: 'window:close',
   },
 
-  // ===== TAB =====
+  // ===== TAB 영역 (탭 관리 - Request/Response) =====
   TAB: {
+    /** 새 탭 생성 (Request: URL, Response: tabId) */
     CREATE: 'tab:create',
+    /** 탭 닫기 (Request: tabId) */
     CLOSE: 'tab:close',
+    /** 탭 전환 (Request: tabId) */
     SWITCH: 'tab:switch',
+    /** 탭 URL 변경 (Request: tabId, url) */
     UPDATE_URL: 'tab:update-url',
-    UPDATED: 'tabs:updated', // Event: tabs 상태 변경 알림
+    /** [Event] 탭 목록 업데이트 (Main → Renderer) */
+    UPDATED: 'tabs:updated',
   },
 
-  // ===== NAVIGATION =====
+  // ===== NAVIGATION 영역 (브라우징 네비게이션) =====
   NAV: {
+    /** URL로 이동 (Request: url) */
     NAVIGATE: 'nav:navigate',
+    /** 뒤로 가기 */
     BACK: 'nav:back',
+    /** 앞으로 가기 */
     FORWARD: 'nav:forward',
+    /** 새로고침 */
     RELOAD: 'nav:reload',
-    STATE_CHANGED: 'nav:state-changed', // Event: back/forward 가능 여부 변경
+    /** [Event] 네비게이션 상태 변경 (뒤/앞 가능 여부 변경) */
+    STATE_CHANGED: 'nav:state-changed',
   },
 
-  // ===== SIDEBAR =====
+  // ===== SIDEBAR 영역 =====
   SIDEBAR: {
+    /** 사이드바 토글 (확장/축소) */
     TOGGLE: 'sidebar:toggle',
   },
 } as const
 
 /**
- * Type-safe channel 타입 (자동완성 용)
+ * IPC 채널 타입 (TypeScript)
+ *
+ * 모든 채널 문자열의 합집합 (Union Type)
+ * IDE 자동완성과 타입 체킹에 사용됨
  */
 export type IPCChannelType =
   | typeof IPC_CHANNELS.APP[keyof typeof IPC_CHANNELS.APP]

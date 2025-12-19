@@ -1,33 +1,17 @@
 /**
- * Logger Interface & Levels (Shared between Main & Renderer)
+ * Logger Module - Shared Logger Interface & Levels
  *
- * Main Process: electron-log + file output
- * Renderer Process: console.log + DevTools
+ * [Barrel File Pattern]
+ * 책임: shared/logger 모듈의 모든 export를 취합
  *
- * This is the "contract" - implementation details go in each process.
+ * Main & Renderer 모두에서 import하는 곳:
+ *   import { LogLevel, ILogger } from '@shared/logger';
+ *
+ * 구현 세부사항:
+ * - Main: src/main/utils/logger.ts에서 ILogger 구현
+ * - Renderer: src/renderer/src/lib/logger.ts에서 ILogger 구현
+ * - shared에서는 인터페이스만 정의 (구현체 없음!)
  */
 
-/**
- * Log Level Enum (양쪽 프로세스 통일)
- */
-export enum LogLevel {
-  DEBUG = 'debug',
-  INFO = 'info',
-  WARN = 'warn',
-  ERROR = 'error',
-}
-
-/**
- * Logger Interface (Main/Renderer에서 구현)
- */
-export interface ILogger {
-  debug(message: string, ...args: any[]): void
-  info(message: string, ...args: any[]): void
-  warn(message: string, ...args: any[]): void
-  error(message: string, error?: Error | unknown): void
-}
-
-/**
- * Logger Factory Type (각 프로세스에서 구현)
- */
-export type LoggerFactory = (context: string) => ILogger
+export * from './levels'
+export * from './types'
