@@ -14,6 +14,9 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "lint:shared": "eslint src/shared --ext .ts,.tsx",
     "format": "prettier --write ."
   },
   "devDependencies": {
@@ -21,10 +24,13 @@
     "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.50.0",
+    "@typescript-eslint/parser": "^8.50.0",
     "@vitejs/plugin-react": "^5.1.2",
     "electron": "^39.2.7",
     "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",
+    "eslint": "^9.39.2",
     "prettier": "^3.7.4",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

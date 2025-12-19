@@ -17,21 +17,15 @@
  * - 모듈 구조를 숨기고 공개 API만 노출
  *
  * ===== 사용 예 =====
- *
- * // Logger 인터페이스
  * import { ILogger, LogLevel } from '@shared/logger';
  *
- * // IPC 채널 및 타입
  * import { IPC_CHANNELS, type TabCreateRequest } from '@shared/ipc';
  *
- * // 도메인 타입
  * import type { History, Bookmark } from '@shared/types';
  * import { AsideError } from '@shared/types';
  *
- * // 공용 상수
  * import { APP_NAME, LAYOUT, TIMEOUTS } from '@shared/constants';
  *
- * // 유틸 함수
  * import { formatDate, generateId, isValidUrl } from '@shared/utils';
  *
  * ===== 폴더 구조 =====

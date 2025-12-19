@@ -1,0 +1,134 @@
+{
+  "root": true,
+  "env": {
+    "node": true,
+    "browser": true,
+    "es2021": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/strict-type-checked",
+    "plugin:@typescript-eslint/stylistic-type-checked"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module",
+    "project": "./tsconfig.json"
+  },
+  "plugins": [
+    "@typescript-eslint"
+  ],
+  "rules": {
+    // ===== TypeScript Strict =====
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "@typescript-eslint/explicit-function-return-types": [
+      "warn",
+      {
+        "allowExpressions": true,
+        "allowTypedFunctionExpressions": true,
+        "allowHigherOrderFunctions": true
+      }
+    ],
+    "@typescript-eslint/no-non-null-assertion": "warn",
+
+    // ===== Code Quality =====
+    "no-console": [
+      "warn",
+      {
+        "allow": [
+          "warn",
+          "error"
+        ]
+      }
+    ],
+    "no-debugger": "warn",
+    "prefer-const": "error",
+    "no-var": "error",
+
+    // ===== Shared 폴더 특화 규칙 =====
+    // 이 규칙들은 overrides로 src/shared에만 적용됨
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/shared/**/*.ts",
+        "src/shared/**/*.tsx"
+      ],
+      "rules": {
+        // ===== Shared는 순수 타입/상수/함수만 =====
+
+        // ❌ Node.js API 금지 (fs, path, process 등)
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "fs",
+                  "fs/*",
+                  "path",
+                  "path/*",
+                  "os",
+                  "os/*",
+                  "child_process",
+                  "child_process/*",
+                  "crypto",
+                  "crypto/*"
+                ],
+                "message": "❌ shared에서 Node.js API 사용 금지\n\n이유:\n- shared는 Main/Renderer 양쪽에서 사용됨\n- Renderer에서 fs/path/process는 사용 불가\n- Node.js 전용 기능은 main/ 또는 services에서\n\n👉 이 코드를 main/services나 main/utils로 옮기세요"
+              },
+              {
+                "group": [
+                  "electron"
+                ],
+                "message": "❌ shared에서 Electron API 사용 금지\n\n이유:\n- shared는 Main/Renderer 양쪽에서 사용됨\n- Electron API는 프로세스별로 다름\n- Electron 로직은 main/handlers에서\n\n👉 electron import는 구현체(main/)에서만"
+              }
+            ]
+          }
+        ],
+
+        // ❌ Browser API 금지 (window, document, localStorage 등)
+        // (eslint-plugin-no-unsanitized같은 플러그인 필요하면 추가)
+
+        // ❌ Side effects 없음 (파일 쓰기, 네트워크 요청 등)
+        "no-restricted-globals": [
+          "error",
+          {
+            "name": "setTimeout",
+            "message": "setTimeout은 공용 utils에서 쓰면 안 됩니다. 각 프로세스에서만 사용하세요."
+          },
+          {
+            "name": "setInterval",
+            "message": "setInterval은 공용 utils에서 쓰면 안 됩니다. 각 프로세스에서만 사용하세요."
+          },
+          {
+            "name": "fetch",
+            "message": "fetch는 shared utils에서 쓰면 안 됩니다. services에서 처리하세요."
+          }
+        ],
+
+        // ✅ Shared는 매우 엄격한 타입 검사
+        "@typescript-eslint/no-explicit-any": "error",
+        "@typescript-eslint/no-non-null-assertion": "error",
+        "@typescript-eslint/strict-boolean-expressions": "warn",
+        "@typescript-eslint/no-unused-vars": "error",
+
+        // ✅ Export는 명시적이어야 함
+        "@typescript-eslint/explicit-module-boundary-types": "warn",
+
+        // ✅ 함수는 순수해야 함 (사이드 이펙트 없음)
+        // 이건 ESLint로 완벽하게 강제하기 어려우니 코드리뷰에서 체크
+
+        "no-console": "error" // shared에서 console은 금지
+      }
+    }
+  ]
+}
