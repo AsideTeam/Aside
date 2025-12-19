@@ -1,0 +1,12 @@
+# node_modules
+/node_modules
+
+# pnpm files
+*pnpm-lock.yaml
+*pnpm-workspace.yaml
+
+# .env files
+.env
+.env.local
+.env.production
+.env.development
