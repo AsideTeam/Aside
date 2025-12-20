@@ -4,12 +4,13 @@
 
 export class AsideError extends Error {
   constructor(
-    public code: string,
+    public readonly code: string,
     message: string,
-    public details?: unknown,
+    public readonly details?: unknown,
   ) {
     super(message)
     this.name = 'AsideError'
+    Object.setPrototypeOf(this, AsideError.prototype)
   }
 }
 

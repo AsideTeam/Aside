@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 export interface ElectronAPI {
   // 탭 관리
   createTab: (url: string) => Promise<string>

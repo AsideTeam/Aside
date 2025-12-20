@@ -69,7 +69,7 @@ export type Flatten<T> = T extends Promise<infer U> ? U : T
  * 사용 예:
  *   const settings: Dict<string> = { theme: 'dark', language: 'ko' };
  */
-export type Dict<T = any> = Record<string, T>
+export type Dict<T extends unknown = unknown> = Record<string, T>
 
 /**
  * 배열 또는 단일 값
@@ -87,8 +87,8 @@ export type ArrayOrSingle<T> = T | T[]
  * 사용 예:
  *   const callback: Fn<[number], void> = (n) => console.log(n);
  */
-export type Fn<Args extends any[] = any[], Return = void> = (...args: Args) => Return
-export type AsyncFn<Args extends any[] = any[], Return = any> = (...args: Args) => Promise<Return>
+export type Fn<Args extends unknown[] = unknown[], Return = void> = (...args: Args) => Return
+export type AsyncFn<Args extends unknown[] = unknown[], Return = unknown> = (...args: Args) => Promise<Return>
 
 /**
  * JSON 직렬화 가능한 값
@@ -130,7 +130,7 @@ export type DeepReadonly<T> = {
  *   const ctor: Constructor<Logger> = Logger;
  *   const instance = new ctor();
  */
-export type Constructor<T = {}> = new (...args: any[]) => T
+export type Constructor<T = object> = new (...args: unknown[]) => T
 
 /**
  * Opaque<T, Brand> - 브랜드 타입 (고급)

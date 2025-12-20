@@ -16,10 +16,9 @@ import type { LogLevel } from './levels'
  * 로깅 메타데이터 (선택적)
  *
  * 로그와 함께 추가 정보를 전달할 때 사용
+ * 동적 메타데이터를 허용하기 위해 any 사용
  */
-export interface LogMeta {
-  [key: string]: any
-}
+export interface LogMeta extends Record<string, unknown> {}
 
 /**
  * 로그 엔트리 (파일/DB에 저장될 형식)
@@ -49,49 +48,9 @@ export interface LogEntry {
  * 모든 메서드는 동기 실행 (차단하지 않음)
  */
 export interface ILogger {
-  /**
-   * DEBUG 레벨로 메시지 기록
-   *
-   * @param message - 로그 메시지
-   * @param meta - 추가 메타데이터 (선택)
-   *
-   * 예:
-   *   logger.debug('User clicked button', { userId: 123 })
-   */
   debug(message: string, meta?: LogMeta): void
-
-  /**
-   * INFO 레벨로 메시지 기록
-   *
-   * @param message - 로그 메시지
-   * @param meta - 추가 메타데이터 (선택)
-   *
-   * 예:
-   *   logger.info('Tab created', { tabId: '123', url: 'https://google.com' })
-   */
   info(message: string, meta?: LogMeta): void
-
-  /**
-   * WARN 레벨로 메시지 기록
-   *
-   * @param message - 경고 메시지
-   * @param meta - 추가 메타데이터 (선택)
-   *
-   * 예:
-   *   logger.warn('Tab not found, creating new one', { attemptedTabId: '456' })
-   */
   warn(message: string, meta?: LogMeta): void
-
-  /**
-   * ERROR 레벨로 메시지 기록
-   *
-   * @param message - 오류 메시지
-   * @param error - 오류 객체 (Error 인스턴스 또는 unknown)
-   * @param meta - 추가 메타데이터 (선택)
-   *
-   * 예:
-   *   logger.error('Failed to load URL', new Error('Network timeout'), { url })
-   */
   error(message: string, error?: Error | unknown, meta?: LogMeta): void
 
   /**

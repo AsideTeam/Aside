@@ -16,7 +16,7 @@
     "allowImportingTsExtensions": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
+    "noImplicitThis": true,
     "baseUrl": ".",
     "paths": {
       "@main/*": ["src/main/*"],
