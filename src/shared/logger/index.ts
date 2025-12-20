@@ -2,10 +2,10 @@
  * Logger Module - Shared Logger Interface & Levels
  *
  * [Barrel File Pattern]
- * 책임: shared/logger 모듈의 모든 export를 취합
+ * 책임: shared/logger 모듈의 인터페이스만 export
  *
  * Main & Renderer 모두에서 import하는 곳:
- *   import { LogLevel, ILogger } from '@shared/logger';
+ *   import { LogLevel, ILogger } from '@shared/logger'
  *
  * 구현 세부사항:
  * - Main: src/main/utils/logger.ts에서 ILogger 구현
