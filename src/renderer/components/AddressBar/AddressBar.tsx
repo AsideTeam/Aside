@@ -4,7 +4,7 @@ import { useAppStore } from '../../store/appStore'
 import { navigate, goBack, goForward, reload } from '../../lib/ipc-client'
 
 /**
- * 주소창 - 크롬 스타일
+ * 주소창 - Zen Browser 스타일 (Floating Pill)
  */
 export function AddressBar() {
   const activeTab = useAppStore((state) =>
@@ -90,77 +90,90 @@ export function AddressBar() {
   const isSecure = url.startsWith('https://')
 
   return (
-    <form
-      onSubmit={handleNavigate}
-      className="address-bar h-12 flex items-center gap-1 px-2 bg-[#35363a]"
-    >
-      {/* 네비게이션 버튼 그룹 */}
-      <div className="flex items-center">
-        <button
-          type="button"
-          onClick={handleBack}
-          disabled={loading}
-          className="p-2 text-[#9aa0a6] hover:bg-[#4a4b4f] rounded-full transition-colors disabled:opacity-40"
-          title="뒤로"
+    <div className="address-bar h-14 flex items-center justify-center px-4 bg-transparent">
+      {/* macOS 신호등 버튼 영역 (왼쪽 여백) */}
+      <div className="w-20 flex-shrink-0" />
+      
+      {/* Zen 스타일: Floating Pill Container */}
+      <div className="flex-1 flex items-center justify-center">
+        <form
+          onSubmit={handleNavigate}
+          className="flex items-center gap-3 w-full max-w-[700px]"
         >
-          <ArrowLeft size={18} />
-        </button>
+          {/* 네비게이션 버튼 그룹 - 왼쪽 */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleBack}
+              disabled={loading}
+              className="p-2 text-[#9aa0a6] hover:bg-white/5 rounded-lg transition-all disabled:opacity-30"
+              title="뒤로"
+            >
+              <ArrowLeft size={16} />
+            </button>
 
-        <button
-          type="button"
-          onClick={handleForward}
-          disabled={loading}
-          className="p-2 text-[#9aa0a6] hover:bg-[#4a4b4f] rounded-full transition-colors disabled:opacity-40"
-          title="앞으로"
-        >
-          <ArrowRight size={18} />
-        </button>
+            <button
+              type="button"
+              onClick={handleForward}
+              disabled={loading}
+              className="p-2 text-[#9aa0a6] hover:bg-white/5 rounded-lg transition-all disabled:opacity-30"
+              title="앞으로"
+            >
+              <ArrowRight size={16} />
+            </button>
 
-        <button
-          type="button"
-          onClick={handleReload}
-          className="p-2 text-[#9aa0a6] hover:bg-[#4a4b4f] rounded-full transition-colors disabled:opacity-40"
-          title={loading ? '중지' : '새로고침'}
-        >
-          {loading ? (
-            <X size={18} />
-          ) : (
-            <RotateCw size={18} />
-          )}
-        </button>
+            <button
+              type="button"
+              onClick={handleReload}
+              className="p-2 text-[#9aa0a6] hover:bg-white/5 rounded-lg transition-all disabled:opacity-30"
+              title={loading ? '중지' : '새로고침'}
+            >
+              {loading ? (
+                <X size={16} />
+              ) : (
+                <RotateCw size={16} />
+              )}
+            </button>
+          </div>
+
+          {/* Floating Pill URL 입력 필드 - Zen 스타일 */}
+          <div 
+            className={`
+              flex-1 flex items-center h-9 px-4 rounded-xl transition-all duration-200
+              ${isFocused 
+                ? 'bg-[#1e1e2e]/90 ring-2 ring-[#cba6f7]/30 shadow-lg shadow-[#cba6f7]/10 backdrop-blur-xl transform translate-y-[1px]' 
+                : 'bg-white/[0.08] hover:bg-white/[0.10] backdrop-blur-md'
+              }
+              border border-white/10 shadow-md
+            `}
+          >
+            {/* 보안 아이콘 */}
+            {isSecure && !isFocused && (
+              <Lock size={13} className="text-[#a6adc8] mr-2.5 flex-shrink-0" />
+            )}
+            {!isSecure && !isFocused && url && (
+              <Search size={13} className="text-[#a6adc8] mr-2.5 flex-shrink-0" />
+            )}
+            
+            <input
+              type="text"
+              value={isFocused ? url : displayUrl()}
+              onChange={(e) => setUrl(e.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              placeholder="Search or type a URL"
+              disabled={loading}
+              className={`
+                flex-1 bg-transparent text-[13px] text-[#cdd6f4] placeholder-[#6c7086] outline-none
+                ${!isFocused ? 'text-center' : ''}
+              `}
+            />
+          </div>
+        </form>
       </div>
 
-      {/* URL 입력 필드 - 크롬 스타일 */}
-      <div className="flex-1 mx-2">
-        <div 
-          className={`
-            flex items-center h-8 px-3 rounded-full transition-all
-            ${isFocused 
-              ? 'bg-[#202124] ring-2 ring-[#8ab4f8]' 
-              : 'bg-[#202124] hover:bg-[#292a2d]'
-            }
-          `}
-        >
-          {/* 보안 아이콘 */}
-          {isSecure && !isFocused && (
-            <Lock size={14} className="text-[#9aa0a6] mr-2 flex-shrink-0" />
-          )}
-          {!isSecure && !isFocused && url && (
-            <Search size={14} className="text-[#9aa0a6] mr-2 flex-shrink-0" />
-          )}
-          
-          <input
-            type="text"
-            value={isFocused ? url : displayUrl()}
-            onChange={(e) => setUrl(e.target.value)}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            placeholder="검색어 또는 URL 입력"
-            disabled={loading}
-            className="flex-1 bg-transparent text-[14px] text-[#e8eaed] placeholder-[#9aa0a6] outline-none"
-          />
-        </div>
-      </div>
-    </form>
+      {/* 오른쪽 여백 (대칭) */}
+      <div className="w-20 flex-shrink-0" />
+    </div>
   )
 }

@@ -1,9 +1,9 @@
 // UI 레이아웃 상수
 export const LAYOUT = {
-  // UI 컴포넌트 높이 (Main + Renderer 공유)
-  TAB_BAR_HEIGHT: 40,
-  ADDRESS_BAR_HEIGHT: 48,
-  TOOLBAR_HEIGHT: 88, // TAB_BAR + ADDRESS_BAR
+  // UI 컴포넌트 높이 (Main + Renderer 공유) - Zen 스타일
+  TAB_BAR_HEIGHT: 44,
+  ADDRESS_BAR_HEIGHT: 56,
+  TOOLBAR_HEIGHT: 100, // TAB_BAR + ADDRESS_BAR
   
   // 기타
   FRAME_PADDING: 8,

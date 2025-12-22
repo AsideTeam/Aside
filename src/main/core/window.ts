@@ -103,10 +103,10 @@ export class MainWindow {
       this.window.show()
       logger.info('[MainWindow] Window shown')
 
-      // Step 5: 개발 모드에서만 DevTools 자동 열기
+      // Step 5: 개발 모드에서만 DevTools 자동 열기 (별도 창으로)
       if (Env.isDev) {
-        this.window.webContents.openDevTools()
-        logger.info('[MainWindow] DevTools opened (dev mode)')
+        this.window.webContents.openDevTools({ mode: 'detach' })
+        logger.info('[MainWindow] DevTools opened (dev mode, detached)')
       }
 
       return this.window

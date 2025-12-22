@@ -50,12 +50,12 @@ export function TabBar() {
   }
 
   return (
-    <div className="tab-bar h-10 flex items-end bg-[#202124] select-none drag">
+    <div className="tab-bar h-11 flex items-end bg-[#202124] select-none drag">
       {/* macOS 신호등 버튼 영역 (왼쪽 여백) */}
       <div className="w-[78px] h-full flex-shrink-0" />
       
       {/* 탭 목록 */}
-      <div className="flex items-end gap-0.5 overflow-x-auto scrollbar-hide no-drag">
+      <div className="flex items-end gap-1 overflow-x-auto scrollbar-hide no-drag">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId
           return (
@@ -63,8 +63,8 @@ export function TabBar() {
               key={tab.id}
               onClick={() => handleTabClick(tab.id)}
               className={`
-                group flex items-center gap-2 h-8 px-3 rounded-t-lg cursor-pointer
-                transition-colors duration-150 max-w-[200px] min-w-[100px]
+                group flex items-center gap-2.5 h-9 px-4 rounded-t-xl cursor-pointer
+                transition-colors duration-150 max-w-[220px] min-w-[120px]
                 ${isActive 
                   ? 'bg-[#35363a] text-[#e8eaed]' 
                   : 'bg-transparent text-[#9aa0a6] hover:bg-[#35363a]/50'
@@ -99,7 +99,7 @@ export function TabBar() {
         <button
           onClick={handleNewTab}
           disabled={loading}
-          className="h-8 w-8 flex items-center justify-center text-[#9aa0a6] hover:bg-[#35363a]/50 rounded-full transition-colors ml-1"
+          className="h-9 w-9 flex items-center justify-center text-[#9aa0a6] hover:bg-[#35363a]/50 rounded-lg transition-colors ml-2"
           title="새 탭"
         >
           <Plus size={18} />

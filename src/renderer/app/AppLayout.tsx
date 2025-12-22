@@ -20,11 +20,11 @@ import { AddressBar } from '../components/AddressBar'
  */
 export function AppLayout() {
   return (
-    <div className="app-layout flex flex-col h-[88px] w-screen bg-[#202124]">
-      {/* 탭바 - macOS 신호등 버튼 영역 확보 */}
+    <div className="app-layout flex flex-col h-[100px] w-screen bg-[#202124]">
+      {/* 탭바 (44px) - macOS 신호등 버튼 영역 확보 */}
       <TabBar />
 
-      {/* 주소창 + 네비게이션 버튼 */}
+      {/* 주소창 + 네비게이션 버튼 (56px) - Zen 스타일 */}
       <AddressBar />
     </div>
   )

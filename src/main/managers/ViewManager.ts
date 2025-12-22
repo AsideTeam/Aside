@@ -281,8 +281,8 @@ export class ViewManager {
   static goBack(): void {
     if (!this.activeTabId) return
     const tabData = this.tabs.get(this.activeTabId)
-    if (tabData?.view.webContents.canGoBack()) {
-      tabData.view.webContents.goBack()
+    if (tabData?.view.webContents.navigationHistory.canGoBack()) {
+      tabData.view.webContents.navigationHistory.goBack()
       logger.info('[ViewManager] Go back', { tabId: this.activeTabId })
     }
   }
@@ -293,8 +293,8 @@ export class ViewManager {
   static goForward(): void {
     if (!this.activeTabId) return
     const tabData = this.tabs.get(this.activeTabId)
-    if (tabData?.view.webContents.canGoForward()) {
-      tabData.view.webContents.goForward()
+    if (tabData?.view.webContents.navigationHistory.canGoForward()) {
+      tabData.view.webContents.navigationHistory.goForward()
       logger.info('[ViewManager] Go forward', { tabId: this.activeTabId })
     }
   }

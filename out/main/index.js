@@ -257,8 +257,8 @@ class MainWindow {
       this.window.show();
       logger.info("[MainWindow] Window shown");
       if (Env.isDev) {
-        this.window.webContents.openDevTools();
-        logger.info("[MainWindow] DevTools opened (dev mode)");
+        this.window.webContents.openDevTools({ mode: "detach" });
+        logger.info("[MainWindow] DevTools opened (dev mode, detached)");
       }
       return this.window;
     } catch (error) {
@@ -331,7 +331,7 @@ class MainWindow {
   }
 }
 const LAYOUT = {
-  TOOLBAR_HEIGHT: 88
+  TOOLBAR_HEIGHT: 100
 };
 class ViewManager {
   static tabs = /* @__PURE__ */ new Map();
@@ -521,8 +521,8 @@ class ViewManager {
   static goBack() {
     if (!this.activeTabId) return;
     const tabData = this.tabs.get(this.activeTabId);
-    if (tabData?.view.webContents.canGoBack()) {
-      tabData.view.webContents.goBack();
+    if (tabData?.view.webContents.navigationHistory.canGoBack()) {
+      tabData.view.webContents.navigationHistory.goBack();
       logger.info("[ViewManager] Go back", { tabId: this.activeTabId });
     }
   }
@@ -532,8 +532,8 @@ class ViewManager {
   static goForward() {
     if (!this.activeTabId) return;
     const tabData = this.tabs.get(this.activeTabId);
-    if (tabData?.view.webContents.canGoForward()) {
-      tabData.view.webContents.goForward();
+    if (tabData?.view.webContents.navigationHistory.canGoForward()) {
+      tabData.view.webContents.navigationHistory.goForward();
       logger.info("[ViewManager] Go forward", { tabId: this.activeTabId });
     }
   }
@@ -1223,10 +1223,10 @@ const TabCreateSchema = z.object({
   )
 });
 const TabCloseSchema = z.object({
-  tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9]+$/, "Invalid Tab ID format")
+  tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9-]+$/, "Invalid Tab ID format")
 });
 const TabSwitchSchema = z.object({
-  tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9]+$/, "Invalid Tab ID format")
+  tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9-]+$/, "Invalid Tab ID format")
 });
 z.object({});
 z.object({});
