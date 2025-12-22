@@ -5,11 +5,11 @@
 
 import { SettingRow } from '../components/SettingRow'
 import { ToggleSwitch } from '../components/ToggleSwitch'
-import type { SettingsState } from '../hooks/useSettings'
+import type { SettingsSchema } from '@shared/types'
 
 interface PrivacySectionProps {
-  settings: SettingsState
-  onUpdate: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => Promise<boolean>
+  settings: SettingsSchema
+  onUpdate: <K extends keyof SettingsSchema>(key: K, value: SettingsSchema[K]) => Promise<boolean>
 }
 
 export function PrivacySection({ settings, onUpdate }: PrivacySectionProps) {

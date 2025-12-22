@@ -4,11 +4,11 @@
  */
 
 import { SettingRow } from '../components/SettingRow'
-import type { SettingsState } from '../hooks/useSettings'
+import type { SettingsSchema } from '@shared/types'
 
 interface LanguagesSectionProps {
-  settings: SettingsState
-  onUpdate: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => Promise<boolean>
+  settings: SettingsSchema
+  onUpdate: <K extends keyof SettingsSchema>(key: K, value: SettingsSchema[K]) => Promise<boolean>
 }
 
 export function LanguagesSection({ settings, onUpdate }: LanguagesSectionProps) {

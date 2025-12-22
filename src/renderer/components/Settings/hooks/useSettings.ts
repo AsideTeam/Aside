@@ -4,21 +4,9 @@
  */
 
 import { useState, useEffect } from 'react'
+import type { SettingsSchema } from '@shared/types'
 
-export interface SettingsState {
-  theme: 'light' | 'dark' | 'system'
-  searchEngine: 'google' | 'bing' | 'duckduckgo' | 'naver'
-  homepage: string
-  showHomeButton: boolean
-  showBookmarksBar: boolean
-  fontSize: 'small' | 'medium' | 'large'
-  pageZoom: string
-  blockThirdPartyCookies: boolean
-  continueSession: boolean
-  language: 'ko' | 'en' | 'ja'
-}
-
-const DEFAULT_SETTINGS: SettingsState = {
+const DEFAULT_SETTINGS: SettingsSchema = {
   theme: 'dark',
   searchEngine: 'google',
   homepage: 'https://www.google.com',
@@ -32,7 +20,7 @@ const DEFAULT_SETTINGS: SettingsState = {
 }
 
 export function useSettings() {
-  const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS)
+  const [settings, setSettings] = useState<SettingsSchema>(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,9 +54,9 @@ export function useSettings() {
     }
   }
 
-  async function updateSetting<K extends keyof SettingsState>(
+  async function updateSetting<K extends keyof SettingsSchema>(
     key: K,
-    value: SettingsState[K]
+    value: SettingsSchema[K]
   ): Promise<boolean> {
     try {
       if (!window.electronAPI?.settings?.updateSetting) {

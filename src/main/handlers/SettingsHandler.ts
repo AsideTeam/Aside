@@ -1,34 +1,27 @@
 /**
  * Settings Handler
- * 설정 페이지 관련 IPC 요청 처리
+ * SRP: IPC 통신만 담당
+ * 
+ * 책임:
+ * - IPC 채널 등록
+ * - 요청 파라미터 검증
+ * - Service 레이어로 위임
+ * - 에러 응답 처리
  */
 
 import { ipcMain } from 'electron'
 import { logger } from '@main/utils/Logger'
 import { ViewManager } from '@main/managers/ViewManager'
-import Store from 'electron-store'
+import { SettingsService } from '@main/services/SettingsService'
+import type { SettingsSchema } from '@shared/types'
 
-// 설정 저장소 초기화
-const store = new Store({
-  defaults: {
-    theme: 'dark',
-    searchEngine: 'google',
-    homepage: 'https://www.google.com',
-    showHomeButton: true,
-    showBookmarksBar: false,
-    fontSize: 'medium',
-    pageZoom: '100',
-    blockThirdPartyCookies: true,
-    continueSession: true,
-    language: 'ko',
-  },
-})
+const settingsService = SettingsService.getInstance()
 
 /**
  * Settings IPC 핸들러 등록
  */
 export function setupSettingsHandlers(): void {
-  logger.info('[IPC] Registering settings handlers...')
+  logger.info('[SettingsHandler] Registering IPC handlers')
 
   /**
    * Settings 페이지 열림/닫힘 상태 처리
@@ -38,17 +31,15 @@ export function setupSettingsHandlers(): void {
     try {
       const { isOpen } = input as { isOpen: boolean }
       if (isOpen) {
-        // Settings 페이지가 열렸을 때: WebContentsView 숨기기
         ViewManager.hideActiveView()
-        logger.info('[IPC] Settings page opened - view hidden')
+        logger.info('[SettingsHandler] Settings page opened - view hidden')
       } else {
-        // Settings 페이지가 닫혔을 때: WebContentsView 다시 보여주기
         ViewManager.showActiveView()
-        logger.info('[IPC] Settings page closed - view shown')
+        logger.info('[SettingsHandler] Settings page closed - view shown')
       }
       return true
     } catch (error) {
-      logger.error('[IPC] Failed to toggle settings:', error)
+      logger.error('[SettingsHandler] Failed to toggle settings:', error)
       throw error
     }
   })
@@ -59,12 +50,13 @@ export function setupSettingsHandlers(): void {
    */
   ipcMain.handle('settings:get-all', async () => {
     try {
-      const settings = store.store
-      logger.info('[IPC] Settings retrieved', { keys: Object.keys(settings) })
+      const settings = settingsService.getAllSettings()
+      logger.info('[SettingsHandler] Settings retrieved')
       return settings
-    } catch (error) {
-      logger.error('[IPC] Failed to get settings:', error)
-      throw error
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      logger.error('[SettingsHandler] Failed to get settings:', { error: errorMessage })
+      throw new Error(`Failed to get settings: ${errorMessage}`)
     }
   })
 
@@ -72,15 +64,18 @@ export function setupSettingsHandlers(): void {
    * 특정 설정값 조회
    * IPC: settings:get
    */
-  ipcMain.handle('settings:get', async (_event, input: unknown) => {
+  ipcMain.handle('settings:get', async (_event, key: keyof SettingsSchema) => {
     try {
-      const key = input as string
-      const value = store.get(key)
-      logger.info('[IPC] Setting retrieved', { key, value })
+      if (!key) {
+        throw new Error('Setting key is required')
+      }
+      const value = settingsService.getSetting(key)
+      logger.info('[SettingsHandler] Setting retrieved', { key })
       return value
-    } catch (error) {
-      logger.error('[IPC] Failed to get setting:', error)
-      throw error
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      logger.error('[SettingsHandler] Failed to get setting:', { key, error: errorMessage })
+      throw new Error(`Failed to get setting: ${errorMessage}`)
     }
   })
 
@@ -88,33 +83,58 @@ export function setupSettingsHandlers(): void {
    * 설정값 업데이트
    * IPC: settings:update
    */
-  ipcMain.handle('settings:update', async (_event, input: unknown) => {
-    try {
-      const { key, value } = input as { key: string; value: unknown }
-      store.set(key, value)
-      logger.info('[IPC] Setting updated', { key })
-      return true
-    } catch (error) {
-      logger.error('[IPC] Failed to update setting:', error)
-      throw error
+  ipcMain.handle(
+    'settings:update',
+    async (
+      _event,
+      { key, value }: { key: keyof SettingsSchema; value: SettingsSchema[keyof SettingsSchema] }
+    ) => {
+      try {
+        if (!key) {
+          throw new Error('Setting key is required')
+        }
+        if (value === undefined) {
+          throw new Error('Setting value is required')
+        }
+
+        const result = settingsService.updateSetting(key, value)
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to update setting')
+        }
+
+        logger.info('[SettingsHandler] Setting updated', { key })
+        return result
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        logger.error('[SettingsHandler] Failed to update setting:', { key, error: errorMessage })
+        return { success: false, error: errorMessage }
+      }
     }
-  })
+  )
 
   /**
    * 여러 설정값 한 번에 업데이트
    * IPC: settings:update-multiple
    */
-  ipcMain.handle('settings:update-multiple', async (_event, input: unknown) => {
+  ipcMain.handle('settings:update-multiple', async (_event, updates: Partial<SettingsSchema>) => {
     try {
-      const updates = input as Record<string, unknown>
-      Object.entries(updates).forEach(([key, value]) => {
-        store.set(key, value)
+      if (!updates || Object.keys(updates).length === 0) {
+        throw new Error('Updates object is required')
+      }
+
+      const result = settingsService.updateMultipleSettings(updates)
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update settings')
+      }
+
+      logger.info('[SettingsHandler] Multiple settings updated')
+      return result
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      logger.error('[SettingsHandler] Failed to update multiple settings:', {
+        error: errorMessage,
       })
-      logger.info('[IPC] Multiple settings updated', { count: Object.keys(updates).length })
-      return true
-    } catch (error) {
-      logger.error('[IPC] Failed to update multiple settings:', error)
-      throw error
+      return { success: false, error: errorMessage }
     }
   })
 
@@ -124,14 +144,19 @@ export function setupSettingsHandlers(): void {
    */
   ipcMain.handle('settings:reset', async () => {
     try {
-      store.clear()
-      logger.info('[IPC] Settings reset to defaults')
-      return true
-    } catch (error) {
-      logger.error('[IPC] Failed to reset settings:', error)
-      throw error
+      const result = settingsService.resetAllSettings()
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to reset settings')
+      }
+
+      logger.info('[SettingsHandler] Settings reset to defaults')
+      return result
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      logger.error('[SettingsHandler] Failed to reset settings:', { error: errorMessage })
+      return { success: false, error: errorMessage }
     }
   })
 
-  logger.info('[IPC] Settings handlers registered')
+  logger.info('[SettingsHandler] IPC handlers registered successfully')
 }

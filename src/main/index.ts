@@ -13,6 +13,7 @@
  */
 
 import { app } from 'electron'
+import Store from 'electron-store'
 import { logger } from '@main/utils/Logger'
 import { AppLifecycle } from '@main/core/Lifecycle'
 import { SessionManager } from '@main/core/Session'
@@ -39,20 +40,24 @@ if (!gotTheLock) {
     logger.info('[Main] App ready event triggered')
 
     try {
-      // Step 1: Session 설정 (CSP, 권한 등)
-      logger.info('[Main] Step 1/4: Setting up session...')
+      // Step 1: electron-store Renderer 접근 활성화
+      logger.info('[Main] Step 1/5: Initializing electron-store...')
+      Store.initRenderer()
+
+      // Step 2: Session 설정 (CSP, 권한 등)
+      logger.info('[Main] Step 2/5: Setting up session...')
       SessionManager.setup()
 
-      // Step 2: IPC 핸들러 등록
-      logger.info('[Main] Step 2/4: Setting up IPC handlers...')
+      // Step 3: IPC 핸들러 등록
+      logger.info('[Main] Step 3/5: Setting up IPC handlers...')
       setupIPCHandlers()
 
-      // Step 3: 서비스 초기화
-      logger.info('[Main] Step 3/4: Initializing services...')
+      // Step 4: 서비스 초기화
+      logger.info('[Main] Step 4/5: Initializing services...')
       UpdateService.initialize()
 
-      // Step 4: 메인 앱 부트스트랩
-      logger.info('[Main] Step 4/4: Bootstrapping application...')
+      // Step 5: 메인 앱 부트스트랩
+      logger.info('[Main] Step 5/5: Bootstrapping application...')
       await AppLifecycle.bootstrap()
 
       logger.info('[Main] App ready. All systems online.')
