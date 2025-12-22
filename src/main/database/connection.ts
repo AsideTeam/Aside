@@ -65,7 +65,7 @@ function delay(delayMs: number): Promise<void> {
  * @throws 최대 재시도 횟수 초과 시 에러
  */
 export async function connectWithRetry(): Promise<PrismaClient> {
-  // ✅ 이미 연결됨
+  //  이미 연결됨
   if (prismaInstance) {
     logger.info('[Database] Using existing connection')
     return prismaInstance
