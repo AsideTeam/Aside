@@ -184,6 +184,9 @@ export class ViewManager {
     this.layout()
 
     logger.info('[ViewManager] Tab switched', { tabId })
+    
+    // Renderer 동기화
+    this.syncToRenderer()
   }
 
   /**
@@ -218,6 +221,9 @@ export class ViewManager {
       }
 
       logger.info('[ViewManager] Tab closed', { tabId })
+      
+      // Renderer 동기화
+      this.syncToRenderer()
     } catch (error) {
       logger.error('[ViewManager] Tab close failed:', error)
     }
@@ -242,6 +248,67 @@ export class ViewManager {
    */
   static getActiveTabId(): string | null {
     return this.activeTabId
+  }
+
+  /**
+   * 현재 활성 탭에서 URL 이동
+   */
+  static async navigate(url: string): Promise<void> {
+    if (!this.activeTabId) {
+      logger.warn('[ViewManager] No active tab to navigate')
+      return
+    }
+
+    const tabData = this.tabs.get(this.activeTabId)
+    if (!tabData) {
+      logger.warn('[ViewManager] Active tab not found')
+      return
+    }
+
+    try {
+      await tabData.view.webContents.loadURL(url)
+      tabData.url = url
+      logger.info('[ViewManager] Navigated', { tabId: this.activeTabId, url })
+    } catch (error) {
+      logger.error('[ViewManager] Navigate failed:', error)
+      throw error
+    }
+  }
+
+  /**
+   * 뒤로 가기
+   */
+  static goBack(): void {
+    if (!this.activeTabId) return
+    const tabData = this.tabs.get(this.activeTabId)
+    if (tabData?.view.webContents.canGoBack()) {
+      tabData.view.webContents.goBack()
+      logger.info('[ViewManager] Go back', { tabId: this.activeTabId })
+    }
+  }
+
+  /**
+   * 앞으로 가기
+   */
+  static goForward(): void {
+    if (!this.activeTabId) return
+    const tabData = this.tabs.get(this.activeTabId)
+    if (tabData?.view.webContents.canGoForward()) {
+      tabData.view.webContents.goForward()
+      logger.info('[ViewManager] Go forward', { tabId: this.activeTabId })
+    }
+  }
+
+  /**
+   * 새로고침
+   */
+  static reload(): void {
+    if (!this.activeTabId) return
+    const tabData = this.tabs.get(this.activeTabId)
+    if (tabData) {
+      tabData.view.webContents.reload()
+      logger.info('[ViewManager] Reload', { tabId: this.activeTabId })
+    }
   }
 
   /**
@@ -298,6 +365,27 @@ export class ViewManager {
   }
 
   /**
+   * Renderer 프로세스에 탭 상태 동기화
+   * 
+   * tabs:updated 이벤트를 Main Window의 webContents로 전송
+   */
+  private static syncToRenderer(): void {
+    if (!this.mainWindow) return
+
+    const state = {
+      tabs: this.getTabs(),
+      activeTabId: this.activeTabId,
+    }
+
+    try {
+      this.mainWindow.webContents.send('tabs:updated', state)
+      logger.info('[ViewManager] Synced to renderer', { tabCount: state.tabs.length })
+    } catch (error) {
+      logger.error('[ViewManager] Failed to sync to renderer:', error)
+    }
+  }
+
+  /**
    * 탭 이벤트 설정
    *
    * @param tabId - 탭 ID
@@ -310,6 +398,7 @@ export class ViewManager {
       if (tabData) {
         tabData.title = title
         logger.info('[ViewManager] Tab title updated', { tabId, title })
+        this.syncToRenderer()
       }
     })
 
@@ -319,6 +408,16 @@ export class ViewManager {
       if (tabData) {
         tabData.url = url
         logger.info('[ViewManager] Tab URL changed', { tabId, url })
+        this.syncToRenderer()
+      }
+    })
+
+    // In-page 네비게이션 (해시 변경 등)
+    view.webContents.on('did-navigate-in-page', (_event, url) => {
+      const tabData = this.tabs.get(tabId)
+      if (tabData) {
+        tabData.url = url
+        this.syncToRenderer()
       }
     })
 

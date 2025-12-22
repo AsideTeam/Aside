@@ -2,10 +2,8 @@
  * Session Management
  *
  * 책임: Electron Session 및 보안 설정 관리
- * - CSP (Content Security Policy)
+ * - User-Agent 설정 (Chrome 호환)
  * - 권한(Permission) 관리
- * - 쿠키/캐시 정책
- * - 프로토콜 핸들러
  *
  * 사용 예:
  *   import { SessionManager } from '@main/core/Session'
@@ -15,65 +13,43 @@
 import { session } from 'electron'
 import { logger } from '@main/utils/Logger'
 
+// Chrome User-Agent (Google 차단 방지)
+const CHROME_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
 /**
  * Session 싱글톤 관리
  */
 export class SessionManager {
   /**
    * Session 초기 설정
-   *
-   * 프로세스:
-   * 1. CSP 정책 설정
-   * 2. 권한 핸들러 등록
-   * 3. 특정 프로토콜 차단
    */
   static setup(): void {
     logger.info('[SessionManager] Setting up session...')
 
     try {
-      // Step 1: 기본 Session 객체
       const defaultSession = session.defaultSession
 
       if (!defaultSession) {
         throw new Error('[SessionManager] Default session not available')
       }
 
-      // Step 2: CSP 정책 설정 (STRICT)
-      // 원칙: 최소 권한, 명시적 화이트리스트
-      defaultSession.webRequest.onHeadersReceived((details, callback) => {
-        callback({
-          responseHeaders: {
-            ...details.responseHeaders,
-            'Content-Security-Policy': [
-              "default-src 'none'; " +
-                "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; " +  // ✅ React 19 preamble script
-                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-                "font-src 'self' https://fonts.gstatic.com; " +
-                "img-src 'self' https: data:; " +
-                "connect-src 'self' ws://localhost:* http://localhost:*; " +  // ✅ 개발 모드 HMR
-                "frame-ancestors 'none'; " +
-                "base-uri 'self'; " +
-                "form-action 'self'",
-            ],
-          },
-        })
-      })
+      // Step 1: User-Agent 설정 (Chrome처럼 보이게)
+      defaultSession.setUserAgent(CHROME_USER_AGENT)
+      logger.info('[SessionManager] User-Agent set to Chrome')
 
-      // Step 3: 권한 핸들러 (카메라, 마이크 등)
+      // Step 2: 권한 핸들러 (카메라, 마이크 등)
       defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
         logger.info('[SessionManager] Permission request', { permission })
 
-        // 기본적으로 거부
+        // 허용할 권한 목록
         const allowedPermissions: string[] = [
-          // 'camera',
-          // 'microphone',
+          'clipboard-read',
+          'clipboard-sanitized-write',
+          'geolocation',
+          'notifications',
         ]
 
-        if (allowedPermissions.includes(permission)) {
-          callback(true)
-        } else {
-          callback(false)
-        }
+        callback(allowedPermissions.includes(permission))
       })
 
       logger.info('[SessionManager] Session setup completed')

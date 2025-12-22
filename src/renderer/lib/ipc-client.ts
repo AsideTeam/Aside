@@ -110,6 +110,80 @@ export async function getAppState() {
 }
 
 /**
+ * 현재 탭에서 URL 이동 (새 탭 생성 X)
+ */
+export async function navigate(url: string): Promise<void> {
+  try {
+    if (!url || typeof url !== 'string') {
+      throw new Error('Invalid URL')
+    }
+
+    if (url.length > 2048) {
+      throw new Error('URL too long')
+    }
+
+    logIpcCall('tab:navigate', { url })
+    const response = await window.electronAPI?.tab?.navigate?.(url)
+
+    if (!response) {
+      throw new Error('No response from Main process')
+    }
+
+    if (!response.success) {
+      throw new Error(response.error || 'Failed to navigate')
+    }
+
+    logIpcResponse('tab:navigate', response)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('[IPC] Failed to navigate:', message)
+    throw new Error(`Navigation failed: ${message}`)
+  }
+}
+
+/**
+ * 뒤로 가기
+ */
+export async function goBack(): Promise<void> {
+  try {
+    const response = await window.electronAPI?.tab?.back?.()
+    if (!response?.success) {
+      throw new Error(response?.error || 'Failed to go back')
+    }
+  } catch (error) {
+    console.error('[IPC] Failed to go back:', error)
+  }
+}
+
+/**
+ * 앞으로 가기
+ */
+export async function goForward(): Promise<void> {
+  try {
+    const response = await window.electronAPI?.tab?.forward?.()
+    if (!response?.success) {
+      throw new Error(response?.error || 'Failed to go forward')
+    }
+  } catch (error) {
+    console.error('[IPC] Failed to go forward:', error)
+  }
+}
+
+/**
+ * 새로고침
+ */
+export async function reload(): Promise<void> {
+  try {
+    const response = await window.electronAPI?.tab?.reload?.()
+    if (!response?.success) {
+      throw new Error(response?.error || 'Failed to reload')
+    }
+  } catch (error) {
+    console.error('[IPC] Failed to reload:', error)
+  }
+}
+
+/**
  * Renderer ↔ Main 상태 동기화
  * 
  * Main 프로세스에서 'store:update' 이벤트가 오면

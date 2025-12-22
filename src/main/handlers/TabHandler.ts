@@ -109,5 +109,57 @@ export function setupTabHandlers(): void {
     }
   })
 
+  // tab:navigate - 현재 탭에서 URL 이동
+  ipcMain.handle('tab:navigate', async (_event, input: unknown) => {
+    try {
+      const { url } = validateOrThrow(TabCreateSchema, input)
+      logger.info('[TabHandler] tab:navigate requested', { url })
+      
+      await ViewManager.navigate(url)
+      
+      logger.info('[TabHandler] tab:navigate success', { url })
+      return { success: true }
+    } catch (error) {
+      logger.error('[TabHandler] tab:navigate failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // tab:back - 뒤로 가기
+  ipcMain.handle('tab:back', async () => {
+    try {
+      logger.info('[TabHandler] tab:back requested')
+      ViewManager.goBack()
+      return { success: true }
+    } catch (error) {
+      logger.error('[TabHandler] tab:back failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // tab:forward - 앞으로 가기
+  ipcMain.handle('tab:forward', async () => {
+    try {
+      logger.info('[TabHandler] tab:forward requested')
+      ViewManager.goForward()
+      return { success: true }
+    } catch (error) {
+      logger.error('[TabHandler] tab:forward failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // tab:reload - 새로고침
+  ipcMain.handle('tab:reload', async () => {
+    try {
+      logger.info('[TabHandler] tab:reload requested')
+      ViewManager.reload()
+      return { success: true }
+    } catch (error) {
+      logger.error('[TabHandler] tab:reload failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
   logger.info('[TabHandler] Handlers setup completed')
 }

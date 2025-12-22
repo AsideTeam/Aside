@@ -22,7 +22,7 @@ import { z } from 'zod'
  * 탭 정보 스키마
  */
 export const TabSchema = z.object({
-  id: z.string().regex(/^tab-[a-zA-Z0-9]+$/),
+  id: z.string().regex(/^tab-[a-zA-Z0-9-]+$/),
   url: z.string().url(),
   title: z.string(),
   isActive: z.boolean(),

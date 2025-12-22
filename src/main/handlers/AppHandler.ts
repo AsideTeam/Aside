@@ -15,6 +15,7 @@ import { ipcMain, app } from 'electron'
 import { logger } from '@main/utils/Logger'
 import { MainWindow } from '@main/core/Window'
 import { AppState } from '@main/managers/AppState'
+import { ViewManager } from '@main/managers/ViewManager'
 
 /**
  * 앱 제어 핸들러 등록
@@ -101,11 +102,22 @@ export function setupAppHandlers(): void {
     }
   })
 
-  // app:state - 앱 상태 조회
+  // app:state - 앱 상태 조회 (탭 정보 포함)
   ipcMain.handle('app:state', async () => {
     try {
       logger.info('[AppHandler] app:state requested')
-      const state = AppState.getState()
+      
+      // AppState + ViewManager 탭 정보를 합쳐서 반환
+      const appState = AppState.getState()
+      const tabs = ViewManager.getTabs()
+      const activeTabId = ViewManager.getActiveTabId()
+      
+      const state = {
+        ...appState,
+        tabs,
+        activeTabId,
+      }
+      
       return { success: true, state }
     } catch (error) {
       logger.error('[AppHandler] app:state failed:', error)

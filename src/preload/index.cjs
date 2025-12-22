@@ -49,6 +49,10 @@ const electronAPI = {
     switch: (tabId) => ipcRenderer.invoke('tab:switch', { tabId }),
     list: () => ipcRenderer.invoke('tab:list'),
     getActive: () => ipcRenderer.invoke('tab:active'),
+    navigate: (url) => ipcRenderer.invoke('tab:navigate', { url }),
+    back: () => ipcRenderer.invoke('tab:back'),
+    forward: () => ipcRenderer.invoke('tab:forward'),
+    reload: () => ipcRenderer.invoke('tab:reload'),
   },
 
   // ===== Main -> Renderer Events (safe wrapper) =====
@@ -92,6 +96,10 @@ const electronAPI = {
       'tab:switch',
       'tab:list',
       'tab:active',
+      'tab:navigate',
+      'tab:back',
+      'tab:forward',
+      'tab:reload',
     ]
 
     if (!allowedChannels.includes(channel)) {

@@ -68,7 +68,7 @@ export const TabCloseSchema = z.object({
     .string()
     .min(1, 'Tab ID cannot be empty')
     .max(64, 'Tab ID too long')
-    .regex(/^tab-[a-zA-Z0-9]+$/, 'Invalid Tab ID format'),
+    .regex(/^tab-[a-zA-Z0-9-]+$/, 'Invalid Tab ID format'),
 })
 
 export type TabCloseInput = z.infer<typeof TabCloseSchema>
@@ -78,7 +78,7 @@ export const TabSwitchSchema = z.object({
     .string()
     .min(1, 'Tab ID cannot be empty')
     .max(64, 'Tab ID too long')
-    .regex(/^tab-[a-zA-Z0-9]+$/, 'Invalid Tab ID format'),
+    .regex(/^tab-[a-zA-Z0-9-]+$/, 'Invalid Tab ID format'),
 })
 
 export type TabSwitchInput = z.infer<typeof TabSwitchSchema>

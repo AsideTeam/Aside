@@ -441,6 +441,7 @@ class ViewManager {
     tabData.isActive = true;
     this.layout();
     logger.info("[ViewManager] Tab switched", { tabId });
+    this.syncToRenderer();
   }
   /**
    * 탭 닫기
@@ -468,6 +469,7 @@ class ViewManager {
         }
       }
       logger.info("[ViewManager] Tab closed", { tabId });
+      this.syncToRenderer();
     } catch (error) {
       logger.error("[ViewManager] Tab close failed:", error);
     }
@@ -490,6 +492,61 @@ class ViewManager {
    */
   static getActiveTabId() {
     return this.activeTabId;
+  }
+  /**
+   * 현재 활성 탭에서 URL 이동
+   */
+  static async navigate(url) {
+    if (!this.activeTabId) {
+      logger.warn("[ViewManager] No active tab to navigate");
+      return;
+    }
+    const tabData = this.tabs.get(this.activeTabId);
+    if (!tabData) {
+      logger.warn("[ViewManager] Active tab not found");
+      return;
+    }
+    try {
+      await tabData.view.webContents.loadURL(url);
+      tabData.url = url;
+      logger.info("[ViewManager] Navigated", { tabId: this.activeTabId, url });
+    } catch (error) {
+      logger.error("[ViewManager] Navigate failed:", error);
+      throw error;
+    }
+  }
+  /**
+   * 뒤로 가기
+   */
+  static goBack() {
+    if (!this.activeTabId) return;
+    const tabData = this.tabs.get(this.activeTabId);
+    if (tabData?.view.webContents.canGoBack()) {
+      tabData.view.webContents.goBack();
+      logger.info("[ViewManager] Go back", { tabId: this.activeTabId });
+    }
+  }
+  /**
+   * 앞으로 가기
+   */
+  static goForward() {
+    if (!this.activeTabId) return;
+    const tabData = this.tabs.get(this.activeTabId);
+    if (tabData?.view.webContents.canGoForward()) {
+      tabData.view.webContents.goForward();
+      logger.info("[ViewManager] Go forward", { tabId: this.activeTabId });
+    }
+  }
+  /**
+   * 새로고침
+   */
+  static reload() {
+    if (!this.activeTabId) return;
+    const tabData = this.tabs.get(this.activeTabId);
+    if (tabData) {
+      tabData.view.webContents.reload();
+      logger.info("[ViewManager] Reload", { tabId: this.activeTabId });
+    }
   }
   /**
    * 모든 탭 정리 (앱 종료 시)
@@ -533,6 +590,24 @@ class ViewManager {
     }
   }
   /**
+   * Renderer 프로세스에 탭 상태 동기화
+   * 
+   * tabs:updated 이벤트를 Main Window의 webContents로 전송
+   */
+  static syncToRenderer() {
+    if (!this.mainWindow) return;
+    const state = {
+      tabs: this.getTabs(),
+      activeTabId: this.activeTabId
+    };
+    try {
+      this.mainWindow.webContents.send("tabs:updated", state);
+      logger.info("[ViewManager] Synced to renderer", { tabCount: state.tabs.length });
+    } catch (error) {
+      logger.error("[ViewManager] Failed to sync to renderer:", error);
+    }
+  }
+  /**
    * 탭 이벤트 설정
    *
    * @param tabId - 탭 ID
@@ -544,6 +619,7 @@ class ViewManager {
       if (tabData) {
         tabData.title = title;
         logger.info("[ViewManager] Tab title updated", { tabId, title });
+        this.syncToRenderer();
       }
     });
     view.webContents.on("did-navigate", (_event, url) => {
@@ -551,6 +627,14 @@ class ViewManager {
       if (tabData) {
         tabData.url = url;
         logger.info("[ViewManager] Tab URL changed", { tabId, url });
+        this.syncToRenderer();
+      }
+    });
+    view.webContents.on("did-navigate-in-page", (_event, url) => {
+      const tabData = this.tabs.get(tabId);
+      if (tabData) {
+        tabData.url = url;
+        this.syncToRenderer();
       }
     });
     logger.info("[ViewManager] Tab event listeners attached", { tabId });
@@ -917,14 +1001,10 @@ class AppLifecycle {
     throw new Error("AppLifecycle is a singleton. Do not instantiate.");
   }
 }
+const CHROME_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 class SessionManager {
   /**
    * Session 초기 설정
-   *
-   * 프로세스:
-   * 1. CSP 정책 설정
-   * 2. 권한 핸들러 등록
-   * 3. 특정 프로토콜 차단
    */
   static setup() {
     logger.info("[SessionManager] Setting up session...");
@@ -933,27 +1013,17 @@ class SessionManager {
       if (!defaultSession) {
         throw new Error("[SessionManager] Default session not available");
       }
-      defaultSession.webRequest.onHeadersReceived((details, callback) => {
-        callback({
-          responseHeaders: {
-            ...details.responseHeaders,
-            "Content-Security-Policy": [
-              "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-            ]
-          }
-        });
-      });
+      defaultSession.setUserAgent(CHROME_USER_AGENT);
+      logger.info("[SessionManager] User-Agent set to Chrome");
       defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
         logger.info("[SessionManager] Permission request", { permission });
         const allowedPermissions = [
-          // 'camera',
-          // 'microphone',
+          "clipboard-read",
+          "clipboard-sanitized-write",
+          "geolocation",
+          "notifications"
         ];
-        if (allowedPermissions.includes(permission)) {
-          callback(true);
-        } else {
-          callback(false);
-        }
+        callback(allowedPermissions.includes(permission));
       });
       logger.info("[SessionManager] Session setup completed");
     } catch (error) {
@@ -1114,7 +1184,14 @@ function setupAppHandlers() {
   ipcMain.handle("app:state", async () => {
     try {
       logger.info("[AppHandler] app:state requested");
-      const state = AppState.getState();
+      const appState = AppState.getState();
+      const tabs = ViewManager.getTabs();
+      const activeTabId = ViewManager.getActiveTabId();
+      const state = {
+        ...appState,
+        tabs,
+        activeTabId
+      };
       return { success: true, state };
     } catch (error) {
       logger.error("[AppHandler] app:state failed:", error);
@@ -1217,6 +1294,48 @@ function setupTabHandlers() {
       return { success: true, tabId };
     } catch (error) {
       logger.error("[TabHandler] tab:active failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  ipcMain.handle("tab:navigate", async (_event, input) => {
+    try {
+      const { url } = validateOrThrow(TabCreateSchema, input);
+      logger.info("[TabHandler] tab:navigate requested", { url });
+      await ViewManager.navigate(url);
+      logger.info("[TabHandler] tab:navigate success", { url });
+      return { success: true };
+    } catch (error) {
+      logger.error("[TabHandler] tab:navigate failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  ipcMain.handle("tab:back", async () => {
+    try {
+      logger.info("[TabHandler] tab:back requested");
+      ViewManager.goBack();
+      return { success: true };
+    } catch (error) {
+      logger.error("[TabHandler] tab:back failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  ipcMain.handle("tab:forward", async () => {
+    try {
+      logger.info("[TabHandler] tab:forward requested");
+      ViewManager.goForward();
+      return { success: true };
+    } catch (error) {
+      logger.error("[TabHandler] tab:forward failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  ipcMain.handle("tab:reload", async () => {
+    try {
+      logger.info("[TabHandler] tab:reload requested");
+      ViewManager.reload();
+      return { success: true };
+    } catch (error) {
+      logger.error("[TabHandler] tab:reload failed:", error);
       return { success: false, error: String(error) };
     }
   });

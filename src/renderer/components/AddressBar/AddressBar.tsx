@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react'
-import { ArrowLeft, ArrowRight, RotateCw, Search, Lock } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCw, X, Search, Lock } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
-import { createTab } from '../../lib/ipc-client'
+import { navigate, goBack, goForward, reload } from '../../lib/ipc-client'
 
 /**
  * 주소창 - 크롬 스타일
@@ -37,9 +37,40 @@ export function AddressBar() {
 
     setLoading(true)
     try {
-      await createTab(normalizedUrl)
+      await navigate(normalizedUrl)
     } catch (error) {
       console.error('Failed to navigate:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleBack = async () => {
+    try {
+      await goBack()
+    } catch (error) {
+      console.error('Failed to go back:', error)
+    }
+  }
+
+  const handleForward = async () => {
+    try {
+      await goForward()
+    } catch (error) {
+      console.error('Failed to go forward:', error)
+    }
+  }
+
+  const handleReload = async () => {
+    if (loading) {
+      // 로딩 중이면 중지 (실제 구현 필요)
+      return
+    }
+    try {
+      setLoading(true)
+      await reload()
+    } catch (error) {
+      console.error('Failed to reload:', error)
     } finally {
       setLoading(false)
     }
@@ -67,6 +98,7 @@ export function AddressBar() {
       <div className="flex items-center">
         <button
           type="button"
+          onClick={handleBack}
           disabled={loading}
           className="p-2 text-[#9aa0a6] hover:bg-[#4a4b4f] rounded-full transition-colors disabled:opacity-40"
           title="뒤로"
@@ -76,6 +108,7 @@ export function AddressBar() {
 
         <button
           type="button"
+          onClick={handleForward}
           disabled={loading}
           className="p-2 text-[#9aa0a6] hover:bg-[#4a4b4f] rounded-full transition-colors disabled:opacity-40"
           title="앞으로"
@@ -85,11 +118,15 @@ export function AddressBar() {
 
         <button
           type="button"
-          disabled={loading}
+          onClick={handleReload}
           className="p-2 text-[#9aa0a6] hover:bg-[#4a4b4f] rounded-full transition-colors disabled:opacity-40"
-          title="새로고침"
+          title={loading ? '중지' : '새로고침'}
         >
-          <RotateCw size={18} className={loading ? 'animate-spin' : ''} />
+          {loading ? (
+            <X size={18} />
+          ) : (
+            <RotateCw size={18} />
+          )}
         </button>
       </div>
 
