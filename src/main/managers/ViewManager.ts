@@ -252,6 +252,7 @@ export class ViewManager {
 
   /**
    * 현재 활성 탭에서 URL 이동
+   * about: 스키마 처리 (React 컴포넌트로 렌더링)
    */
   static async navigate(url: string): Promise<void> {
     if (!this.activeTabId) {
@@ -266,9 +267,32 @@ export class ViewManager {
     }
 
     try {
+      // about: 스키마 처리 (React 컴포넌트에서 렌더링)
+      if (url.startsWith('about:')) {
+        const aboutPage = url.replace('about:', '')
+        
+        // 지원하는 내부 페이지 목록
+        switch (aboutPage) {
+          case 'preferences':
+          case 'settings':
+            // about: 페이지는 React에서 처리하므로 URL만 업데이트
+            tabData.url = url
+            tabData.title = 'Settings'
+            logger.info('[ViewManager] Navigating to settings page', { tabId: this.activeTabId })
+            this.syncToRenderer()
+            return
+          
+          default:
+            logger.warn('[ViewManager] Unknown about page:', { page: aboutPage })
+            return
+        }
+      }
+
+      // 일반 URL 로드
       await tabData.view.webContents.loadURL(url)
       tabData.url = url
       logger.info('[ViewManager] Navigated', { tabId: this.activeTabId, url })
+      this.syncToRenderer()
     } catch (error) {
       logger.error('[ViewManager] Navigate failed:', error)
       throw error

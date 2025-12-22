@@ -1,5 +1,5 @@
 {
-  "name": "aside-lite-zen-browser",
+  "name": "aside",
   "version": "0.1.0",
   "description": "Lightweight, Zen-style Electron browser with WebContentsView architecture",
   "type": "module",
@@ -53,6 +53,7 @@
     "@prisma/client": "^7.2.0",
     "better-sqlite3": "^12.5.0",
     "clsx": "^2.1.1",
+    "electron-store": "^11.0.2",
     "lucide-react": "^0.424.0",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.2.1"

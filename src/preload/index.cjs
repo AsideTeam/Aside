@@ -55,6 +55,12 @@ const electronAPI = {
     reload: () => ipcRenderer.invoke('tab:reload'),
   },
 
+  // ===== Settings Management =====
+  settings: {
+    getSettings: () => ipcRenderer.invoke('settings:get-all'),
+    updateSetting: (key, value) => ipcRenderer.invoke('settings:update', key, value),
+  },
+
   // ===== Main -> Renderer Events (safe wrapper) =====
   on: (channel, listener) => {
     if (!allowedEventChannels.includes(channel)) {
@@ -100,6 +106,11 @@ const electronAPI = {
       'tab:back',
       'tab:forward',
       'tab:reload',
+      'settings:get-all',
+      'settings:get',
+      'settings:update',
+      'settings:update-multiple',
+      'settings:reset',
     ]
 
     if (!allowedChannels.includes(channel)) {

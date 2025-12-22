@@ -29,6 +29,11 @@ export interface ElectronAPITab {
   reload: () => Promise<{ success: boolean; error?: string }>
 }
 
+export interface ElectronAPISettings {
+  getSettings: () => Promise<Record<string, any>>
+  updateSetting: (key: string, value: any) => Promise<boolean>
+}
+
 export interface ElectronAPIEvents {
   on: (channel: string, listener: (data: unknown) => void) => void
   off: (channel: string, listener: (data: unknown) => void) => void
@@ -53,6 +58,7 @@ export interface ElectronAPI extends ElectronAPIEvents {
   app: ElectronAPIApp
   window: ElectronAPIWindow
   tab: ElectronAPITab
+  settings: ElectronAPISettings
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
 }
 

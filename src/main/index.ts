@@ -19,6 +19,9 @@ import { SessionManager } from '@main/core/Session'
 import { UpdateService } from '@main/services/Update'
 import { setupIPCHandlers, removeAllIPCHandlers } from '@main/handlers'
 
+// 앱 이름 설정 (userData 경로에 영향을 줌)
+app.name = 'aside'
+
 // 싱글 인스턴스 잠금 (두 번 실행 방지)
 const gotTheLock = app.requestSingleInstanceLock()
 

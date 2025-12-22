@@ -27,6 +27,21 @@ export function AddressBar() {
     if (!url.trim() || loading) return
 
     let normalizedUrl = url.trim()
+
+    // about: 스키마는 그대로 통과
+    if (normalizedUrl.startsWith('about:')) {
+      setLoading(true)
+      try {
+        await navigate(normalizedUrl)
+      } catch (error) {
+        console.error('Failed to navigate:', error)
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
+    // 일반 URL 정규화
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
       if (!normalizedUrl.includes('.')) {
         normalizedUrl = `https://www.google.com/search?q=${encodeURIComponent(normalizedUrl)}`

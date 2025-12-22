@@ -14,6 +14,7 @@ import { ipcMain } from 'electron'
 import { logger } from '@main/utils/Logger'
 import { setupAppHandlers } from './AppHandler'
 import { setupTabHandlers } from './TabHandler'
+import { setupSettingsHandlers } from './SettingsHandler'
 
 /**
  * 모든 IPC 핸들러 등록
@@ -29,6 +30,10 @@ export function setupIPCHandlers(): void {
     // Step 2: 탭 핸들러 등록
     setupTabHandlers()
     logger.info('[IPC] Tab handlers registered')
+
+    // Step 3: 설정 핸들러 등록
+    setupSettingsHandlers()
+    logger.info('[IPC] Settings handlers registered')
 
     logger.info('[IPC] All handlers setup completed')
   } catch (error) {

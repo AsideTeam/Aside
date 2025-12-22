@@ -4,6 +4,7 @@ import { join, dirname } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { z } from "zod";
+import Store from "electron-store";
 import __cjs_mod__ from "node:module";
 const __filename = import.meta.filename;
 const __dirname = import.meta.dirname;
@@ -496,6 +497,7 @@ class ViewManager {
   }
   /**
    * 현재 활성 탭에서 URL 이동
+   * about: 스키마 처리 (React 컴포넌트로 렌더링)
    */
   static async navigate(url) {
     if (!this.activeTabId) {
@@ -508,9 +510,25 @@ class ViewManager {
       return;
     }
     try {
+      if (url.startsWith("about:")) {
+        const aboutPage = url.replace("about:", "");
+        switch (aboutPage) {
+          case "preferences":
+          case "settings":
+            tabData.url = url;
+            tabData.title = "Settings";
+            logger.info("[ViewManager] Navigating to settings page", { tabId: this.activeTabId });
+            this.syncToRenderer();
+            return;
+          default:
+            logger.warn("[ViewManager] Unknown about page:", { page: aboutPage });
+            return;
+        }
+      }
       await tabData.view.webContents.loadURL(url);
       tabData.url = url;
       logger.info("[ViewManager] Navigated", { tabId: this.activeTabId, url });
+      this.syncToRenderer();
     } catch (error) {
       logger.error("[ViewManager] Navigate failed:", error);
       throw error;
@@ -1342,6 +1360,75 @@ function setupTabHandlers() {
   });
   logger.info("[TabHandler] Handlers setup completed");
 }
+const store = new Store({
+  defaults: {
+    theme: "dark",
+    searchEngine: "google",
+    homepage: "https://www.google.com",
+    showHomeButton: true,
+    showBookmarksBar: false,
+    fontSize: "medium",
+    pageZoom: "100",
+    blockThirdPartyCookies: true,
+    continueSession: true
+  }
+});
+function setupSettingsHandlers() {
+  logger.info("[IPC] Registering settings handlers...");
+  ipcMain.handle("settings:get-all", async () => {
+    try {
+      const settings = store.store;
+      logger.info("[IPC] Settings retrieved", { keys: Object.keys(settings) });
+      return settings;
+    } catch (error) {
+      logger.error("[IPC] Failed to get settings:", error);
+      throw error;
+    }
+  });
+  ipcMain.handle("settings:get", async (event, key) => {
+    try {
+      const value = store.get(key);
+      logger.info("[IPC] Setting retrieved", { key, value });
+      return value;
+    } catch (error) {
+      logger.error("[IPC] Failed to get setting:", { key }, error);
+      throw error;
+    }
+  });
+  ipcMain.handle("settings:update", async (event, key, value) => {
+    try {
+      store.set(key, value);
+      logger.info("[IPC] Setting updated", { key, value });
+      return true;
+    } catch (error) {
+      logger.error("[IPC] Failed to update setting:", { key, value }, error);
+      throw error;
+    }
+  });
+  ipcMain.handle("settings:update-multiple", async (event, updates) => {
+    try {
+      Object.entries(updates).forEach(([key, value]) => {
+        store.set(key, value);
+      });
+      logger.info("[IPC] Multiple settings updated", { count: Object.keys(updates).length });
+      return true;
+    } catch (error) {
+      logger.error("[IPC] Failed to update multiple settings:", error);
+      throw error;
+    }
+  });
+  ipcMain.handle("settings:reset", async () => {
+    try {
+      store.clear();
+      logger.info("[IPC] Settings reset to defaults");
+      return true;
+    } catch (error) {
+      logger.error("[IPC] Failed to reset settings:", error);
+      throw error;
+    }
+  });
+  logger.info("[IPC] Settings handlers registered");
+}
 function setupIPCHandlers() {
   logger.info("[IPC] Setting up all handlers...");
   try {
@@ -1349,6 +1436,8 @@ function setupIPCHandlers() {
     logger.info("[IPC] App handlers registered");
     setupTabHandlers();
     logger.info("[IPC] Tab handlers registered");
+    setupSettingsHandlers();
+    logger.info("[IPC] Settings handlers registered");
     logger.info("[IPC] All handlers setup completed");
   } catch (error) {
     logger.error("[IPC] Handler setup failed:", error);
@@ -1364,6 +1453,7 @@ function removeAllIPCHandlers() {
     logger.error("[IPC] Handler removal failed:", error);
   }
 }
+app.name = "aside";
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   logger.warn("[Main] App already running. Exiting.");
