@@ -1,4 +1,3 @@
-import React from 'react'
 import { TitleBar } from '../components/TitleBar'
 import { TabBar } from '../components/TabBar'
 import { AddressBar } from '../components/AddressBar'

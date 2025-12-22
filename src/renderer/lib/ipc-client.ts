@@ -1,4 +1,5 @@
 import { useAppStore } from '../store/appStore'
+import { logIpcCall, logIpcResponse, logIpcError, logStateSync } from '../utils/logger'
 
 /**
  * IPC 호출 래퍼 + 에러 처리 + 유효성 검사
@@ -23,6 +24,7 @@ export async function createTab(url: string): Promise<string> {
     }
 
     // Main 프로세스로 IPC 호출 (Zod 검증됨)
+    logIpcCall('tab:create', { url })
     const response = await window.electronAPI?.tab?.create?.(url)
 
     if (!response) {
@@ -30,10 +32,12 @@ export async function createTab(url: string): Promise<string> {
     }
 
     if (!response.success) {
+      logIpcError('tab:create', new Error(response.error || 'Failed to create tab'))
       throw new Error(response.error || 'Failed to create tab')
     }
 
-    return response.tabId || ''
+    logIpcResponse('tab:create', response)
+    return response.data?.tabId || ''
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[IPC] Failed to create tab:', message)
@@ -97,7 +101,7 @@ export async function getAppState() {
       throw new Error(response.error || 'Failed to get app state')
     }
 
-    return response.state || {}
+    return response.data?.state || {}
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[IPC] Failed to get app state:', message)
@@ -115,14 +119,17 @@ export function syncAppStore(data: any) {
   try {
     if (!data) return
 
-    const { tabs, activeTabId, windowState } = data
+    const { tabs, activeTabId } = data
 
-    useAppStore.setState({
+    const updates = {
       tabs: tabs || useAppStore.getState().tabs,
       activeTabId: activeTabId !== undefined ? activeTabId : useAppStore.getState().activeTabId,
-      windowState: windowState || useAppStore.getState().windowState,
-    })
+    }
+
+    logStateSync(updates)
+    useAppStore.setState(updates)
   } catch (error) {
-    console.error('[Store] Failed to sync app store:', error)
+    const message = error instanceof Error ? error.message : String(error)
+    logIpcError('store:sync', new Error(message))
   }
 }

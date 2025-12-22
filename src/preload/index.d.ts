@@ -5,24 +5,41 @@
  * src/types/global.d.ts와 연동
  */
 
+export interface IpcResponse<T = {}> {
+  success: boolean
+  error?: string
+  data?: T
+}
+
 export interface ElectronAPIApp {
-  quit: () => Promise<{ success: boolean }>
-  restart: () => Promise<{ success: boolean }>
-  getState: () => Promise<{ success: boolean; state: AppState }>
+  quit: () => Promise<IpcResponse>
+  restart: () => Promise<IpcResponse>
+  getState: () => Promise<IpcResponse<{ state: AppState }>>
 }
 
 export interface ElectronAPIWindow {
-  minimize: () => Promise<{ success: boolean }>
-  maximize: () => Promise<{ success: boolean }>
-  close: () => Promise<{ success: boolean }>
+  minimize: () => Promise<IpcResponse>
+  maximize: () => Promise<IpcResponse>
+  close: () => Promise<IpcResponse>
 }
 
 export interface ElectronAPITab {
-  create: (url: string) => Promise<{ success: boolean; tabId?: string }>
-  close: (tabId: string) => Promise<{ success: boolean }>
-  switch: (tabId: string) => Promise<{ success: boolean }>
-  list: () => Promise<{ success: boolean; tabs?: TabInfo[] }>
-  getActive: () => Promise<{ success: boolean; tabId?: string }>
+  create: (url: string) => Promise<IpcResponse<{ tabId: string }>>
+  close: (tabId: string) => Promise<IpcResponse>
+  switch: (tabId: string) => Promise<IpcResponse>
+  list: () => Promise<IpcResponse<{ tabs: TabInfo[] }>>
+  getActive: () => Promise<IpcResponse<{ tabId: string }>>
+}
+
+export interface ElectronAPIDevTools {
+  open: () => Promise<void>
+  close: () => Promise<void>
+}
+
+export interface ElectronAPIEvents {
+  on: (channel: string, listener: (data: any) => void) => void
+  off: (channel: string, listener: (data: any) => void) => void
+  once: (channel: string, listener: (data: any) => void) => void
 }
 
 export interface AppState {
@@ -39,10 +56,11 @@ export interface TabInfo {
   isActive: boolean
 }
 
-export interface ElectronAPI {
+export interface ElectronAPI extends ElectronAPIEvents {
   app: ElectronAPIApp
   window: ElectronAPIWindow
   tab: ElectronAPITab
+  devtools: ElectronAPIDevTools
   invoke: (channel: string, ...args: any[]) => Promise<any>
 }
 

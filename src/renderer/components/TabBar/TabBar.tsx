@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { X, ChevronLeft, ChevronRight, RotateCw } from 'lucide-react'
+import { useState } from 'react'
+import { X } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { createTab, closeTab, switchTab } from '../../lib/ipc-client'
 

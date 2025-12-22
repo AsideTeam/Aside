@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { ArrowLeft, ArrowRight, RotateCw, Search } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { createTab } from '../../lib/ipc-client'

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, WebContentsView, session, ipcMain } from "electron";
 import { existsSync, mkdirSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
+import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import __cjs_mod__ from "node:module";
 const __filename = import.meta.filename;
@@ -609,6 +610,91 @@ class UpdateService {
     logger.info("[UpdateService] Update service stopped");
   }
 }
+const RETRY_CONFIG = {
+  maxAttempts: 5,
+  initialDelayMs: 1e3,
+  maxDelayMs: 8e3,
+  backoffMultiplier: 2
+};
+let prismaInstance = null;
+let isConnecting = false;
+let connectionAttempt = 0;
+function calculateBackoffDelay(attempt) {
+  const delay2 = RETRY_CONFIG.initialDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt - 1);
+  return Math.min(delay2, RETRY_CONFIG.maxDelayMs);
+}
+function delay(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+async function connectWithRetry() {
+  if (prismaInstance) {
+    logger.info("[Database] Using existing connection");
+    return prismaInstance;
+  }
+  if (isConnecting) {
+    logger.warn("[Database] Connection in progress, waiting...");
+    let attempts = 0;
+    while (isConnecting && attempts < 30) {
+      await delay(100);
+      attempts++;
+    }
+    if (prismaInstance) return prismaInstance;
+  }
+  isConnecting = true;
+  connectionAttempt = 0;
+  try {
+    while (connectionAttempt < RETRY_CONFIG.maxAttempts) {
+      connectionAttempt++;
+      try {
+        logger.info("[Database] Connection attempt", {
+          attempt: connectionAttempt,
+          maxAttempts: RETRY_CONFIG.maxAttempts
+        });
+        prismaInstance = new PrismaClient({
+          log: ["warn", "error"]
+        });
+        await prismaInstance.$queryRaw`SELECT 1`;
+        logger.info("[Database] Connection successful");
+        return prismaInstance;
+      } catch (error) {
+        logger.error("[Database] Connection failed", error);
+        if (prismaInstance) {
+          await prismaInstance.$disconnect().catch(() => {
+          });
+          prismaInstance = null;
+        }
+        if (connectionAttempt >= RETRY_CONFIG.maxAttempts) {
+          throw new Error(
+            `[Database] Failed to connect after ${connectionAttempt} attempts`
+          );
+        }
+        const backoffDelay = calculateBackoffDelay(connectionAttempt);
+        logger.info("[Database] Retrying", {
+          attempt: connectionAttempt,
+          delayMs: backoffDelay
+        });
+        await delay(backoffDelay);
+      }
+    }
+    throw new Error("[Database] Connection exhausted all retries");
+  } finally {
+    isConnecting = false;
+  }
+}
+async function disconnectWithCleanup() {
+  try {
+    if (prismaInstance) {
+      logger.info("[Database] Disconnecting...");
+      await prismaInstance.$disconnect();
+      prismaInstance = null;
+      connectionAttempt = 0;
+      logger.info("[Database] Disconnected");
+    }
+  } catch (error) {
+    logger.error("[Database] Disconnect failed:", error);
+    prismaInstance = null;
+  }
+}
 class AppLifecycle {
   static state = "idle";
   /**
@@ -645,6 +731,8 @@ class AppLifecycle {
       logger.info("Step 2/8: Verifying paths");
       Paths.printAll();
       logger.info("Step 3/8: Logger ready");
+      logger.info("Step 4/8: Connecting to database...");
+      await connectWithRetry();
       logger.info("Step 4/8: Database connected");
       logger.info("Step 5/8: Initializing ViewManager");
       const mainWindow = await MainWindow.create();
@@ -681,6 +769,8 @@ class AppLifecycle {
       logger.info("[AppLifecycle] Step 1/4: ViewManager destroyed");
       logger.info("[AppLifecycle] Step 1/4: Destroying ViewManager");
       UpdateService.cleanup();
+      logger.info("[AppLifecycle] Step 2/4: Services cleaned up");
+      await disconnectWithCleanup();
       logger.info("[AppLifecycle] Step 3/4: Database disconnected");
       logger.info("[AppLifecycle] Step 4/4: Logger flushed");
       this.state = "shutdown";

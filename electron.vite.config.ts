@@ -31,21 +31,25 @@ export default defineConfig({
     }
   },
   renderer: {
+    root: 'src/renderer',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@app': resolve(__dirname, 'src/renderer/src/app'),
-        '@renderer': resolve(__dirname, 'src/renderer/src'),
-        '@shared': resolve(__dirname, 'src/shared'),
-        '@components': resolve(__dirname, 'src/renderer/src/components'),
-        '@lib': resolve(__dirname, 'src/renderer/src/lib'),
-        '@store': resolve(__dirname, 'src/renderer/src/store'),
-        '@styles': resolve(__dirname, 'src/renderer/src/styles'),
-        '@hooks': resolve(__dirname, 'src/renderer/src/hooks')
+        '@app': resolve(__dirname, 'src/renderer/app'),
+        '@components': resolve(__dirname, 'src/renderer/components'),
+        '@hooks': resolve(__dirname, 'src/renderer/hooks'),
+        '@lib': resolve(__dirname, 'src/renderer/lib'),
+        '@store': resolve(__dirname, 'src/renderer/store'),
+        '@styles': resolve(__dirname, 'src/renderer/styles'),
+        '@utils': resolve(__dirname, 'src/renderer/utils'),
+        '@shared': resolve(__dirname, 'src/shared')
       }
     },
     build: {
-      outDir: resolve(__dirname, 'dist-renderer')
+      outDir: resolve(__dirname, 'dist-renderer'),
+      rollupOptions: {
+        input: resolve(__dirname, 'src/renderer/index.html')
+      }
     }
   }
 })

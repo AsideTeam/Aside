@@ -1,5 +1,4 @@
 import React from 'react'
-import { useAppStore } from '../../store/appStore'
 
 /**
  * 타이틀바 (커스텀 OS 윈도우 제어)

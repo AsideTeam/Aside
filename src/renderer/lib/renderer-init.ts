@@ -8,7 +8,6 @@
  * 4. 개발자 도구 진입점
  */
 
-import { useAppStore } from '../store/appStore'
 import { syncAppStore, getAppState } from '../lib/ipc-client'
 
 /**
