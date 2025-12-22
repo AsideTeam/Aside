@@ -5,41 +5,30 @@
  * src/types/global.d.ts와 연동
  */
 
-export interface IpcResponse<T = {}> {
-  success: boolean
-  error?: string
-  data?: T
-}
-
 export interface ElectronAPIApp {
-  quit: () => Promise<IpcResponse>
-  restart: () => Promise<IpcResponse>
-  getState: () => Promise<IpcResponse<{ state: AppState }>>
+  quit: () => Promise<{ success: boolean; error?: string }>
+  restart: () => Promise<{ success: boolean; error?: string }>
+  getState: () => Promise<{ success: boolean; state?: AppState; error?: string }>
 }
 
 export interface ElectronAPIWindow {
-  minimize: () => Promise<IpcResponse>
-  maximize: () => Promise<IpcResponse>
-  close: () => Promise<IpcResponse>
+  minimize: () => Promise<{ success: boolean; error?: string }>
+  maximize: () => Promise<{ success: boolean; error?: string }>
+  close: () => Promise<{ success: boolean; error?: string }>
 }
 
 export interface ElectronAPITab {
-  create: (url: string) => Promise<IpcResponse<{ tabId: string }>>
-  close: (tabId: string) => Promise<IpcResponse>
-  switch: (tabId: string) => Promise<IpcResponse>
-  list: () => Promise<IpcResponse<{ tabs: TabInfo[] }>>
-  getActive: () => Promise<IpcResponse<{ tabId: string }>>
-}
-
-export interface ElectronAPIDevTools {
-  open: () => Promise<void>
-  close: () => Promise<void>
+  create: (url: string) => Promise<{ success: boolean; tabId?: string; error?: string }>
+  close: (tabId: string) => Promise<{ success: boolean; error?: string }>
+  switch: (tabId: string) => Promise<{ success: boolean; error?: string }>
+  list: () => Promise<{ success: boolean; tabs?: TabInfo[]; error?: string }>
+  getActive: () => Promise<{ success: boolean; tabId?: string; error?: string }>
 }
 
 export interface ElectronAPIEvents {
-  on: (channel: string, listener: (data: any) => void) => void
-  off: (channel: string, listener: (data: any) => void) => void
-  once: (channel: string, listener: (data: any) => void) => void
+  on: (channel: string, listener: (data: unknown) => void) => void
+  off: (channel: string, listener: (data: unknown) => void) => void
+  once: (channel: string, listener: (data: unknown) => void) => void
 }
 
 export interface AppState {
@@ -60,8 +49,7 @@ export interface ElectronAPI extends ElectronAPIEvents {
   app: ElectronAPIApp
   window: ElectronAPIWindow
   tab: ElectronAPITab
-  devtools: ElectronAPIDevTools
-  invoke: (channel: string, ...args: any[]) => Promise<any>
+  invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
 }
 
 declare global {

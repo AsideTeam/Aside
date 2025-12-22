@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { ArrowLeft, ArrowRight, RotateCw, Search } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { createTab } from '../../lib/ipc-client'
@@ -26,7 +26,7 @@ export function AddressBar() {
     }
   }, [activeTab?.id, activeTab?.url])
 
-  const handleNavigate = async (e: React.FormEvent) => {
+  const handleNavigate = async (e: FormEvent) => {
     e.preventDefault()
 
     if (!url.trim()) return

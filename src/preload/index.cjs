@@ -15,6 +15,13 @@
 
 const { contextBridge, ipcRenderer } = require('electron')
 
+const allowedEventChannels = [
+  // Main -> Renderer broadcast channels (to be implemented in Main)
+  'tabs:updated',
+  'nav:state-changed',
+  'app:ready',
+]
+
 /**
  * ElectronAPI: Renderer에서 접근 가능한 IPC 메서드들
  * - window.electronAPI를 통해 노출됨
@@ -42,6 +49,26 @@ const electronAPI = {
     switch: (tabId) => ipcRenderer.invoke('tab:switch', { tabId }),
     list: () => ipcRenderer.invoke('tab:list'),
     getActive: () => ipcRenderer.invoke('tab:active'),
+  },
+
+  // ===== Main -> Renderer Events (safe wrapper) =====
+  on: (channel, listener) => {
+    if (!allowedEventChannels.includes(channel)) {
+      throw new Error(`Event channel '${channel}' is not allowed`)
+    }
+    ipcRenderer.on(channel, (_event, data) => listener(data))
+  },
+  once: (channel, listener) => {
+    if (!allowedEventChannels.includes(channel)) {
+      throw new Error(`Event channel '${channel}' is not allowed`)
+    }
+    ipcRenderer.once(channel, (_event, data) => listener(data))
+  },
+  off: (channel, listener) => {
+    if (!allowedEventChannels.includes(channel)) {
+      throw new Error(`Event channel '${channel}' is not allowed`)
+    }
+    ipcRenderer.removeListener(channel, listener)
   },
 
   // ===== Utility Functions =====

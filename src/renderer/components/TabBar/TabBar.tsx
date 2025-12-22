@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { X } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { createTab, closeTab, switchTab } from '../../lib/ipc-client'
@@ -25,7 +25,7 @@ export function TabBar() {
     }
   }
 
-  const handleTabClose = async (e: React.MouseEvent, tabId: string) => {
+  const handleTabClose = async (e: MouseEvent, tabId: string) => {
     e.stopPropagation()
     setLoading(true)
     try {

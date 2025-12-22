@@ -22,15 +22,11 @@ export async function initializeRenderer() {
 
     // 1. Main → Renderer 상태 동기화 리스너
     if (window.electronAPI?.on) {
-      window.electronAPI.on('store:update', (data: any) => {
-        console.log('[Renderer] Received store:update:', data)
+      // NOTE: Main에서 실제로 emit하는 이벤트 채널과 맞춰야 동작함.
+      // 현재는 안전한 훅만 걸어두고, 이벤트는 Phase 2B에서 Main에 추가.
+      window.electronAPI.on('tabs:updated', (data: any) => {
+        console.log('[Renderer] Received tabs:updated:', data)
         syncAppStore(data)
-      })
-
-      // 앱 종료 전 정리
-      window.electronAPI.on('app:will-quit', () => {
-        console.log('[Renderer] App will quit')
-        // 미저장 상태 저장 등 정리 작업
       })
     }
 
@@ -56,14 +52,5 @@ export async function initializeRenderer() {
   } catch (error) {
     console.error('[Renderer] Initialization failed:', error)
     throw error
-  }
-}
-
-/**
- * 개발 환경에서 DevTools 진입점
- */
-export function openDevTools() {
-  if (process.env.NODE_ENV === 'development') {
-    window.electronAPI?.devtools?.open?.()
   }
 }

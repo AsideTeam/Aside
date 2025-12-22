@@ -1,5 +1,5 @@
 import { useAppStore } from '../store/appStore'
-import { logIpcCall, logIpcResponse, logIpcError, logStateSync } from '../utils/logger'
+import { logIpcCall, logIpcError, logIpcResponse, logStateSync } from '../utils/logger'
 
 /**
  * IPC 호출 래퍼 + 에러 처리 + 유효성 검사
@@ -37,7 +37,7 @@ export async function createTab(url: string): Promise<string> {
     }
 
     logIpcResponse('tab:create', response)
-    return response.data?.tabId || ''
+    return response.tabId || ''
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[IPC] Failed to create tab:', message)
@@ -101,7 +101,7 @@ export async function getAppState() {
       throw new Error(response.error || 'Failed to get app state')
     }
 
-    return response.data?.state || {}
+    return response.state || {}
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[IPC] Failed to get app state:', message)
@@ -115,15 +115,15 @@ export async function getAppState() {
  * Main 프로세스에서 'store:update' 이벤트가 오면
  * Zustand 스토어를 업데이트함
  */
-export function syncAppStore(data: any) {
+export function syncAppStore(data: unknown) {
   try {
     if (!data) return
 
-    const { tabs, activeTabId } = data
+    const { tabs, activeTabId } = data as { tabs?: unknown; activeTabId?: unknown }
 
     const updates = {
-      tabs: tabs || useAppStore.getState().tabs,
-      activeTabId: activeTabId !== undefined ? activeTabId : useAppStore.getState().activeTabId,
+      tabs: Array.isArray(tabs) ? tabs : useAppStore.getState().tabs,
+      activeTabId: typeof activeTabId === 'string' ? activeTabId : useAppStore.getState().activeTabId,
     }
 
     logStateSync(updates)
