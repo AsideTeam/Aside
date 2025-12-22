@@ -58,26 +58,32 @@ export class MainWindow {
     try {
       logger.info('[MainWindow] Creating main window...')
 
-      // Step 1: 디스플레이 정보 가져오기
+      // Step 1: 디스플레이 정보 가져오기 (dock/메뉴바 제외 영역)
       const { width, height } = screen.getPrimaryDisplay().workAreaSize
 
-      // Step 1: BrowserWindow 인스턴스 생성
+      // Step 2: BrowserWindow 인스턴스 생성
       this.window = new BrowserWindow({
-        // 전체 화면 (dock/메뉴바 제외)
         width,
         height,
-        x: 0,
-        y: 0,
+        minWidth: 800,
+        minHeight: 600,
+        
+        // 네이티브 타이틀바 사용 (macOS 신호등 버튼)
+        titleBarStyle: 'hiddenInset',
+        trafficLightPosition: { x: 12, y: 12 },
 
         // preload 스크립트 (IPC 통신용)
         webPreferences: {
-          preload: join(__dirname, '../../preload/index.cjs'),
+          preload: join(__dirname, '../preload/index.cjs'),
           contextIsolation: true, // 보안: 메인 ↔ 렌더러 격리
           sandbox: true, // 렌더러 프로세스 샌드박스
         },
 
         // 창 로드 전 숨김 (깜빡임 방지)
         show: false,
+        
+        // 배경색 (깜빡임 방지)
+        backgroundColor: '#1a1a1a',
       })
 
       logger.info('[MainWindow] BrowserWindow instance created', {

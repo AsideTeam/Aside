@@ -11,5 +11,5 @@ export const isDev = process.env.NODE_ENV === 'development'
 export const isProd = process.env.NODE_ENV === 'production'
 
 // Paths (렌더러에서는 사용하지 말 것 - Main Process 전용)
-export const PRELOAD_PATH = '../dist-preload/index.js'
-export const RENDERER_DIST = '../dist-renderer'
+export const PRELOAD_PATH = '../out/preload/index.cjs'
+export const RENDERER_DIST = '../out/renderer'

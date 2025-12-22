@@ -20,6 +20,7 @@
 
 import { BrowserWindow, WebContentsView } from 'electron'
 import { logger } from '@main/utils/Logger'
+import { LAYOUT } from '@shared/constants/layout'
 
 /**
  * 탭 데이터 모델
@@ -72,6 +73,11 @@ export class ViewManager {
       logger.info('[ViewManager] Initializing...')
 
       this.mainWindow = window
+
+      // 윈도우 리사이즈 시 레이아웃 재계산
+      this.mainWindow.on('resize', () => {
+        this.layout()
+      })
 
       // Step 1: 기본 탭 생성 (홈페이지)
       const homeTabId = await this.createTab('https://www.google.com')
@@ -263,18 +269,28 @@ export class ViewManager {
   /**
    * 레이아웃 계산 및 적용
    *
-   * 현재: 활성 탭 전체 화면
-   * 향후: 3-column layout (탭 목록 + 주 콘텐츠 + 사이드패널)
+   * React UI 영역 (TabBar + AddressBar)을 제외한 영역에 WebContentsView 배치
    */
   private static layout(): void {
     if (!this.mainWindow) return
 
     const { width, height } = this.mainWindow.getBounds()
+    
+    // UI 영역 높이 (TabBar + AddressBar)
+    const toolbarHeight = LAYOUT.TOOLBAR_HEIGHT
+    
+    // WebContentsView는 UI 아래에 배치
+    const contentY = toolbarHeight
+    const contentHeight = height - toolbarHeight
 
-    // 현재 구현: 활성 탭만 전체 화면 표시
     for (const [, tabData] of this.tabs) {
       if (tabData.isActive) {
-        tabData.view.setBounds({ x: 0, y: 0, width, height })
+        tabData.view.setBounds({ 
+          x: 0, 
+          y: contentY, 
+          width, 
+          height: Math.max(0, contentHeight) 
+        })
       } else {
         tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
       }

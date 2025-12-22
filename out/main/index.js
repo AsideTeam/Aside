@@ -85,6 +85,10 @@ class MainLogger {
   }
 }
 const logger = new MainLogger();
+const APP_NAME = "Aside";
+process.env.NODE_ENV === "development";
+process.env.NODE_ENV === "production";
+app.name = APP_NAME.toLowerCase();
 class Env {
   /** 개발 모드 여부 */
   static isDev = !app.isPackaged;
@@ -99,7 +103,7 @@ class Env {
   /** 데이터 디렉토리 (사용자 데이터 저장 위치) */
   static dataDir = app.getPath("userData");
   /** 앱 이름 (window 제목, 메뉴 등에서 사용) */
-  static appName = "Aside";
+  static appName = APP_NAME;
   /** 앱 버전 (package.json의 version) */
   static appVersion = app.getVersion();
   /**
@@ -222,21 +226,25 @@ class MainWindow {
       logger.info("[MainWindow] Creating main window...");
       const { width, height } = screen.getPrimaryDisplay().workAreaSize;
       this.window = new BrowserWindow({
-        // 전체 화면 (dock/메뉴바 제외)
         width,
         height,
-        x: 0,
-        y: 0,
+        minWidth: 800,
+        minHeight: 600,
+        // 네이티브 타이틀바 사용 (macOS 신호등 버튼)
+        titleBarStyle: "hiddenInset",
+        trafficLightPosition: { x: 12, y: 12 },
         // preload 스크립트 (IPC 통신용)
         webPreferences: {
-          preload: join(__dirname, "../../preload/index.cjs"),
+          preload: join(__dirname, "../preload/index.cjs"),
           contextIsolation: true,
           // 보안: 메인 ↔ 렌더러 격리
           sandbox: true
           // 렌더러 프로세스 샌드박스
         },
         // 창 로드 전 숨김 (깜빡임 방지)
-        show: false
+        show: false,
+        // 배경색 (깜빡임 방지)
+        backgroundColor: "#1a1a1a"
       });
       logger.info("[MainWindow] BrowserWindow instance created", {
         width,
@@ -322,6 +330,9 @@ class MainWindow {
     logger.info("[MainWindow] Event listeners attached");
   }
 }
+const LAYOUT = {
+  TOOLBAR_HEIGHT: 88
+};
 class ViewManager {
   static tabs = /* @__PURE__ */ new Map();
   static activeTabId = null;
@@ -349,6 +360,9 @@ class ViewManager {
     try {
       logger.info("[ViewManager] Initializing...");
       this.mainWindow = window;
+      this.mainWindow.on("resize", () => {
+        this.layout();
+      });
       const homeTabId = await this.createTab("https://www.google.com");
       logger.info("[ViewManager] Home tab created", { tabId: homeTabId });
       this.layout();
@@ -497,15 +511,22 @@ class ViewManager {
   /**
    * 레이아웃 계산 및 적용
    *
-   * 현재: 활성 탭 전체 화면
-   * 향후: 3-column layout (탭 목록 + 주 콘텐츠 + 사이드패널)
+   * React UI 영역 (TabBar + AddressBar)을 제외한 영역에 WebContentsView 배치
    */
   static layout() {
     if (!this.mainWindow) return;
     const { width, height } = this.mainWindow.getBounds();
+    const toolbarHeight = LAYOUT.TOOLBAR_HEIGHT;
+    const contentY = toolbarHeight;
+    const contentHeight = height - toolbarHeight;
     for (const [, tabData] of this.tabs) {
       if (tabData.isActive) {
-        tabData.view.setBounds({ x: 0, y: 0, width, height });
+        tabData.view.setBounds({
+          x: 0,
+          y: contentY,
+          width,
+          height: Math.max(0, contentHeight)
+        });
       } else {
         tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
       }

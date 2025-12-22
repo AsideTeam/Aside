@@ -1,15 +1,10 @@
 import { useState, useEffect, type FormEvent } from 'react'
-import { ArrowLeft, ArrowRight, RotateCw, Search } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCw, Search, Lock } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { createTab } from '../../lib/ipc-client'
 
 /**
- * 주소창 + 네비게이션 버튼
- * 
- * 기능:
- * - URL 입력
- * - 네비게이션 (뒤로, 앞으로, 새로고침)
- * - URL 유효성 검사
+ * 주소창 - 크롬 스타일
  */
 export function AddressBar() {
   const activeTab = useAppStore((state) =>
@@ -17,6 +12,7 @@ export function AddressBar() {
   )
 
   const [url, setUrl] = useState(activeTab?.url || '')
+  const [isFocused, setIsFocused] = useState(false)
   const [loading, setLoading] = useState(false)
 
   // 활성 탭이 변경되면 주소창 업데이트
@@ -28,13 +24,10 @@ export function AddressBar() {
 
   const handleNavigate = async (e: FormEvent) => {
     e.preventDefault()
+    if (!url.trim() || loading) return
 
-    if (!url.trim()) return
-
-    // URL 정규화 (프로토콜 추가)
-    let normalizedUrl = url
+    let normalizedUrl = url.trim()
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-      // 검색어인 경우 Google 검색
       if (!normalizedUrl.includes('.')) {
         normalizedUrl = `https://www.google.com/search?q=${encodeURIComponent(normalizedUrl)}`
       } else {
@@ -47,65 +40,90 @@ export function AddressBar() {
       await createTab(normalizedUrl)
     } catch (error) {
       console.error('Failed to navigate:', error)
-      // 에러 처리는 createTab에서 수행
     } finally {
       setLoading(false)
     }
   }
 
+  // URL에서 도메인만 추출 (표시용)
+  const displayUrl = () => {
+    if (isFocused) return url
+    try {
+      const urlObj = new URL(url)
+      return urlObj.hostname
+    } catch {
+      return url
+    }
+  }
+
+  const isSecure = url.startsWith('https://')
+
   return (
     <form
       onSubmit={handleNavigate}
-      className="address-bar bg-gray-800 flex items-center gap-2 px-4 py-2 h-12 border-b border-gray-700"
+      className="address-bar h-12 flex items-center gap-1 px-2 bg-[#35363a]"
     >
-      {/* 뒤로 버튼 */}
-      <button
-        type="button"
-        disabled={loading}
-        className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
-      >
-        <ArrowLeft size={18} />
-      </button>
-
-      {/* 앞으로 버튼 */}
-      <button
-        type="button"
-        disabled={loading}
-        className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
-      >
-        <ArrowRight size={18} />
-      </button>
-
-      {/* 새로고침 버튼 */}
-      <button
-        type="button"
-        disabled={loading}
-        className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
-      >
-        <RotateCw size={18} />
-      </button>
-
-      {/* URL 입력 필드 */}
-      <div className="flex-1 relative">
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Search or enter URL"
+      {/* 네비게이션 버튼 그룹 */}
+      <div className="flex items-center">
+        <button
+          type="button"
           disabled={loading}
-          className="w-full px-3 py-2 pl-9 bg-gray-700 text-white rounded-lg placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-        />
-        <Search size={16} className="absolute left-3 top-2.5 text-gray-500" />
+          className="p-2 text-[#9aa0a6] hover:bg-[#4a4b4f] rounded-full transition-colors disabled:opacity-40"
+          title="뒤로"
+        >
+          <ArrowLeft size={18} />
+        </button>
+
+        <button
+          type="button"
+          disabled={loading}
+          className="p-2 text-[#9aa0a6] hover:bg-[#4a4b4f] rounded-full transition-colors disabled:opacity-40"
+          title="앞으로"
+        >
+          <ArrowRight size={18} />
+        </button>
+
+        <button
+          type="button"
+          disabled={loading}
+          className="p-2 text-[#9aa0a6] hover:bg-[#4a4b4f] rounded-full transition-colors disabled:opacity-40"
+          title="새로고침"
+        >
+          <RotateCw size={18} className={loading ? 'animate-spin' : ''} />
+        </button>
       </div>
 
-      {/* Go 버튼 */}
-      <button
-        type="submit"
-        disabled={loading}
-        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 font-medium"
-      >
-        {loading ? '...' : 'Go'}
-      </button>
+      {/* URL 입력 필드 - 크롬 스타일 */}
+      <div className="flex-1 mx-2">
+        <div 
+          className={`
+            flex items-center h-8 px-3 rounded-full transition-all
+            ${isFocused 
+              ? 'bg-[#202124] ring-2 ring-[#8ab4f8]' 
+              : 'bg-[#202124] hover:bg-[#292a2d]'
+            }
+          `}
+        >
+          {/* 보안 아이콘 */}
+          {isSecure && !isFocused && (
+            <Lock size={14} className="text-[#9aa0a6] mr-2 flex-shrink-0" />
+          )}
+          {!isSecure && !isFocused && url && (
+            <Search size={14} className="text-[#9aa0a6] mr-2 flex-shrink-0" />
+          )}
+          
+          <input
+            type="text"
+            value={isFocused ? url : displayUrl()}
+            onChange={(e) => setUrl(e.target.value)}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            placeholder="검색어 또는 URL 입력"
+            disabled={loading}
+            className="flex-1 bg-transparent text-[14px] text-[#e8eaed] placeholder-[#9aa0a6] outline-none"
+          />
+        </div>
+      </div>
     </form>
   )
 }

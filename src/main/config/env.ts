@@ -14,6 +14,9 @@
 
 import { app } from 'electron'
 import { logger } from '@main/utils/Logger'
+import { APP_NAME } from '@shared/constants/app'
+
+app.name = APP_NAME.toLowerCase()
 
 /**
  * 환경 설정 싱글톤
@@ -43,7 +46,7 @@ export class Env {
   static readonly dataDir = app.getPath('userData')
 
   /** 앱 이름 (window 제목, 메뉴 등에서 사용) */
-  static readonly appName = 'Aside'
+  static readonly appName = APP_NAME
 
   /** 앱 버전 (package.json의 version) */
   static readonly appVersion = app.getVersion()
