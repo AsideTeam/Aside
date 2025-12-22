@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react'
-import { ArrowLeft, ArrowRight, RotateCw, X, Search, SlidersHorizontal, Star } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCw, X, SlidersHorizontal, Star } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { navigate, goBack, goForward, reload } from '../../lib/ipc-client'
 
@@ -87,17 +87,17 @@ export function AddressBar() {
     }
   }
 
-  const isSecure = url.startsWith('https://')
+  // 보안 여부 변수는 현재 UI에서 사용하지 않으므로 제거
 
   return (
-    <div className="address-bar relative h-12 flex items-center px-4 bg-[#35363a] gap-4">
-      {/* 1. 네비게이션 버튼 그룹 (왼쪽 - Chrome 순서: 뒤로 / 앞으로 / 새로고침) */}
-      <div className="flex items-center gap-1 shrink-0">
+    <div className="address-bar relative h-12 flex items-center px-4 bg-[#35363a]">
+      {/* 1. 네비게이션 버튼 그룹 (왼쪽 고정 - 36x36 클릭 영역) */}
+      <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
           onClick={handleBack}
           disabled={loading}
-          className="p-2 text-[#9aa0a6] hover:bg-[#5f6368] rounded-full transition-colors disabled:opacity-30"
+          className="w-9 h-9 flex items-center justify-center text-[#9aa0a6] hover:bg-[#5f6368] rounded-full transition-colors disabled:opacity-30"
           title="뒤로"
         >
           <ArrowLeft size={18} />
@@ -107,7 +107,7 @@ export function AddressBar() {
           type="button"
           onClick={handleForward}
           disabled={loading}
-          className="p-2 text-[#9aa0a6] hover:bg-[#5f6368] rounded-full transition-colors disabled:opacity-30"
+          className="w-9 h-9 flex items-center justify-center text-[#9aa0a6] hover:bg-[#5f6368] rounded-full transition-colors disabled:opacity-30"
           title="앞으로"
         >
           <ArrowRight size={18} />
@@ -116,7 +116,7 @@ export function AddressBar() {
         <button
           type="button"
           onClick={handleReload}
-          className="p-2 text-[#9aa0a6] hover:bg-[#5f6368] rounded-full transition-colors disabled:opacity-30 mr-1"
+          className="w-9 h-9 flex items-center justify-center text-[#9aa0a6] hover:bg-[#5f6368] rounded-full transition-colors disabled:opacity-30"
           title={loading ? '중지' : '새로고침'}
         >
           {loading ? (
@@ -127,19 +127,22 @@ export function AddressBar() {
         </button>
       </div>
 
-      {/* 2. Chrome 스타일 주소창 - 중앙 정렬 */}
-      <form onSubmit={handleNavigate} className="flex-1 flex justify-center min-w-0">
+      {/* 2. 주소창 - Absolute 중앙 정렬 (600px 고정) */}
+      <form 
+        onSubmit={handleNavigate} 
+        className="absolute left-1/2 -translate-x-1/2 w-full max-w-[600px] px-4"
+      >
         <div 
           className={`
-            flex items-center h-10 px-4 rounded-full transition-all duration-200 w-full max-w-[1000px]
+            flex items-center h-9 px-4 rounded-full transition-all duration-200
             ${isFocused 
-              ? 'bg-[#202124] ring-2 ring-[#8ab4f8]/50 shadow-md' 
+              ? 'bg-[#202124] ring-2 ring-[#8ab4f8]/50 shadow-lg' 
               : 'bg-[#202124] hover:bg-[#292a2d] shadow-sm'
             }
           `}
         >
-          {/* 사이트 정보 아이콘 (Tune/Sliders 스타일) */}
-          <div className="mr-2 shrink-0 p-1.5 hover:bg-[#5f6368]/30 rounded-full cursor-pointer transition-colors">
+          {/* 사이트 정보 아이콘 */}
+          <div className="mr-2 shrink-0 p-1 hover:bg-[#5f6368]/30 rounded-full cursor-pointer transition-colors">
             <SlidersHorizontal size={14} className="text-[#9aa0a6]" />
           </div>
           
@@ -151,20 +154,20 @@ export function AddressBar() {
             onBlur={() => setIsFocused(false)}
             placeholder="Google에서 검색하거나 URL을 입력하세요."
             disabled={loading}
-            className="flex-1 bg-transparent text-[15px] text-[#e8eaed] placeholder-[#9aa0a6] outline-none text-left"
+            className="flex-1 bg-transparent text-[14px] text-[#e8eaed] placeholder-[#9aa0a6] outline-none min-w-0"
           />
 
-          {/* 우측 아이콘 (북마크 등 - 이미지 매칭) */}
+          {/* 북마크 아이콘 */}
           {!isFocused && url && (
-            <div className="flex items-center gap-1 ml-2">
-               <Star size={16} className="text-[#9aa0a6] hover:text-[#e8eaed] cursor-pointer" />
+            <div className="flex items-center ml-2 shrink-0">
+               <Star size={16} className="text-[#9aa0a6] hover:text-[#e8eaed] cursor-pointer transition-colors" />
             </div>
           )}
         </div>
       </form>
 
-      {/* 3. 오른쪽 균형을 위한 더미 스페이서 */}
-      <div className="w-[108px] shrink-0 pointer-events-none" />
+      {/* 3. 우측 여백 (균형용) */}
+      <div className="w-27 shrink-0 pointer-events-none ml-auto" />
     </div>
   )
 }

@@ -63,7 +63,7 @@ export function TabBar() {
               key={tab.id}
               onClick={() => handleTabClick(tab.id)}
               className={`
-                group relative flex items-center h-[34px] px-3 rounded-t-lg cursor-pointer
+                group relative flex items-center h-8.5 px-3 rounded-t-lg cursor-pointer
                 transition-all duration-150 flex-1 min-w-30 max-w-60
                 ${isActive 
                   ? 'bg-[#35363a] text-[#e8eaed]' 
