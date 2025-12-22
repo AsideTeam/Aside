@@ -23,6 +23,10 @@ export interface ElectronAPITab {
   switch: (tabId: string) => Promise<{ success: boolean; error?: string }>
   list: () => Promise<{ success: boolean; tabs?: TabInfo[]; error?: string }>
   getActive: () => Promise<{ success: boolean; tabId?: string; error?: string }>
+  navigate: (url: string) => Promise<{ success: boolean; error?: string }>
+  back: () => Promise<{ success: boolean; error?: string }>
+  forward: () => Promise<{ success: boolean; error?: string }>
+  reload: () => Promise<{ success: boolean; error?: string }>
 }
 
 export interface ElectronAPIEvents {

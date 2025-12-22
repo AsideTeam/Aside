@@ -18,7 +18,6 @@
 
 import { PrismaClient } from '@prisma/client'
 import { logger } from '@main/utils/Logger'
-import { PrismaLibSql } from '@prisma/adapter-libsql'
 
 /**
  * Database 싱글톤 관리

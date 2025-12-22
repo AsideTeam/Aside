@@ -231,8 +231,9 @@ class MainWindow {
         minWidth: 800,
         minHeight: 600,
         // 네이티브 타이틀바 사용 (macOS 신호등 버튼)
-        titleBarStyle: "hiddenInset",
-        trafficLightPosition: { x: 12, y: 12 },
+        // titleBarStyle: 'hiddenInset',
+        // trafficLightPosition: { x: 12, y: 12 },
+        titleBarStyle: "default",
         // preload 스크립트 (IPC 통신용)
         webPreferences: {
           preload: join(__dirname, "../preload/index.cjs"),
@@ -331,7 +332,7 @@ class MainWindow {
   }
 }
 const LAYOUT = {
-  TOOLBAR_HEIGHT: 100
+  TOOLBAR_HEIGHT: 92
 };
 class ViewManager {
   static tabs = /* @__PURE__ */ new Map();
