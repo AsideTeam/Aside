@@ -152,6 +152,25 @@ export default [
     },
   },
 
+  // ===== Preload process - Node.js + console allowed =====
+  {
+    files: ['src/preload/**/*.cjs', 'src/preload/**/*.ts'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        require: 'readonly',
+        module: 'readonly',
+      },
+    },
+    rules: {
+      'no-console': 'off', // Preload에서는 console 허용 (Logger 없음)
+    },
+  },
+
   // ===== General TypeScript rules =====
   {
     files: ['src/**/*.ts', 'src/**/*.tsx'],
@@ -185,6 +204,15 @@ export default [
       'no-debugger': 'warn',
       'prefer-const': 'warn',
       'no-var': 'warn',
+    },
+  },
+
+  // ===== Type definitions - allow unused vars (interface definitions) =====
+  {
+    files: ['src/types/**/*.d.ts'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off', // Interface properties can be intentionally unused
+      'no-unused-vars': 'off',
     },
   },
 ]

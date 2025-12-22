@@ -2,7 +2,7 @@
 
 declare global {
   interface Window {
-    electronAPI: import('./electron-env').ElectronAPI
+    electronAPI: import('../preload/index').ElectronAPI
   }
 }
 

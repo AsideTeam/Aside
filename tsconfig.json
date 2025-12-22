@@ -21,7 +21,9 @@
     "paths": {
       "@main/*": ["src/main/*"],
       "@config/*": ["src/main/config/*"],
+      "@preload": ["src/preload/index.d.ts"],
       "@shared/*": ["src/shared/*"],
+      "@types/*": ["src/types/*"],
       "@renderer/*": ["src/renderer/src/*"],
       "@components/*": ["src/renderer/src/components/*"],
       "@app/*": ["src/renderer/src/app/*"],
