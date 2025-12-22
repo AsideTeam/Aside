@@ -16,8 +16,8 @@
 
 import { BrowserWindow, app } from 'electron'
 import { join } from 'node:path'
-import { logger } from '@main/utils/logger'
-import { Env } from '@main/config/env'
+import { logger } from '@main/utils/Logger'
+import { Env } from '@main/config'
 
 /**
  * MainWindow 싱글톤 관리

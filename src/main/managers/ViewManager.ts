@@ -19,7 +19,7 @@
  */
 
 import { BrowserWindow, WebContentsView } from 'electron'
-import { logger } from '@main/utils/logger'
+import { logger } from '@main/utils/Logger'
 
 /**
  * 탭 데이터 모델

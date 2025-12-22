@@ -16,9 +16,9 @@
  */
 
 import { Paths, validateEnv } from '@main/config'
-import { logger } from '@main/utils/logger'
-import { MainWindow } from '@main/core/window'
-import { ViewManager } from '@main/managers/view-manager'
+import { logger } from '@main/utils/Logger'
+import { MainWindow } from '@main/core/Window'
+import { ViewManager } from '@main/managers/ViewManager'
 
 /**
  * 애플리케이션 생명주기 상태
@@ -89,9 +89,7 @@ export class AppLifecycle {
       // TODO: 필요한 서비스 초기화
       logger.info('Step 6/8: Services initialized')
 
-      // Step 7: IPC Handlers 등록
-      // TODO: import { setupIPCHandlers } from '@main/handlers'
-      // setupIPCHandlers()
+      // Step 7: IPC Handlers 등록 (main/index.ts에서 실행됨)
       logger.info('Step 7/8: IPC handlers registered')
 
       // Step 8: Main Window 생성 (Step 5에서 이미 생성됨)

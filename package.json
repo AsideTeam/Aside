@@ -17,7 +17,12 @@
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "lint:shared": "eslint src/shared --ext .ts,.tsx",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "generate": "npx prisma generate",
+    "migrate": "npx prisma migrate dev",
+    "studio": "npx prisma studio",
+    "push": "npx prisma db push",
+    "postinstall": "npm run generate"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

@@ -13,7 +13,7 @@
  */
 
 import { app } from 'electron'
-import { logger } from '@main/utils/logger'
+import { logger } from '@main/utils/Logger'
 
 /**
  * 환경 설정 싱글톤

@@ -19,8 +19,8 @@
  */
 
 import { join } from 'node:path'
-import { Env } from './env'
-import { logger } from '@main/utils/logger'
+import { Env } from './Env'
+import { logger } from '@main/utils/Logger'
 
 /**
  * 경로 설정 싱글톤
