@@ -24,7 +24,7 @@ export async function initializeRenderer() {
     if (window.electronAPI?.on) {
       // NOTE: Main에서 실제로 emit하는 이벤트 채널과 맞춰야 동작함.
       // 현재는 안전한 훅만 걸어두고, 이벤트는 Phase 2B에서 Main에 추가.
-      window.electronAPI.on('tabs:updated', (data: any) => {
+      window.electronAPI.on('tabs:updated', (data: unknown) => {
         console.log('[Renderer] Received tabs:updated:', data)
         syncAppStore(data)
       })

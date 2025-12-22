@@ -43,7 +43,7 @@ export class Env {
   static readonly dataDir = app.getPath('userData')
 
   /** 앱 이름 (window 제목, 메뉴 등에서 사용) */
-  static readonly appName = app.name
+  static readonly appName = 'Aside'
 
   /** 앱 버전 (package.json의 version) */
   static readonly appVersion = app.getVersion()

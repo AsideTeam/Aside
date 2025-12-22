@@ -78,7 +78,7 @@ export class AppLifecycle {
 
       // Step 4: Database 초기화 (재시도 로직 포함)
       logger.info('Step 4/8: Connecting to database...')
-      await connectWithRetry()
+      await connectWithRetry(Paths.database())
       logger.info('Step 4/8: Database connected')
 
       // Step 5: Managers 초기화

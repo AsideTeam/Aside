@@ -46,11 +46,11 @@ export class SessionManager {
             ...details.responseHeaders,
             'Content-Security-Policy': [
               "default-src 'none'; " +
-                "script-src 'self'; " +  // ✅ 인라인 스크립트 금지, eval 금지
-                "style-src 'self' https://fonts.googleapis.com; " +
+                "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; " +  // ✅ React 19 preamble script
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
                 "font-src 'self' https://fonts.gstatic.com; " +
                 "img-src 'self' https: data:; " +
-                "connect-src 'self'; " +  // ✅ 모든 외부 API 요청 차단 (필요시 추가)
+                "connect-src 'self' ws://localhost:* http://localhost:*; " +  // ✅ 개발 모드 HMR
                 "frame-ancestors 'none'; " +
                 "base-uri 'self'; " +
                 "form-action 'self'",

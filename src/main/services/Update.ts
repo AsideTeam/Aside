@@ -32,11 +32,11 @@ export class UpdateService {
 
     try {
       // Step 1: 초기 확인
-      this.checkForUpdates()
+      void this.checkForUpdates()
 
       // Step 2: 24시간마다 확인 (ID 저장)
       this.updateCheckInterval = setInterval(() => {
-        this.checkForUpdates()
+        void this.checkForUpdates()
       }, 24 * 60 * 60 * 1000)
 
       logger.info('[UpdateService] Initialization completed')

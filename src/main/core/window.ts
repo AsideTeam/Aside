@@ -14,7 +14,7 @@
  * 참고: 단일 메인 창만 관리 (타브 기반 UI는 ViewManager 담당)
  */
 
-import { BrowserWindow, app } from 'electron'
+import { BrowserWindow, app, screen } from 'electron'
 import { join } from 'node:path'
 import { logger } from '@main/utils/Logger'
 import { Env } from '@main/config'
@@ -58,17 +58,20 @@ export class MainWindow {
     try {
       logger.info('[MainWindow] Creating main window...')
 
+      // Step 1: 디스플레이 정보 가져오기
+      const { width, height } = screen.getPrimaryDisplay().workAreaSize
+
       // Step 1: BrowserWindow 인스턴스 생성
       this.window = new BrowserWindow({
-        // 기본 크기 (1280x720, 황금비율)
-        width: 1280,
-        height: 720,
-        minWidth: 800,
-        minHeight: 600,
+        // 전체 화면 (dock/메뉴바 제외)
+        width,
+        height,
+        x: 0,
+        y: 0,
 
         // preload 스크립트 (IPC 통신용)
         webPreferences: {
-          preload: join(__dirname, '../preload/index.cjs'),
+          preload: join(__dirname, '../../preload/index.cjs'),
           contextIsolation: true, // 보안: 메인 ↔ 렌더러 격리
           sandbox: true, // 렌더러 프로세스 샌드박스
         },
@@ -78,8 +81,8 @@ export class MainWindow {
       })
 
       logger.info('[MainWindow] BrowserWindow instance created', {
-        width: 1280,
-        height: 720,
+        width,
+        height,
       })
 
       // Step 2: 초기 상태 이벤트 처리
@@ -154,7 +157,7 @@ export class MainWindow {
     }
 
     // 배포 모드: 패키징된 HTML
-    const rendererDist = join(__dirname, '../../renderer/dist/index.html')
+    const rendererDist = join(__dirname, '../../renderer/index.html')
     return `file://${rendererDist}`
   }
 

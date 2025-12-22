@@ -17,7 +17,7 @@ export default defineConfig({
       }
     },
     build: {
-      outDir: resolve(__dirname, 'dist-main'),
+      outDir: resolve(__dirname, 'out/main'),
       rollupOptions: {
         external: ['sqlite3', 'better-sqlite3', '@prisma/client']
       }
@@ -29,10 +29,14 @@ export default defineConfig({
       alias: {
         '@shared': resolve(__dirname, 'src/shared')
       }
-    }
-    ,
+    },
     build: {
-      outDir: resolve(__dirname, 'dist-preload')
+      outDir: resolve(__dirname, 'out/preload'),
+      rollupOptions: {
+        output: {
+          format: 'cjs'
+        }
+      }
     }
   },
   renderer: {
@@ -51,7 +55,7 @@ export default defineConfig({
       }
     },
     build: {
-      outDir: resolve(__dirname, 'dist-renderer'),
+      outDir: resolve(__dirname, 'out/renderer'),
       rollupOptions: {
         input: resolve(__dirname, 'src/renderer/index.html')
       }

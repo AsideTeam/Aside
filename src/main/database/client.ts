@@ -18,6 +18,7 @@
 
 import { PrismaClient } from '@prisma/client'
 import { logger } from '@main/utils/Logger'
+import { PrismaLibSql } from '@prisma/adapter-libsql'
 
 /**
  * Database 싱글톤 관리
@@ -54,7 +55,8 @@ export class Database {
 
       // Prisma Client 인스턴스 생성 (DATABASE_URL 환경변수 사용)
       process.env.DATABASE_URL = `file:${dbPath}`
-      this.client = new PrismaClient()
+      const adapter = new PrismaLibSql({ url: process.env.DATABASE_URL })
+      this.client = new PrismaClient({ adapter })
 
       // 연결 테스트 (간단한 쿼리 실행)
       await this.client.$queryRaw`SELECT 1`

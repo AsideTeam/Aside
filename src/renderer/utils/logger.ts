@@ -13,7 +13,7 @@ class RendererLogger implements ILogger {
   constructor(context: string, minLevel: LogLevel = LogLevel.INFO) {
     this.context = context
     this.minLevel = minLevel
-    this.isDev = process.env.NODE_ENV === 'development'
+    this.isDev = import.meta.env.DEV
   }
 
   private write(level: LogLevel, message: string, meta?: LogMeta): void {
@@ -24,10 +24,8 @@ class RendererLogger implements ILogger {
     const color = this.getColor(level)
 
     if (meta) {
-      // eslint-disable-next-line no-console
       console.log(`%c${prefix}`, `color: ${color}; font-weight: 600;`, meta)
     } else {
-      // eslint-disable-next-line no-console
       console.log(`%c${prefix}`, `color: ${color}; font-weight: 600;`)
     }
   }

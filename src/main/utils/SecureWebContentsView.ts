@@ -103,8 +103,8 @@ export function destroySecureWebContentsView(view: WebContentsView): void {
       view.webContents.removeAllListeners()
 
       // ✅ 세션 정리 (쿠키/캐시 삭제)
-      view.webContents.session.clearCache()
-      view.webContents.session.clearStorageData()
+      void view.webContents.session.clearCache()
+      void view.webContents.session.clearStorageData()
     }
 
     logger.info('[SecureWebContentsView] Guest view destroyed')

@@ -12,7 +12,10 @@
  */
 
 import { PrismaClient } from '@prisma/client'
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { logger } from '@main/utils/Logger'
+import { dirname } from 'node:path'
+import { FsHelper } from '@main/utils/FsHelper'
 
 /**
  * 재시도 설정
@@ -64,7 +67,7 @@ function delay(delayMs: number): Promise<void> {
  * @returns Prisma 클라이언트
  * @throws 최대 재시도 횟수 초과 시 에러
  */
-export async function connectWithRetry(): Promise<PrismaClient> {
+export async function connectWithRetry(dbPath?: string): Promise<PrismaClient> {
   //  이미 연결됨
   if (prismaInstance) {
     logger.info('[Database] Using existing connection')
@@ -85,6 +88,21 @@ export async function connectWithRetry(): Promise<PrismaClient> {
   isConnecting = true
   connectionAttempt = 0
 
+  if (dbPath) {
+    try {
+      await FsHelper.ensureDir(dirname(dbPath))
+    } catch (error) {
+      logger.error('[Database] Failed to prepare database path', error, { dbPath })
+      throw error
+    }
+  }
+
+  const dbFilePath = dbPath || process.env.DATABASE_URL?.replace('file:', '')
+  if (!dbFilePath) {
+    isConnecting = false
+    throw new Error('[Database] Database path is not set')
+  }
+
   try {
     while (connectionAttempt < RETRY_CONFIG.maxAttempts) {
       connectionAttempt++
@@ -95,8 +113,12 @@ export async function connectWithRetry(): Promise<PrismaClient> {
           maxAttempts: RETRY_CONFIG.maxAttempts,
         })
 
-        // Step 1: Prisma 인스턴스 생성
+        // Step 1: Prisma adapter 생성 (Prisma 7: driver adapter with url 필수)
+        const adapter = new PrismaBetterSqlite3({ url: dbFilePath })
+        
+        // Step 2: Prisma Client 생성
         prismaInstance = new PrismaClient({
+          adapter,
           log: ['warn', 'error'],
         })
 

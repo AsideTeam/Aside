@@ -1,7 +1,8 @@
-import { app, BrowserWindow, WebContentsView, session, ipcMain } from "electron";
-import { existsSync, mkdirSync, appendFileSync } from "node:fs";
-import { join } from "node:path";
+import { app, screen, BrowserWindow, WebContentsView, session, ipcMain } from "electron";
+import { existsSync, mkdirSync, appendFileSync, promises } from "node:fs";
+import { join, dirname } from "node:path";
 import { PrismaClient } from "@prisma/client";
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { z } from "zod";
 import __cjs_mod__ from "node:module";
 const __filename = import.meta.filename;
@@ -98,7 +99,7 @@ class Env {
   /** 데이터 디렉토리 (사용자 데이터 저장 위치) */
   static dataDir = app.getPath("userData");
   /** 앱 이름 (window 제목, 메뉴 등에서 사용) */
-  static appName = app.name;
+  static appName = "Aside";
   /** 앱 버전 (package.json의 version) */
   static appVersion = app.getVersion();
   /**
@@ -219,15 +220,16 @@ class MainWindow {
     this.isCreating = true;
     try {
       logger.info("[MainWindow] Creating main window...");
+      const { width, height } = screen.getPrimaryDisplay().workAreaSize;
       this.window = new BrowserWindow({
-        // 기본 크기 (1280x720, 황금비율)
-        width: 1280,
-        height: 720,
-        minWidth: 800,
-        minHeight: 600,
+        // 전체 화면 (dock/메뉴바 제외)
+        width,
+        height,
+        x: 0,
+        y: 0,
         // preload 스크립트 (IPC 통신용)
         webPreferences: {
-          preload: join(__dirname, "../preload/index.cjs"),
+          preload: join(__dirname, "../../preload/index.cjs"),
           contextIsolation: true,
           // 보안: 메인 ↔ 렌더러 격리
           sandbox: true
@@ -237,8 +239,8 @@ class MainWindow {
         show: false
       });
       logger.info("[MainWindow] BrowserWindow instance created", {
-        width: 1280,
-        height: 720
+        width,
+        height
       });
       this.setupWindowEvents();
       const startUrl = this.getStartUrl();
@@ -297,7 +299,7 @@ class MainWindow {
     if (Env.isDev) {
       return "http://localhost:5173/";
     }
-    const rendererDist = join(__dirname, "../../renderer/dist/index.html");
+    const rendererDist = join(__dirname, "../../renderer/index.html");
     return `file://${rendererDist}`;
   }
   /**
@@ -547,9 +549,9 @@ class UpdateService {
   static initialize() {
     logger.info("[UpdateService] Initializing...");
     try {
-      this.checkForUpdates();
+      void this.checkForUpdates();
       this.updateCheckInterval = setInterval(() => {
-        this.checkForUpdates();
+        void this.checkForUpdates();
       }, 24 * 60 * 60 * 1e3);
       logger.info("[UpdateService] Initialization completed");
     } catch (error) {
@@ -610,6 +612,98 @@ class UpdateService {
     logger.info("[UpdateService] Update service stopped");
   }
 }
+class FsHelper {
+  /**
+   * 디렉토리 생성 (없으면 생성, 있으면 무시)
+   *
+   * @param dirPath - 생성할 디렉토리 경로
+   */
+  static async ensureDir(dirPath) {
+    try {
+      await promises.mkdir(dirPath, { recursive: true });
+      logger.debug("[FsHelper] Directory ensured", { path: dirPath });
+    } catch (error) {
+      logger.error("[FsHelper] ensureDir failed:", error);
+      throw error;
+    }
+  }
+  /**
+   * 파일 읽기
+   *
+   * @param filePath - 읽을 파일 경로
+   * @returns 파일 내용
+   */
+  static async readFile(filePath) {
+    try {
+      const content = await promises.readFile(filePath, "utf-8");
+      logger.debug("[FsHelper] File read", { path: filePath });
+      return content;
+    } catch (error) {
+      logger.error("[FsHelper] readFile failed:", error);
+      throw error;
+    }
+  }
+  /**
+   * 파일 쓰기
+   *
+   * @param filePath - 쓸 파일 경로
+   * @param content - 파일 내용
+   */
+  static async writeFile(filePath, content) {
+    try {
+      await this.ensureDir(dirname(filePath));
+      await promises.writeFile(filePath, content, "utf-8");
+      logger.debug("[FsHelper] File written", { path: filePath });
+    } catch (error) {
+      logger.error("[FsHelper] writeFile failed:", error);
+      throw error;
+    }
+  }
+  /**
+   * 파일 삭제
+   *
+   * @param filePath - 삭제할 파일 경로
+   */
+  static async deleteFile(filePath) {
+    try {
+      await promises.unlink(filePath);
+      logger.debug("[FsHelper] File deleted", { path: filePath });
+    } catch (error) {
+      logger.error("[FsHelper] deleteFile failed:", error);
+      throw error;
+    }
+  }
+  /**
+   * 경로 존재 여부 확인
+   *
+   * @param path - 확인할 경로
+   * @returns 존재하면 true
+   */
+  static async pathExists(path) {
+    try {
+      await promises.access(path);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * 디렉토리 내용 읽기
+   *
+   * @param dirPath - 읽을 디렉토리 경로
+   * @returns 파일/폴더 이름 배열
+   */
+  static async readDir(dirPath) {
+    try {
+      const entries = await promises.readdir(dirPath);
+      logger.debug("[FsHelper] Directory read", { path: dirPath, count: entries.length });
+      return entries;
+    } catch (error) {
+      logger.error("[FsHelper] readDir failed:", error);
+      throw error;
+    }
+  }
+}
 const RETRY_CONFIG = {
   maxAttempts: 5,
   initialDelayMs: 1e3,
@@ -626,7 +720,7 @@ function calculateBackoffDelay(attempt) {
 function delay(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
-async function connectWithRetry() {
+async function connectWithRetry(dbPath) {
   if (prismaInstance) {
     logger.info("[Database] Using existing connection");
     return prismaInstance;
@@ -642,6 +736,19 @@ async function connectWithRetry() {
   }
   isConnecting = true;
   connectionAttempt = 0;
+  if (dbPath) {
+    try {
+      await FsHelper.ensureDir(dirname(dbPath));
+    } catch (error) {
+      logger.error("[Database] Failed to prepare database path", error, { dbPath });
+      throw error;
+    }
+  }
+  const dbFilePath = dbPath || process.env.DATABASE_URL?.replace("file:", "");
+  if (!dbFilePath) {
+    isConnecting = false;
+    throw new Error("[Database] Database path is not set");
+  }
   try {
     while (connectionAttempt < RETRY_CONFIG.maxAttempts) {
       connectionAttempt++;
@@ -650,7 +757,9 @@ async function connectWithRetry() {
           attempt: connectionAttempt,
           maxAttempts: RETRY_CONFIG.maxAttempts
         });
+        const adapter = new PrismaBetterSqlite3({ url: dbFilePath });
         prismaInstance = new PrismaClient({
+          adapter,
           log: ["warn", "error"]
         });
         await prismaInstance.$queryRaw`SELECT 1`;
@@ -732,7 +841,7 @@ class AppLifecycle {
       Paths.printAll();
       logger.info("Step 3/8: Logger ready");
       logger.info("Step 4/8: Connecting to database...");
-      await connectWithRetry();
+      await connectWithRetry(Paths.database());
       logger.info("Step 4/8: Database connected");
       logger.info("Step 5/8: Initializing ViewManager");
       const mainWindow = await MainWindow.create();
@@ -808,7 +917,7 @@ class SessionManager {
           responseHeaders: {
             ...details.responseHeaders,
             "Content-Security-Policy": [
-              "default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+              "default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
             ]
           }
         });
