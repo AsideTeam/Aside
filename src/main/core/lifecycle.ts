@@ -20,6 +20,7 @@ import { logger } from '@main/utils/Logger'
 import { MainWindow } from '@main/core/Window'
 import { ViewManager } from '@main/managers/ViewManager'
 import { UpdateService } from '@main/services/Update'
+import { connectWithRetry, disconnectWithCleanup } from '@main/database/connection'
 
 /**
  * 애플리케이션 생명주기 상태
@@ -75,9 +76,9 @@ export class AppLifecycle {
       // Step 3: Logger 초기화 (이미 싱글톤으로 초기화됨)
       logger.info('Step 3/8: Logger ready')
 
-      // Step 4: Database 초기화
-      // TODO: import Database from '@main/database/client'
-      // await Database.connect(Paths.database())
+      // Step 4: Database 초기화 (재시도 로직 포함)
+      logger.info('Step 4/8: Connecting to database...')
+      await connectWithRetry()
       logger.info('Step 4/8: Database connected')
 
       // Step 5: Managers 초기화
@@ -131,7 +132,10 @@ logger.info('[AppLifecycle] Step 1/4: Destroying ViewManager')
      
       // Step 2: Services 정리
       UpdateService.cleanup()  // ✅ Update 서비스 정리 (타이머 해제)
-      // TODO: await Database.disconnect()
+      logger.info('[AppLifecycle] Step 2/4: Services cleaned up')
+
+      // Step 3: Database 연결 종료
+      await disconnectWithCleanup()  // ✅ DB 연결 정리
       logger.info('[AppLifecycle] Step 3/4: Database disconnected')
 
       // Step 4: Logger 종료
