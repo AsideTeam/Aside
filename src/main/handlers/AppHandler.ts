@@ -24,36 +24,54 @@ export function setupAppHandlers(): void {
 
   // app:quit - 앱 종료
   ipcMain.handle('app:quit', async () => {
-    logger.info('[AppHandler] app:quit requested')
-    app.quit()
-    return { success: true }
+    try {
+      logger.info('[AppHandler] app:quit requested')
+      app.quit()
+      return { success: true }
+    } catch (error) {
+      logger.error('[AppHandler] app:quit failed:', error)
+      return { success: false, error: String(error) }
+    }
   })
 
   // app:restart - 앱 재시작
   ipcMain.handle('app:restart', async () => {
-    logger.info('[AppHandler] app:restart requested')
-    app.relaunch()
-    app.quit()
-    return { success: true }
+    try {
+      logger.info('[AppHandler] app:restart requested')
+      app.relaunch()
+      app.quit()
+      return { success: true }
+    } catch (error) {
+      logger.error('[AppHandler] app:restart failed:', error)
+      return { success: false, error: String(error) }
+    }
   })
 
   // window:minimize - 창 최소화
   ipcMain.handle('window:minimize', async () => {
-    logger.info('[AppHandler] window:minimize requested')
-    const window = MainWindow.getWindow()
-    if (window) {
+    try {
+      logger.info('[AppHandler] window:minimize requested')
+      const window = MainWindow.getWindow()
+      if (!window) {
+        throw new Error('Window not found')
+      }
       window.minimize()
       AppState.setIsWindowMinimized(true)
       return { success: true }
+    } catch (error) {
+      logger.error('[AppHandler] window:minimize failed:', error)
+      return { success: false, error: String(error) }
     }
-    return { success: false, error: 'Window not found' }
   })
 
   // window:maximize - 창 최대화
   ipcMain.handle('window:maximize', async () => {
-    logger.info('[AppHandler] window:maximize requested')
-    const window = MainWindow.getWindow()
-    if (window) {
+    try {
+      logger.info('[AppHandler] window:maximize requested')
+      const window = MainWindow.getWindow()
+      if (!window) {
+        throw new Error('Window not found')
+      }
       if (window.isMaximized()) {
         window.unmaximize()
       } else {
@@ -61,26 +79,38 @@ export function setupAppHandlers(): void {
       }
       AppState.setIsWindowMaximized(!AppState.getIsWindowMaximized())
       return { success: true }
+    } catch (error) {
+      logger.error('[AppHandler] window:maximize failed:', error)
+      return { success: false, error: String(error) }
     }
-    return { success: false, error: 'Window not found' }
   })
 
   // window:close - 창 닫기
   ipcMain.handle('window:close', async () => {
-    logger.info('[AppHandler] window:close requested')
-    const window = MainWindow.getWindow()
-    if (window) {
+    try {
+      logger.info('[AppHandler] window:close requested')
+      const window = MainWindow.getWindow()
+      if (!window) {
+        throw new Error('Window not found')
+      }
       window.close()
       return { success: true }
+    } catch (error) {
+      logger.error('[AppHandler] window:close failed:', error)
+      return { success: false, error: String(error) }
     }
-    return { success: false, error: 'Window not found' }
   })
 
   // app:state - 앱 상태 조회
   ipcMain.handle('app:state', async () => {
-    logger.info('[AppHandler] app:state requested')
-    const state = AppState.getState()
-    return { success: true, state }
+    try {
+      logger.info('[AppHandler] app:state requested')
+      const state = AppState.getState()
+      return { success: true, state }
+    } catch (error) {
+      logger.error('[AppHandler] app:state failed:', error)
+      return { success: false, error: String(error) }
+    }
   })
 
   logger.info('[AppHandler] Handlers setup completed')

@@ -18,7 +18,7 @@ import { logger } from '@main/utils/Logger'
  */
 export class UpdateService {
   private static isCheckingUpdate = false
-  private static updateCheckInterval: NodeJS.Timeout | null = null
+  private static updateCheckInterval: NodeJS.Timeout | null = null  // ✅ ID 저장
 
   /**
    * Update Service 초기화
@@ -34,7 +34,7 @@ export class UpdateService {
       // Step 1: 초기 확인
       this.checkForUpdates()
 
-      // Step 2: 24시간마다 확인
+      // Step 2: 24시간마다 확인 (ID 저장)
       this.updateCheckInterval = setInterval(() => {
         this.checkForUpdates()
       }, 24 * 60 * 60 * 1000)
@@ -42,6 +42,26 @@ export class UpdateService {
       logger.info('[UpdateService] Initialization completed')
     } catch (error) {
       logger.error('[UpdateService] Initialization failed:', error)
+    }
+  }
+
+  /**
+   * Update Service 정리 (종료 시 호출)
+   *
+   * - 주기 타이머 해제
+   * - 리소스 정리
+   */
+  static cleanup(): void {
+    logger.info('[UpdateService] Cleaning up...')
+
+    try {
+      if (this.updateCheckInterval) {
+        clearInterval(this.updateCheckInterval)  // ✅ 타이머 정리
+        this.updateCheckInterval = null
+        logger.info('[UpdateService] Update check interval cleared')
+      }
+    } catch (error) {
+      logger.error('[UpdateService] Cleanup failed:', error)
     }
   }
 

@@ -38,19 +38,22 @@ export class SessionManager {
         throw new Error('[SessionManager] Default session not available')
       }
 
-      // Step 2: CSP 정책 설정
+      // Step 2: CSP 정책 설정 (STRICT)
+      // 원칙: 최소 권한, 명시적 화이트리스트
       defaultSession.webRequest.onHeadersReceived((details, callback) => {
         callback({
           responseHeaders: {
             ...details.responseHeaders,
             'Content-Security-Policy': [
-              "default-src 'self'; " +
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; " +
-                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+              "default-src 'none'; " +
+                "script-src 'self'; " +  // ✅ 인라인 스크립트 금지, eval 금지
+                "style-src 'self' https://fonts.googleapis.com; " +
                 "font-src 'self' https://fonts.gstatic.com; " +
-                "img-src 'self' data: https:; " +
-                "connect-src 'self' https:; " +
-                "frame-ancestors 'none'",
+                "img-src 'self' https: data:; " +
+                "connect-src 'self'; " +  // ✅ 모든 외부 API 요청 차단 (필요시 추가)
+                "frame-ancestors 'none'; " +
+                "base-uri 'self'; " +
+                "form-action 'self'",
             ],
           },
         })

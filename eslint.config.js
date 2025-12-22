@@ -171,7 +171,7 @@ export default [
     },
   },
 
-  // ===== General TypeScript rules =====
+  // ===== General TypeScript rules (Main, Renderer) =====
   {
     files: ['src/**/*.ts', 'src/**/*.tsx'],
     languageOptions: {
@@ -185,9 +185,10 @@ export default [
       '@typescript-eslint': tsPlugin,
     },
     rules: {
-      '@typescript-eslint/no-explicit-any': 'warn',
+      // ===== Type Safety (STRICT) =====
+      '@typescript-eslint/no-explicit-any': 'error',  // ← warn → error
       '@typescript-eslint/no-unused-vars': [
-        'warn',
+        'error',  // ← warn → error
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_|^[A-Z]',
@@ -195,15 +196,26 @@ export default [
           caughtErrorsIgnorePattern: '^_',
         },
       ],
+      '@typescript-eslint/explicit-function-return-types': [
+        'error',
+        {
+          allowExpressions: true,
+          allowTypedFunctionExpressions: true,
+        },
+      ],
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-non-null-assertion': 'error',
+
+      // ===== Code Quality (STRICT) =====
       'no-console': [
         'warn',
         {
-          allow: ['warn', 'error'],
+          allow: ['warn', 'error'],  // info 제거
         },
       ],
-      'no-debugger': 'warn',
-      'prefer-const': 'warn',
-      'no-var': 'warn',
+      'no-debugger': 'error',     // ← warn → error
+      'prefer-const': 'error',    // ← warn → error
+      'no-var': 'error',          // ← warn → error
     },
   },
 

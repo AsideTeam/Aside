@@ -19,6 +19,7 @@ import { Paths, validateEnv } from '@main/config'
 import { logger } from '@main/utils/Logger'
 import { MainWindow } from '@main/core/Window'
 import { ViewManager } from '@main/managers/ViewManager'
+import { UpdateService } from '@main/services/Update'
 
 /**
  * 애플리케이션 생명주기 상태
@@ -129,10 +130,7 @@ export class AppLifecycle {
 logger.info('[AppLifecycle] Step 1/4: Destroying ViewManager')
      
       // Step 2: Services 정리
-      // TODO: Service cleanup
-      logger.info('[AppLifecycle] Step 2/4: Services cleaned up')
-
-      // Step 3: Database 연결 종료
+      UpdateService.cleanup()  // ✅ Update 서비스 정리 (타이머 해제)
       // TODO: await Database.disconnect()
       logger.info('[AppLifecycle] Step 3/4: Database disconnected')
 

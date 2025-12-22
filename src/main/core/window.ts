@@ -123,12 +123,19 @@ export class MainWindow {
    * MainWindow 파괴
    *
    * 명시적으로 호출하지 말 것 (창 닫기 → 자동 정리)
+   * - 이벤트 리스너 정리
+   * - 메모리 해제
    */
   static destroy(): void {
     if (this.window) {
+      // ✅ 이벤트 리스너 정리 (메모리 누수 방지)
+      this.window.removeAllListeners()
+      if (this.window.webContents) {
+        this.window.webContents.removeAllListeners()
+      }
       this.window.destroy()
       this.window = null
-      logger.info('[MainWindow] Window destroyed')
+      logger.info('[MainWindow] Window destroyed and cleaned up')
     }
   }
 
