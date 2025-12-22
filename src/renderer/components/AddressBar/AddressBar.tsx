@@ -145,7 +145,7 @@ export function AddressBar() {
       {/* 2. 주소창 - Absolute 중앙 정렬 (600px 고정) */}
       <form 
         onSubmit={handleNavigate} 
-        className="absolute left-1/2 -translate-x-1/2 w-full max-w-[600px] px-4"
+        className="absolute left-1/2 -translate-x-1/2 w-full max-w-150 px-4"
       >
         <div 
           className={`

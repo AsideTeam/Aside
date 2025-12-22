@@ -358,6 +358,34 @@ export class ViewManager {
   }
 
   /**
+   * 활성 탭의 WebContentsView 숨기기
+   * Settings 페이지 표시 시 사용
+   */
+  static hideActiveView(): void {
+    if (!this.activeTabId) return
+
+    const tabData = this.tabs.get(this.activeTabId)
+    if (tabData && this.mainWindow) {
+      tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+      logger.info('[ViewManager] Active view hidden', { tabId: this.activeTabId })
+    }
+  }
+
+  /**
+   * 활성 탭의 WebContentsView 다시 표시
+   * Settings 페이지 닫을 시 사용
+   */
+  static showActiveView(): void {
+    if (!this.activeTabId) return
+
+    const tabData = this.tabs.get(this.activeTabId)
+    if (tabData) {
+      this.layout()
+      logger.info('[ViewManager] Active view shown', { tabId: this.activeTabId })
+    }
+  }
+
+  /**
    * 레이아웃 계산 및 적용
    *
    * React UI 영역 (TabBar + AddressBar)을 제외한 영역에 WebContentsView 배치

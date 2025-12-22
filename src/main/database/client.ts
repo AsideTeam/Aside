@@ -42,6 +42,7 @@ export class Database {
    * 데이터베이스 연결 (앱 부팅 단계)
    *
    * @param dbPath SQLite 파일 경로 (예: /home/user/.config/Aside/app.db)
+   * @deprecated Use connectWithRetry from connection.ts instead
    */
   static async connect(dbPath: string): Promise<void> {
     if (this.isConnected) {
@@ -52,10 +53,9 @@ export class Database {
     try {
       logger.info('Connecting to database...', { dbPath })
 
-      // Prisma Client 인스턴스 생성 (DATABASE_URL 환경변수 사용)
+      // Prisma Client 인스턴스 생성
       process.env.DATABASE_URL = `file:${dbPath}`
-      const adapter = new PrismaLibSql({ url: process.env.DATABASE_URL })
-      this.client = new PrismaClient({ adapter })
+      this.client = new PrismaClient()
 
       // 연결 테스트 (간단한 쿼리 실행)
       await this.client.$queryRaw`SELECT 1`

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
 import { TabBar } from '../components/TabBar'
 import { AddressBar } from '../components/AddressBar'
@@ -20,27 +20,49 @@ export function AppLayout() {
   )
 
   // about: 페이지인지 확인
-  const isAboutPage = activeTab?.url.startsWith('about:')
-  const aboutPage = isAboutPage ? activeTab.url.replace('about:', '') : null
+  const isAboutPage = activeTab?.url.startsWith('about:') ?? false
+  const aboutPage = isAboutPage && activeTab ? activeTab.url.replace('about:', '') : null
 
   // Settings 페이지 표시 여부
   const isSettingsPage = aboutPage === 'preferences' || aboutPage === 'settings'
 
+  // Settings 열림/닫힘 상태를 Main Process에 알리기
+  useEffect(() => {
+    if (window.electronAPI?.invoke) {
+      // Main Process에 Settings 상태 전달
+      void window.electronAPI.invoke('view:settings-toggled', { isOpen: isSettingsPage })
+    }
+  }, [isSettingsPage])
+
+  // Settings 페이지: 전체 화면 (TabBar + AddressBar + Settings 내용)
   if (isSettingsPage) {
     return (
       <div className="app-layout flex flex-col h-screen w-screen bg-[#202124]">
-        <Settings />
+        {/* 탭바 (40px) */}
+        <TabBar />
+
+        {/* 주소창 (48px) */}
+        <AddressBar />
+
+        {/* Settings 콘텐츠 */}
+        <div className="flex-1 overflow-hidden">
+          <Settings />
+        </div>
       </div>
     )
   }
 
+  // 일반 웹페이지
   return (
-    <div className="app-layout flex flex-col h-23 w-screen bg-[#202124]">
-      {/* 탭바 (44px) - macOS 신호등 버튼 영역 확보 */}
+    <div className="app-layout flex flex-col h-screen w-screen bg-[#202124]">
+      {/* 탭바 (40px) */}
       <TabBar />
 
-      {/* 주소창 + 네비게이션 버튼 (48px) - Chrome 스타일 */}
+      {/* 주소창 (48px) */}
       <AddressBar />
+
+      {/* WebContentsView 영역 (나머지 공간) */}
+      <div className="flex-1 overflow-hidden" />
     </div>
   )
 }

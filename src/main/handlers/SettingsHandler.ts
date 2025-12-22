@@ -5,6 +5,7 @@
 
 import { ipcMain } from 'electron'
 import { logger } from '@main/utils/Logger'
+import { ViewManager } from '@main/managers/ViewManager'
 import Store from 'electron-store'
 
 // 설정 저장소 초기화
@@ -19,6 +20,7 @@ const store = new Store({
     pageZoom: '100',
     blockThirdPartyCookies: true,
     continueSession: true,
+    language: 'ko',
   },
 })
 
@@ -27,6 +29,29 @@ const store = new Store({
  */
 export function setupSettingsHandlers(): void {
   logger.info('[IPC] Registering settings handlers...')
+
+  /**
+   * Settings 페이지 열림/닫힘 상태 처리
+   * IPC: view:settings-toggled
+   */
+  ipcMain.handle('view:settings-toggled', async (_event, input: unknown) => {
+    try {
+      const { isOpen } = input as { isOpen: boolean }
+      if (isOpen) {
+        // Settings 페이지가 열렸을 때: WebContentsView 숨기기
+        ViewManager.hideActiveView()
+        logger.info('[IPC] Settings page opened - view hidden')
+      } else {
+        // Settings 페이지가 닫혔을 때: WebContentsView 다시 보여주기
+        ViewManager.showActiveView()
+        logger.info('[IPC] Settings page closed - view shown')
+      }
+      return true
+    } catch (error) {
+      logger.error('[IPC] Failed to toggle settings:', error)
+      throw error
+    }
+  })
 
   /**
    * 모든 설정값 조회
@@ -47,13 +72,14 @@ export function setupSettingsHandlers(): void {
    * 특정 설정값 조회
    * IPC: settings:get
    */
-  ipcMain.handle('settings:get', async (event, key: string) => {
+  ipcMain.handle('settings:get', async (_event, input: unknown) => {
     try {
+      const key = input as string
       const value = store.get(key)
       logger.info('[IPC] Setting retrieved', { key, value })
       return value
     } catch (error) {
-      logger.error('[IPC] Failed to get setting:', { key }, error)
+      logger.error('[IPC] Failed to get setting:', error)
       throw error
     }
   })
@@ -62,13 +88,14 @@ export function setupSettingsHandlers(): void {
    * 설정값 업데이트
    * IPC: settings:update
    */
-  ipcMain.handle('settings:update', async (event, key: string, value: any) => {
+  ipcMain.handle('settings:update', async (_event, input: unknown) => {
     try {
+      const { key, value } = input as { key: string; value: unknown }
       store.set(key, value)
-      logger.info('[IPC] Setting updated', { key, value })
+      logger.info('[IPC] Setting updated', { key })
       return true
     } catch (error) {
-      logger.error('[IPC] Failed to update setting:', { key, value }, error)
+      logger.error('[IPC] Failed to update setting:', error)
       throw error
     }
   })
@@ -77,8 +104,9 @@ export function setupSettingsHandlers(): void {
    * 여러 설정값 한 번에 업데이트
    * IPC: settings:update-multiple
    */
-  ipcMain.handle('settings:update-multiple', async (event, updates: Record<string, any>) => {
+  ipcMain.handle('settings:update-multiple', async (_event, input: unknown) => {
     try {
+      const updates = input as Record<string, unknown>
       Object.entries(updates).forEach(([key, value]) => {
         store.set(key, value)
       })

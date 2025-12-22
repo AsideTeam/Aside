@@ -585,6 +585,30 @@ class ViewManager {
     logger.info("[ViewManager] All tabs destroyed");
   }
   /**
+   * 활성 탭의 WebContentsView 숨기기
+   * Settings 페이지 표시 시 사용
+   */
+  static hideActiveView() {
+    if (!this.activeTabId) return;
+    const tabData = this.tabs.get(this.activeTabId);
+    if (tabData && this.mainWindow) {
+      tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+      logger.info("[ViewManager] Active view hidden", { tabId: this.activeTabId });
+    }
+  }
+  /**
+   * 활성 탭의 WebContentsView 다시 표시
+   * Settings 페이지 닫을 시 사용
+   */
+  static showActiveView() {
+    if (!this.activeTabId) return;
+    const tabData = this.tabs.get(this.activeTabId);
+    if (tabData) {
+      this.layout();
+      logger.info("[ViewManager] Active view shown", { tabId: this.activeTabId });
+    }
+  }
+  /**
    * 레이아웃 계산 및 적용
    *
    * React UI 영역 (TabBar + AddressBar)을 제외한 영역에 WebContentsView 배치
@@ -1375,6 +1399,22 @@ const store = new Store({
 });
 function setupSettingsHandlers() {
   logger.info("[IPC] Registering settings handlers...");
+  ipcMain.handle("view:settings-toggled", async (_event, input) => {
+    try {
+      const { isOpen } = input;
+      if (isOpen) {
+        ViewManager.hideActiveView();
+        logger.info("[IPC] Settings page opened - view hidden");
+      } else {
+        ViewManager.showActiveView();
+        logger.info("[IPC] Settings page closed - view shown");
+      }
+      return true;
+    } catch (error) {
+      logger.error("[IPC] Failed to toggle settings:", error);
+      throw error;
+    }
+  });
   ipcMain.handle("settings:get-all", async () => {
     try {
       const settings = store.store;
@@ -1385,28 +1425,31 @@ function setupSettingsHandlers() {
       throw error;
     }
   });
-  ipcMain.handle("settings:get", async (event, key) => {
+  ipcMain.handle("settings:get", async (_event, input) => {
     try {
+      const key = input;
       const value = store.get(key);
       logger.info("[IPC] Setting retrieved", { key, value });
       return value;
     } catch (error) {
-      logger.error("[IPC] Failed to get setting:", { key }, error);
+      logger.error("[IPC] Failed to get setting:", error);
       throw error;
     }
   });
-  ipcMain.handle("settings:update", async (event, key, value) => {
+  ipcMain.handle("settings:update", async (_event, input) => {
     try {
+      const { key, value } = input;
       store.set(key, value);
-      logger.info("[IPC] Setting updated", { key, value });
+      logger.info("[IPC] Setting updated", { key });
       return true;
     } catch (error) {
-      logger.error("[IPC] Failed to update setting:", { key, value }, error);
+      logger.error("[IPC] Failed to update setting:", error);
       throw error;
     }
   });
-  ipcMain.handle("settings:update-multiple", async (event, updates) => {
+  ipcMain.handle("settings:update-multiple", async (_event, input) => {
     try {
+      const updates = input;
       Object.entries(updates).forEach(([key, value]) => {
         store.set(key, value);
       });

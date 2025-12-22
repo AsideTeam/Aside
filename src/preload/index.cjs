@@ -58,7 +58,7 @@ const electronAPI = {
   // ===== Settings Management =====
   settings: {
     getSettings: () => ipcRenderer.invoke('settings:get-all'),
-    updateSetting: (key, value) => ipcRenderer.invoke('settings:update', key, value),
+    updateSetting: (key, value) => ipcRenderer.invoke('settings:update', { key, value }),
   },
 
   // ===== Main -> Renderer Events (safe wrapper) =====
@@ -111,6 +111,7 @@ const electronAPI = {
       'settings:update',
       'settings:update-multiple',
       'settings:reset',
+      'view:settings-toggled',
     ]
 
     if (!allowedChannels.includes(channel)) {
