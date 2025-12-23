@@ -15,6 +15,7 @@ import { logger } from '@main/utils/Logger'
 import { setupAppHandlers } from './AppHandler'
 import { setupTabHandlers } from './TabHandler'
 import { setupSettingsHandlers } from './SettingsHandler'
+import { setupViewHandlers } from './ViewHandler'
 
 /**
  * 모든 IPC 핸들러 등록
@@ -34,6 +35,10 @@ export function setupIPCHandlers(): void {
     // Step 3: 설정 핸들러 등록
     setupSettingsHandlers()
     logger.info('[IPC] Settings handlers registered')
+
+    // Step 4: View(WebContentsView) 핸들러 등록
+    setupViewHandlers()
+    logger.info('[IPC] View handlers registered')
 
     logger.info('[IPC] All handlers setup completed')
   } catch (error) {

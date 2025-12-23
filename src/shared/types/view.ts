@@ -10,9 +10,10 @@
 /**
  * WebContentsView의 위치와 크기
  *
- * DPI 배율이 고려된 절대값
- * - x, y: 윈도우 내 좌상단 좌표 (픽셀)
- * - width, height: 뷰 크기 (픽셀)
+ * Electron setBounds 기준 좌표
+ * - 일반적으로 DIP(CSS px) 기준으로 맞추는 것이 안전
+ * - x, y: 윈도우 내 좌상단 좌표
+ * - width, height: 뷰 크기
  * - margin: 선택사항, 배경과의 여백
  */
 export interface ViewBounds {

@@ -1,0 +1,322 @@
+/**
+ * Aside Sidebar CSS
+ *
+ * Zen/Arc 느낌의 "frame 전략"용 사이드바 + 뷰 placeholder 스타일
+ * - 색상은 theme.css 변수 사용
+ */
+
+/* ===== Sidebar Container ===== */
+.aside-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: var(--size-sidebar-width);
+  height: 100vh;
+  background-color: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border-primary);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  -webkit-app-region: drag;
+  user-select: none;
+  transition: width var(--duration-normal) ease;
+}
+
+.aside-sidebar--collapsed {
+  width: var(--size-sidebar-collapsed);
+}
+
+.aside-sidebar-top {
+  padding: 10px 12px;
+  display: flex;
+  justify-content: flex-end;
+  -webkit-app-region: no-drag;
+}
+
+/* ===== Pinned Tabs Area ===== */
+.aside-pinned-area {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border-primary);
+  -webkit-app-region: no-drag;
+}
+
+.aside-pinned-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aside-pinned-tab {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg-tertiary);
+  border: none;
+  border-radius: 10px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.aside-pinned-tab:hover {
+  background-color: var(--color-bg-hover);
+  transform: scale(1.05);
+}
+
+/* ===== Space Header ===== */
+.aside-space-header {
+  padding: 12px 16px 8px;
+  -webkit-app-region: no-drag;
+}
+
+.aside-space-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-transform: capitalize;
+}
+
+/* ===== Tabs Area ===== */
+.aside-tabs-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 8px;
+  -webkit-app-region: no-drag;
+}
+
+.aside-tabs-area::-webkit-scrollbar {
+  width: 4px;
+}
+
+.aside-tabs-area::-webkit-scrollbar-thumb {
+  background: var(--color-border-light);
+  border-radius: 2px;
+}
+
+/* ===== Tab Item ===== */
+.aside-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin: 2px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.aside-tab:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.aside-tab-active {
+  background-color: var(--color-accent);
+  color: var(--color-text-primary);
+}
+
+.aside-tab-active:hover {
+  background-color: var(--color-accent);
+}
+
+.aside-tab-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+}
+
+.aside-tab-active .aside-tab-icon {
+  opacity: 1;
+}
+
+.aside-tab-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.aside-tab-close {
+  opacity: 0;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: inherit;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.aside-tab:hover .aside-tab-close {
+  opacity: 0.6;
+}
+
+.aside-tab-close:hover {
+  opacity: 1 !important;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.aside-tab-active .aside-tab-close:hover {
+  background-color: rgba(0, 0, 0, 0.15);
+}
+
+/* ===== Folder Item ===== */
+.aside-folder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin: 2px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.aside-folder:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.aside-folder-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent-light);
+}
+
+.aside-folder-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ===== Divider ===== */
+.aside-divider {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  -webkit-app-region: no-drag;
+}
+
+.aside-divider::before {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--color-border-primary);
+  margin-right: 12px;
+}
+
+.aside-divider-text {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+
+/* ===== New Tab Button ===== */
+.aside-new-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.aside-new-tab:hover {
+  background-color: var(--color-bg-hover);
+}
+
+/* ===== Bottom Actions ===== */
+.aside-bottom-actions {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-top: 1px solid var(--color-border-primary);
+  -webkit-app-region: no-drag;
+}
+
+.aside-action-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.aside-action-btn:hover {
+  background-color: var(--color-bg-hover);
+}
+
+/* ===== Collapsed behavior ===== */
+.aside-sidebar--collapsed .aside-space-header,
+.aside-sidebar--collapsed .aside-tabs-area,
+.aside-sidebar--collapsed .aside-divider,
+.aside-sidebar--collapsed .aside-new-tab {
+  display: none;
+}
+
+.aside-sidebar--collapsed .aside-pinned-grid {
+  justify-content: center;
+}
+
+.aside-label {
+  display: inline-block;
+}
+
+/* ===== Frame + Placeholder (WebContentsView 자리) ===== */
+.aside-frame {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.aside-view-container {
+  flex: 1;
+  position: relative;
+  background: transparent;
+  overflow: hidden;
+}
+
+.aside-view-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-primary);
+  background: transparent;
+}
+
+.aside-url-hint {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 12px;
+  z-index: 40;
+  pointer-events: none;
+}

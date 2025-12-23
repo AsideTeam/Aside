@@ -1,47 +1,66 @@
 /**
- * Sidebar Component (Zen Browser Style)
+ * Sidebar Component - Aside Browser
  *
- * Zen Browser 스타일 사이드바
- * - 깔끔하고 미니멀한 디자인
- * - 탭 관리
- * - 빠른 접근 (북마크, 히스토리)
- * - 설정
+ * 미니멀한 사이드바
+ * - 상단: 고정 탭 그리드
+ * - 중간: 탭 목록
+ * - 하단: 액션 버튼
  */
 
 import React, { useState } from 'react';
-import { logger } from '@renderer/lib/logger';
-import { tokens, cn } from '@renderer/styles';
-import { Icons } from '@renderer/lib/icons';
+import {
+  Plus,
+  X,
+  Download,
+  FolderClosed,
+  Globe,
+  Settings,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from 'lucide-react';
 
 interface Tab {
   id: string;
   title: string;
   url: string;
+  favicon?: string;
   isActive: boolean;
-  iconName?: string;
+  isPinned?: boolean;
 }
 
-export const Sidebar: React.FC = () => {
-  const [tabs, setTabs] = useState<Tab[]>([
-    {
-      id: '1',
-      title: 'Google',
-      url: 'https://google.com',
-      isActive: true,
-      iconName: Icons.Search,
-    },
-  ]);
+interface PinnedTab {
+  id: string;
+  title: string;
+  url: string;
+}
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
+// 더미 데이터
+const PINNED_TABS: PinnedTab[] = [
+  { id: 'p1', title: 'GitHub', url: 'https://github.com' },
+  { id: 'p2', title: 'ChatGPT', url: 'https://chat.openai.com' },
+];
+
+const INITIAL_TABS: Tab[] = [
+  {
+    id: '1',
+    title: 'Google',
+    url: 'https://google.com',
+    isActive: true,
+    isPinned: false,
+  },
+];
+
+export const Sidebar: React.FC = () => {
+  const [tabs, setTabs] = useState<Tab[]>(INITIAL_TABS);
+  const [collapsed, setCollapsed] = useState(false);
 
   const handleAddTab = () => {
-    logger.info('Sidebar - Add new tab');
     const newTab: Tab = {
-      id: `${Date.now()}`,
+      id: `tab-${Date.now()}`,
       title: 'New Tab',
-      url: 'https://www.google.com',
+      url: 'about:blank',
       isActive: true,
-      iconName: Icons.Home,
+      isPinned: false,
     };
     setTabs((prev) => [
       ...prev.map((t) => ({ ...t, isActive: false })),
@@ -49,149 +68,101 @@ export const Sidebar: React.FC = () => {
     ]);
   };
 
-  const handleSwitchTab = (tabId: string) => {
-    logger.info('Sidebar - Switch tab', { tabId });
+  const handleSelectTab = (tabId: string) => {
     setTabs((prev) =>
-      prev.map((t) => ({
-        ...t,
-        isActive: t.id === tabId,
-      }))
+      prev.map((t) => ({ ...t, isActive: t.id === tabId }))
     );
   };
 
-  const handleCloseTab = (tabId: string) => {
-    logger.info('Sidebar - Close tab', { tabId });
+  const handleCloseTab = (tabId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     setTabs((prev) => prev.filter((t) => t.id !== tabId));
   };
 
-  if (isCollapsed) {
-    return (
-      <div className={tokens.layout.sidebar.collapsed}>
+  return (
+    <aside className={collapsed ? 'aside-sidebar aside-sidebar--collapsed' : 'aside-sidebar'}>
+      {/* Collapse Toggle */}
+      <div className="aside-sidebar-top">
         <button
-          onClick={() => setIsCollapsed(false)}
-          className={cn(tokens.colors.button.ghost, 'p-2 rounded transition-colors')}
-          title="Expand sidebar"
+          className="aside-action-btn"
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          onClick={() => setCollapsed((v) => !v)}
         >
-          {Icons.Menu}
+          {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
+      </div>
+
+      {/* Pinned Tabs */}
+      <div className="aside-pinned-area">
+        <div className="aside-pinned-grid">
+          {PINNED_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              className="aside-pinned-tab"
+              title={tab.title}
+            >
+              <Globe size={20} />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Space Label */}
+      <div className="aside-space-header">
+        <span className="aside-space-label">Aside</span>
+      </div>
+
+      {/* Tabs List */}
+      <div className="aside-tabs-area">
+        {tabs.map((tab) => (
+          <div
+            key={tab.id}
+            className={`aside-tab ${tab.isActive ? 'aside-tab-active' : ''}`}
+            onClick={() => handleSelectTab(tab.id)}
+          >
+            <div className="aside-tab-icon">
+              <Globe size={16} />
+            </div>
+            <span className="aside-tab-title">{tab.title}</span>
+            <button
+              className="aside-tab-close"
+              onClick={(e) => handleCloseTab(tab.id, e)}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+
+        {/* Folder */}
+        <div className="aside-folder">
+          <div className="aside-folder-icon">
+            <FolderClosed size={16} />
+          </div>
+          <span className="aside-folder-title">New Folder</span>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="aside-divider">
+        <span className="aside-divider-text">탭 정리</span>
+      </div>
+
+      {/* New Tab Button */}
+      <button className="aside-new-tab" onClick={handleAddTab}>
+        <Plus size={16} />
+        <span className="aside-label">새 탭</span>
+      </button>
+
+      {/* Bottom Actions */}
+      <div className="aside-bottom-actions">
+        <button className="aside-action-btn" title="Downloads">
+          <Download size={18} />
         </button>
         <div className="flex-1" />
-        <button
-          onClick={handleAddTab}
-          className={cn(tokens.colors.button.ghost, 'p-2 rounded transition-colors')}
-          title="New tab"
-        >
-          {Icons.Plus}
+        <button className="aside-action-btn" title="Settings">
+          <Settings size={18} />
         </button>
       </div>
-    );
-  }
-
-  return (
-    <div className={tokens.layout.sidebar.wrapper}>
-      {/* Header */}
-      <div className={cn(tokens.layout.sidebar.header, 'drag-region')}>
-        <h1 className={tokens.layout.sidebar.title}>Aside</h1>
-        <button
-          onClick={() => setIsCollapsed(true)}
-          className={cn(tokens.colors.button.ghost, 'p-1 rounded transition-colors no-drag')}
-          title="Collapse sidebar"
-        >
-          {Icons.Close}
-        </button>
-      </div>
-
-      {/* Main Content */}
-      <div className={cn('flex-1 overflow-y-auto', 'flex flex-col')}>
-        {/* Tabs Section */}
-        <div className="px-3 py-4">
-          <div className="space-y-2">
-            {tabs.length > 0 ? (
-              tabs.map((tab) => (
-                <div
-                  key={tab.id}
-                  className={cn(
-                    'tab-wrapper',
-                    tab.isActive ? tokens.layout.tab.active : tokens.layout.tab.inactive
-                  )}
-                  onClick={() => handleSwitchTab(tab.id)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{tab.title}</p>
-                    <p className="text-xs opacity-70 truncate">{tab.url}</p>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCloseTab(tab.id);
-                    }}
-                    className={tokens.layout.tab.closeBtn}
-                    title="Close tab"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))
-            ) : (
-              <div className={cn('text-center py-6', tokens.colors.text.secondary)}>
-                <p className="text-xs">No tabs open</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Separator */}
-        <div className="border-t border-(--color-border-primary)" />
-
-        {/* Quick Access Section */}
-        <div className="px-3 py-4">
-          <p className={cn('text-xs font-semibold mb-3 uppercase tracking-wide', tokens.colors.text.secondary)}>
-            Quick Access
-          </p>
-          <div className="space-y-2">
-            <button
-              onClick={handleAddTab}
-              className={cn(
-                'w-full text-left px-3 py-2 rounded transition-colors',
-                tokens.colors.button.secondary,
-                'hover:bg-(--color-bg-hover) text-sm'
-              )}
-            >
-              {Icons.Plus} New Tab
-            </button>
-            <button
-              className={cn(
-                'w-full text-left px-3 py-2 rounded transition-colors',
-                tokens.colors.button.secondary,
-                'hover:bg-(--color-bg-hover) text-sm'
-              )}
-            >
-              {Icons.Bookmark} Bookmarks
-            </button>
-            <button
-              className={cn(
-                'w-full text-left px-3 py-2 rounded transition-colors',
-                tokens.colors.button.secondary,
-                'hover:bg-(--color-bg-hover) text-sm'
-              )}
-            >
-              {Icons.History} History
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer - Settings */}
-      <div className={cn('border-t border-(--color-border-primary)', 'p-3')}>
-        <button
-          className={cn(
-            'w-full text-left px-3 py-2 rounded transition-colors',
-            tokens.colors.button.secondary,
-            'hover:bg-(--color-bg-hover) text-sm'
-          )}
-        >
-          {Icons.Settings} Settings
-        </button>
-      </div>
-    </div>
+    </aside>
   );
 };

@@ -347,6 +347,7 @@ class ViewManager {
   static activeTabId = null;
   static mainWindow = null;
   static isInitializing = false;
+  static externalActiveBounds = null;
   /**
    * ViewManager 초기화
    *
@@ -374,6 +375,7 @@ class ViewManager {
       });
       const homeTabId = await this.createTab("https://www.google.com");
       logger.info("[ViewManager] Home tab created", { tabId: homeTabId });
+      this.switchTab(homeTabId);
       this.layout();
       logger.info("[ViewManager] Layout applied");
       logger.info("[ViewManager] Initialization completed");
@@ -451,6 +453,19 @@ class ViewManager {
     this.layout();
     logger.info("[ViewManager] Tab switched", { tabId });
     this.syncToRenderer();
+  }
+  /**
+   * Renderer(React)에서 계산한 "placeholder" 좌표로 활성 WebContentsView 배치
+   * - Zen/Arc 스타일: UI가 WebView 위에 떠 있는 느낌을 만들기 위한 핵심
+   */
+  static setActiveViewBounds(bounds) {
+    this.externalActiveBounds = {
+      x: Math.max(0, Math.round(bounds.x)),
+      y: Math.max(0, Math.round(bounds.y)),
+      width: Math.max(0, Math.round(bounds.width)),
+      height: Math.max(0, Math.round(bounds.height))
+    };
+    this.layout();
   }
   /**
    * 탭 닫기
@@ -634,20 +649,20 @@ class ViewManager {
     if (!this.mainWindow) return;
     const { width, height } = this.mainWindow.getBounds();
     const toolbarHeight = LAYOUT.TOOLBAR_HEIGHT;
-    const contentY = toolbarHeight;
-    const contentHeight = height - toolbarHeight;
+    const defaultBounds = {
+      x: 0,
+      y: toolbarHeight,
+      width,
+      height: Math.max(0, height - toolbarHeight)
+    };
+    const activeBounds = this.externalActiveBounds ?? defaultBounds;
     for (const [, tabData] of this.tabs) {
       if (tabData.isActive) {
         if (tabData.url.startsWith("about:")) {
           tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
           logger.debug("[ViewManager] Layout: hiding WebView for about page", { url: tabData.url });
         } else {
-          tabData.view.setBounds({
-            x: 0,
-            y: contentY,
-            width,
-            height: Math.max(0, contentHeight)
-          });
+          tabData.view.setBounds(activeBounds);
         }
       } else {
         tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
@@ -693,6 +708,14 @@ class ViewManager {
         tabData.url = url;
         logger.info("[ViewManager] Tab URL changed", { tabId, url });
         this.syncToRenderer();
+        if (this.mainWindow && tabData.isActive) {
+          this.mainWindow.webContents.send("view:navigated", {
+            url,
+            canGoBack: view.webContents.canGoBack(),
+            canGoForward: view.webContents.canGoForward(),
+            timestamp: Date.now()
+          });
+        }
       }
     });
     view.webContents.on("did-navigate-in-page", (_event, url) => {
@@ -700,6 +723,24 @@ class ViewManager {
       if (tabData) {
         tabData.url = url;
         this.syncToRenderer();
+        if (this.mainWindow && tabData.isActive) {
+          this.mainWindow.webContents.send("view:navigated", {
+            url,
+            canGoBack: view.webContents.canGoBack(),
+            canGoForward: view.webContents.canGoForward(),
+            timestamp: Date.now()
+          });
+        }
+      }
+    });
+    view.webContents.on("did-finish-load", () => {
+      const tabData = this.tabs.get(tabId);
+      if (!tabData) return;
+      if (this.mainWindow && tabData.isActive) {
+        this.mainWindow.webContents.send("view:loaded", {
+          url: view.webContents.getURL(),
+          timestamp: Date.now()
+        });
       }
     });
     logger.info("[ViewManager] Tab event listeners attached", { tabId });
@@ -1940,6 +1981,31 @@ function setupSettingsHandlers() {
   });
   logger.info("[SettingsHandler] IPC handlers registered successfully");
 }
+function setupViewHandlers() {
+  logger.info("[ViewHandler] Setting up handlers...");
+  ipcMain.on("view:resize", (_event, bounds) => {
+    try {
+      ViewManager.setActiveViewBounds(bounds);
+    } catch (error) {
+      logger.error("[ViewHandler] view:resize failed:", error);
+    }
+  });
+  ipcMain.handle("view:navigate", async (_event, input) => {
+    try {
+      const payload = input;
+      const url = payload?.url;
+      if (!url || typeof url !== "string") {
+        return { success: false, error: "Invalid url" };
+      }
+      await ViewManager.navigate(url);
+      return { success: true, url };
+    } catch (error) {
+      logger.error("[ViewHandler] view:navigate failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  logger.info("[ViewHandler] Handlers setup completed");
+}
 function setupIPCHandlers() {
   logger.info("[IPC] Setting up all handlers...");
   try {
@@ -1949,6 +2015,8 @@ function setupIPCHandlers() {
     logger.info("[IPC] Tab handlers registered");
     setupSettingsHandlers();
     logger.info("[IPC] Settings handlers registered");
+    setupViewHandlers();
+    logger.info("[IPC] View handlers registered");
     logger.info("[IPC] All handlers setup completed");
   } catch (error) {
     logger.error("[IPC] Handler setup failed:", error);

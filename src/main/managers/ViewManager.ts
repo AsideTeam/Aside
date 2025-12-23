@@ -46,6 +46,7 @@ export class ViewManager {
   private static activeTabId: string | null = null
   private static mainWindow: BrowserWindow | null = null
   private static isInitializing = false
+  private static externalActiveBounds: { x: number; y: number; width: number; height: number } | null = null
 
   /**
    * ViewManager 초기화
@@ -82,6 +83,9 @@ export class ViewManager {
       // Step 1: 기본 탭 생성 (홈페이지)
       const homeTabId = await this.createTab('https://www.google.com')
       logger.info('[ViewManager] Home tab created', { tabId: homeTabId })
+
+      // ✅ 기본 탭을 활성화하지 않으면 모든 뷰가 0x0으로 남아 "웹이 안 뜸"
+      this.switchTab(homeTabId)
 
       // Step 2: 레이아웃 계산 및 적용
       this.layout()
@@ -188,6 +192,20 @@ export class ViewManager {
     
     // Renderer 동기화
     this.syncToRenderer()
+  }
+
+  /**
+   * Renderer(React)에서 계산한 "placeholder" 좌표로 활성 WebContentsView 배치
+   * - Zen/Arc 스타일: UI가 WebView 위에 떠 있는 느낌을 만들기 위한 핵심
+   */
+  static setActiveViewBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+    this.externalActiveBounds = {
+      x: Math.max(0, Math.round(bounds.x)),
+      y: Math.max(0, Math.round(bounds.y)),
+      width: Math.max(0, Math.round(bounds.width)),
+      height: Math.max(0, Math.round(bounds.height)),
+    }
+    this.layout()
   }
 
   /**
@@ -416,13 +434,18 @@ export class ViewManager {
     if (!this.mainWindow) return
 
     const { width, height } = this.mainWindow.getBounds()
-    
-    // UI 영역 높이 (TabBar + AddressBar)
+
+    // 기본값: 기존 BrowserLayout(상단 툴바) 호환
     const toolbarHeight = LAYOUT.TOOLBAR_HEIGHT
-    
-    // WebContentsView는 UI 아래에 배치
-    const contentY = toolbarHeight
-    const contentHeight = height - toolbarHeight
+    const defaultBounds = {
+      x: 0,
+      y: toolbarHeight,
+      width,
+      height: Math.max(0, height - toolbarHeight),
+    }
+
+    // Zen/Arc: Renderer에서 들어온 bounds가 있으면 그걸 우선
+    const activeBounds = this.externalActiveBounds ?? defaultBounds
 
     for (const [, tabData] of this.tabs) {
       if (tabData.isActive) {
@@ -432,12 +455,7 @@ export class ViewManager {
           logger.debug('[ViewManager] Layout: hiding WebView for about page', { url: tabData.url })
         } else {
           // 일반 웹페이지: 보이기
-          tabData.view.setBounds({ 
-            x: 0, 
-            y: contentY, 
-            width, 
-            height: Math.max(0, contentHeight) 
-          })
+          tabData.view.setBounds(activeBounds)
         }
       } else {
         tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
@@ -490,6 +508,15 @@ export class ViewManager {
         tabData.url = url
         logger.info('[ViewManager] Tab URL changed', { tabId, url })
         this.syncToRenderer()
+
+        if (this.mainWindow && tabData.isActive) {
+          this.mainWindow.webContents.send('view:navigated', {
+            url,
+            canGoBack: view.webContents.canGoBack(),
+            canGoForward: view.webContents.canGoForward(),
+            timestamp: Date.now(),
+          })
+        }
       }
     })
 
@@ -499,6 +526,28 @@ export class ViewManager {
       if (tabData) {
         tabData.url = url
         this.syncToRenderer()
+
+        if (this.mainWindow && tabData.isActive) {
+          this.mainWindow.webContents.send('view:navigated', {
+            url,
+            canGoBack: view.webContents.canGoBack(),
+            canGoForward: view.webContents.canGoForward(),
+            timestamp: Date.now(),
+          })
+        }
+      }
+    })
+
+    // 로드 완료
+    view.webContents.on('did-finish-load', () => {
+      const tabData = this.tabs.get(tabId)
+      if (!tabData) return
+
+      if (this.mainWindow && tabData.isActive) {
+        this.mainWindow.webContents.send('view:loaded', {
+          url: view.webContents.getURL(),
+          timestamp: Date.now(),
+        })
       }
     })
 

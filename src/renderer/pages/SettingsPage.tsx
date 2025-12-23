@@ -3,20 +3,18 @@ import { SettingsLayout } from '../layouts/SettingsLayout';
 import { SettingRow } from '../components/settings/SettingRow';
 import { useSetting } from '../hooks/useSetting';
 import { logger } from '../lib/logger';
-import { Icons } from '@renderer/lib/icons';
 import { tokens, cn } from '@renderer/styles';
 
 interface SettingsCategory {
   id: string;
   label: string;
-  iconName: string;
 }
 
 const SETTINGS_CATEGORIES: SettingsCategory[] = [
-  { id: 'general', label: 'General', iconName: Icons.Settings },
-  { id: 'appearance', label: 'Appearance', iconName: Icons.Settings },
-  { id: 'privacy', label: 'Privacy & Security', iconName: Icons.Settings },
-  { id: 'advanced', label: 'Advanced', iconName: Icons.Settings },
+  { id: 'general', label: 'General' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'privacy', label: 'Privacy & Security' },
+  { id: 'advanced', label: 'Advanced' },
 ];
 
 export const SettingsPage: React.FC = () => {

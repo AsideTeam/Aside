@@ -19,14 +19,16 @@ import type { ViewBounds } from '@shared/types/view';
 
 interface UseViewBoundsOptions {
   margin?: number; // 배경과의 여백 (Arc 스타일)
-  scaleFactor?: number; // DPI 배율 (기본값: window.devicePixelRatio)
+  scaleFactor?: number; // 고급 옵션 (기본값: 1). 보통 Electron setBounds는 DIP 기준이므로 1이 안전
 }
 
 export const useViewBounds = (
   contentAreaRef: React.RefObject<HTMLDivElement | null>,
   options: UseViewBoundsOptions = {}
 ) => {
-  const { margin = 0, scaleFactor = window.devicePixelRatio } = options;
+  // NOTE: getBoundingClientRect()는 CSS px(DIP) 기반.
+  // Electron WebContentsView.setBounds 역시 DIP 기준이므로 기본 1을 사용.
+  const { margin = 0, scaleFactor = 1 } = options;
   const lastBoundsRef = useRef<ViewBounds | null>(null);
 
   const updateBounds = useCallback(() => {

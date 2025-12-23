@@ -49,21 +49,15 @@ export const ZenLayout: React.FC = () => {
   }, [updateBounds]);
 
   return (
-    <div className={cn('flex h-screen w-full overflow-hidden', tokens.colors.bg.primary, tokens.colors.text.primary)}>
-      {/* ===== 좌측: 사이드바 ===== */}
-      <aside className={tokens.layout.sidebar.wrapper}>
-        <Sidebar />
-      </aside>
+    <div className={cn('aside-frame', tokens.colors.bg.primary, tokens.colors.text.primary)}>
+      {/* 좌측: Sidebar (React UI) */}
+      <Sidebar />
 
-      {/* ===== 우측: 컨텐츠 영역 ===== */}
-      <main className={tokens.layout.contentArea.wrapper}>
-        <div
-          ref={contentAreaRef}
-          className={tokens.layout.contentArea.placeholder}
-        />
+      {/* 우측: WebContentsView가 올라갈 "구멍" */}
+      <main className="aside-view-container">
+        <div ref={contentAreaRef} className="aside-view-placeholder" />
 
-        {/* 로딩 상태 표시기 (선택사항) */}
-        <div className={cn('absolute top-4 right-4 z-40 text-xs', tokens.colors.text.secondary)}>
+        <div className={cn('aside-url-hint', tokens.colors.text.secondary)}>
           {currentUrl}
         </div>
       </main>

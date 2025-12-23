@@ -10,3 +10,5 @@
 export { logger } from './logger';
 export { cn, formatUrl } from './utils';
 export { APP_NAME, APP_VERSION, DEFAULT_HOMEPAGE, DEFAULT_SEARCH_ENGINE } from './constants';
+export { Icon } from './icons';
+export type { IconName } from './icons';
