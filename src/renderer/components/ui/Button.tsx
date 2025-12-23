@@ -1,4 +1,5 @@
 import React from 'react';
+import { cn } from '@renderer/styles/tokens';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger';
@@ -8,12 +9,12 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = 'primary', size = 'md', className = '', ...props }, ref) => {
-    const baseStyles = 'font-medium rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2';
+    const baseStyles = 'font-medium rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent';
     
     const variantStyles = {
-      primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
-      secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500',
-      danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+      primary: 'bg-blue-600 text-white hover:bg-blue-700',
+      secondary: 'bg-gray-700 text-gray-200 hover:bg-gray-600',
+      danger: 'bg-red-600 text-white hover:bg-red-700',
     };
 
     const sizeStyles = {
@@ -25,7 +26,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         ref={ref}
-        className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+        className={cn(baseStyles, variantStyles[variant], sizeStyles[size], className)}
         {...props}
       />
     );

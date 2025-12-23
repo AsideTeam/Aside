@@ -226,7 +226,8 @@ class MainWindow {
     try {
       logger.info("[MainWindow] Creating main window...");
       const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-      this.window = new BrowserWindow({
+      const isMacOS = process.platform === "darwin";
+      const browserWindowOptions = {
         width,
         height,
         minWidth: 800,
@@ -246,11 +247,17 @@ class MainWindow {
         // 창 로드 전 숨김 (깜빡임 방지)
         show: false,
         // 배경색 (깜빡임 방지)
+        // ⚠️ Windows/Linux에서는 #00000000 투명 사용 금지 (렌더링 문제)
         backgroundColor: "#1a1a1a"
-      });
+      };
+      if (isMacOS) {
+        logger.debug("[MainWindow] macOS platform detected. Vibrancy available (currently disabled).");
+      }
+      this.window = new BrowserWindow(browserWindowOptions);
       logger.info("[MainWindow] BrowserWindow instance created", {
         width,
-        height
+        height,
+        platform: process.platform
       });
       this.setupWindowEvents();
       const startUrl = this.getStartUrl();
@@ -410,7 +417,7 @@ class ViewManager {
         isActive: false
       };
       this.tabs.set(tabId, tabData);
-      this.mainWindow.contentView.addChildView(view);
+      this.mainWindow.getContentView().addChildView(view);
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
       await view.webContents.loadURL(url);
       this.setupTabEvents(tabId, view);
@@ -458,7 +465,7 @@ class ViewManager {
     }
     try {
       if (this.mainWindow) {
-        this.mainWindow.contentView.removeChildView(tabData.view);
+        this.mainWindow.getContentView().removeChildView(tabData.view);
       }
       tabData.view.webContents.close();
       this.tabs.delete(tabId);
@@ -498,6 +505,9 @@ class ViewManager {
   /**
    * 현재 활성 탭에서 URL 이동
    * about: 스키마 처리 (React 컴포넌트로 렌더링)
+   * 
+   * ⚠️ 중요: loadURL()은 비동기이지만, 완료를 기다리지 않는다
+   * did-finish-load / did-fail-load 이벤트로 결과를 감지해야 함
    */
   static async navigate(url) {
     if (!this.activeTabId) {
@@ -526,12 +536,18 @@ class ViewManager {
             return;
         }
       }
-      await tabData.view.webContents.loadURL(url);
+      const loadPromise = tabData.view.webContents.loadURL(url);
+      await Promise.race([
+        loadPromise,
+        new Promise(
+          (_, reject) => setTimeout(() => reject(new Error("loadURL timeout")), 3e4)
+        )
+      ]);
       tabData.url = url;
-      logger.info("[ViewManager] Navigated", { tabId: this.activeTabId, url });
+      logger.info("[ViewManager] URL loading started", { tabId: this.activeTabId, url });
       this.syncToRenderer();
     } catch (error) {
-      logger.error("[ViewManager] Navigate failed:", error);
+      logger.error("[ViewManager] Navigate failed:", { error, url });
       throw error;
     }
   }
@@ -1416,7 +1432,12 @@ const DEFAULT_SETTINGS = {
   pageZoom: "100",
   blockThirdPartyCookies: true,
   continueSession: true,
-  language: "ko"
+  language: "ko",
+  savePasswords: false,
+  savePaymentInfo: false,
+  saveAddresses: false,
+  doNotTrack: true,
+  blockAds: false
 };
 class SettingsStore {
   static instance = null;
@@ -1477,6 +1498,26 @@ class SettingsStore {
           type: "string",
           enum: ["ko", "en", "ja"],
           default: "ko"
+        },
+        savePasswords: {
+          type: "boolean",
+          default: false
+        },
+        savePaymentInfo: {
+          type: "boolean",
+          default: false
+        },
+        saveAddresses: {
+          type: "boolean",
+          default: false
+        },
+        doNotTrack: {
+          type: "boolean",
+          default: true
+        },
+        blockAds: {
+          type: "boolean",
+          default: false
         }
       },
       // Migrations for version upgrades

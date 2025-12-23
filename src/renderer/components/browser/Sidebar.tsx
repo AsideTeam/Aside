@@ -9,7 +9,8 @@
 
 import React, { useState } from 'react';
 import { Button } from '../ui/Button';
-import { logger } from '../../lib/logger';
+import { logger } from '@renderer/lib/logger';
+import { tokens, cn } from '@renderer/styles';
 
 interface Tab {
   id: string;
@@ -67,14 +68,14 @@ export const Sidebar: React.FC = () => {
       <div className="w-16 flex flex-col items-center justify-between py-4 bg-gradient-to-b from-gray-900 to-gray-950 border-r border-gray-800">
         <button
           onClick={() => setIsCollapsed(false)}
-          className="p-2 hover:bg-gray-800 rounded transition-colors"
+          className={cn(tokens.colors.button.ghost, 'p-2 rounded transition-colors')}
           title="Expand sidebar"
         >
           ☰
         </button>
         <button
           onClick={handleAddTab}
-          className="p-2 hover:bg-gray-800 rounded transition-colors"
+          className={cn(tokens.colors.button.ghost, 'p-2 rounded transition-colors')}
           title="New tab"
         >
           ➕
@@ -84,13 +85,13 @@ export const Sidebar: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-gray-900/80 to-gray-950/80 backdrop-blur-md">
+    <div className={tokens.layout.sidebar.wrapper}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-800 drag-region">
-        <h1 className="text-lg font-bold text-white">Zen</h1>
+      <div className={tokens.layout.sidebar.header}>
+        <h1 className={tokens.layout.sidebar.title}>Zen</h1>
         <button
           onClick={() => setIsCollapsed(true)}
-          className="p-1 hover:bg-gray-800 rounded transition-colors no-drag"
+          className={cn(tokens.colors.button.ghost, 'p-1 rounded transition-colors no-drag')}
           title="Collapse sidebar"
         >
           ✕
@@ -98,16 +99,15 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Tabs List */}
-      <div className="flex-1 overflow-y-auto scroll-smooth">
+      <div className={tokens.layout.sidebar.content}>
         <div className="p-2 space-y-2">
           {tabs.map((tab) => (
             <div
               key={tab.id}
-              className={`group flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
-                tab.isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
-              }`}
+              className={cn(
+                tokens.layout.tab.wrapper,
+                tab.isActive ? tokens.layout.tab.active : tokens.layout.tab.inactive
+              )}
               onClick={() => handleSwitchTab(tab.id)}
             >
               <span className="text-sm flex-shrink-0">{tab.favicon}</span>
@@ -131,7 +131,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Actions */}
-      <div className="border-t border-gray-800 p-3 space-y-2">
+      <div className={tokens.layout.sidebar.actions}>
         <Button
           variant="primary"
           size="sm"

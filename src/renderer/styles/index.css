@@ -1,7 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
+/* ===== Base Styles ===== */
 * {
   margin: 0;
   padding: 0;
@@ -19,6 +18,25 @@ body,
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ===== Utility Classes ===== */
+
+/* Drag region (창 이동 가능 영역) */
+.drag-region {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+/* 버튼 등은 클릭 가능해야 함 */
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* 스크롤 스타일 */
+.scroll-smooth {
+  scroll-behavior: smooth;
+}
+
+/* Input 기본 스타일 제거 */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -27,4 +45,10 @@ input::-webkit-inner-spin-button {
 
 input[type='number'] {
   -moz-appearance: textfield;
+}
+
+/* 선택 텍스트 스타일 */
+::selection {
+  background-color: #2563eb;
+  color: white;
 }

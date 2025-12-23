@@ -139,7 +139,8 @@ export class ViewManager {
       this.tabs.set(tabId, tabData)
 
       // Step 4: MainWindow에 추가 (초기에는 숨김)
-      this.mainWindow.contentView.addChildView(view)
+      // ⚠️ Electron 39: contentView는 게터 메서드로 변경됨
+      this.mainWindow.getContentView().addChildView(view)
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
 
       // Step 5: URL 로드
@@ -203,8 +204,9 @@ export class ViewManager {
 
     try {
       // WebContentsView 제거
+      // ⚠️ Electron 39: contentView는 게터 메서드로 변경됨
       if (this.mainWindow) {
-        this.mainWindow.contentView.removeChildView(tabData.view)
+        this.mainWindow.getContentView().removeChildView(tabData.view)
       }
 
       tabData.view.webContents.close()
@@ -253,6 +255,9 @@ export class ViewManager {
   /**
    * 현재 활성 탭에서 URL 이동
    * about: 스키마 처리 (React 컴포넌트로 렌더링)
+   * 
+   * ⚠️ 중요: loadURL()은 비동기이지만, 완료를 기다리지 않는다
+   * did-finish-load / did-fail-load 이벤트로 결과를 감지해야 함
    */
   static async navigate(url: string): Promise<void> {
     if (!this.activeTabId) {
@@ -295,12 +300,23 @@ export class ViewManager {
       }
 
       // 일반 URL 로드
-      await tabData.view.webContents.loadURL(url)
+      // ⚠️ loadURL()은 완료를 기다리지 않음 (fire-and-forget)
+      // 결과는 did-finish-load / did-fail-load 이벤트로 감지
+      const loadPromise = tabData.view.webContents.loadURL(url)
+      
+      // 최대 30초 타임아웃으로 대기
+      await Promise.race([
+        loadPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('loadURL timeout')), 30000)
+        ),
+      ])
+      
       tabData.url = url
-      logger.info('[ViewManager] Navigated', { tabId: this.activeTabId, url })
+      logger.info('[ViewManager] URL loading started', { tabId: this.activeTabId, url })
       this.syncToRenderer()
     } catch (error) {
-      logger.error('[ViewManager] Navigate failed:', error)
+      logger.error('[ViewManager] Navigate failed:', { error, url })
       throw error
     }
   }

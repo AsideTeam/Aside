@@ -60,9 +60,10 @@ export class MainWindow {
 
       // Step 1: 디스플레이 정보 가져오기 (dock/메뉴바 제외 영역)
       const { width, height } = screen.getPrimaryDisplay().workAreaSize
+      const isMacOS = process.platform === 'darwin'
 
-      // Step 2: BrowserWindow 인스턴스 생성
-      this.window = new BrowserWindow({
+      // Step 2: BrowserWindow 옵션 구성
+      const browserWindowOptions: Electron.BrowserWindowConstructorOptions = {
         width,
         height,
         minWidth: 800,
@@ -85,12 +86,25 @@ export class MainWindow {
         show: false,
         
         // 배경색 (깜빡임 방지)
+        // ⚠️ Windows/Linux에서는 #00000000 투명 사용 금지 (렌더링 문제)
         backgroundColor: '#1a1a1a',
-      })
+      }
+
+      // ⚠️ macOS 전용: vibrancy 설정
+      // vibrancy는 macOS 14+에서만 지원됨
+      if (isMacOS) {
+        // NOTE: vibrancy 추가 원할 시 아래 주석 해제
+        // (browserWindowOptions as any).vibrancy = 'sidebar'
+        logger.debug('[MainWindow] macOS platform detected. Vibrancy available (currently disabled).')
+      }
+
+      // Step 2: BrowserWindow 인스턴스 생성
+      this.window = new BrowserWindow(browserWindowOptions)
 
       logger.info('[MainWindow] BrowserWindow instance created', {
         width,
         height,
+        platform: process.platform,
       })
 
       // Step 2: 초기 상태 이벤트 처리

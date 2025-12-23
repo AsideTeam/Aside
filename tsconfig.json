@@ -20,16 +20,31 @@
     "baseUrl": ".",
     "paths": {
       "@main/*": ["src/main/*"],
-      "@config/*": ["src/main/config/*"],
+      "@main/config/*": ["src/main/config/*"],
+      "@main/handlers/*": ["src/main/handlers/*"],
+      "@main/managers/*": ["src/main/managers/*"],
+      "@main/services/*": ["src/main/services/*"],
+      "@main/utils/*": ["src/main/utils/*"],
+      "@main/core/*": ["src/main/core/*"],
+      
       "@preload": ["src/preload/index.d.ts"],
+      
       "@shared/*": ["src/shared/*"],
-      "@types/*": ["src/types/*"],
-      "@renderer/*": ["src/renderer/src/*"],
-      "@components/*": ["src/renderer/src/components/*"],
-      "@app/*": ["src/renderer/src/app/*"],
-      "@lib/*": ["src/renderer/src/lib/*"],
-      "@store/*": ["src/renderer/src/store/*"],
-      "@hooks/*": ["src/renderer/src/hooks/*"]
+      "@shared/ipc/*": ["src/shared/ipc/*"],
+      "@shared/types/*": ["src/shared/types/*"],
+      "@shared/logger/*": ["src/shared/logger/*"],
+      "@shared/constants/*": ["src/shared/constants/*"],
+      "@shared/utils/*": ["src/shared/utils/*"],
+      
+      "@renderer/*": ["src/renderer/*"],
+      "@renderer/app/*": ["src/renderer/app/*"],
+      "@renderer/layouts/*": ["src/renderer/layouts/*"],
+      "@renderer/pages/*": ["src/renderer/pages/*"],
+      "@renderer/components/*": ["src/renderer/components/*"],
+      "@renderer/hooks/*": ["src/renderer/hooks/*"],
+      "@renderer/lib/*": ["src/renderer/lib/*"],
+      "@renderer/types/*": ["src/renderer/types/*"],
+      "@renderer/styles/*": ["src/renderer/styles/*"]
     }
   },
   "include": ["src"],
