@@ -3,18 +3,20 @@ import { SettingsLayout } from '../layouts/SettingsLayout';
 import { SettingRow } from '../components/settings/SettingRow';
 import { useSetting } from '../hooks/useSetting';
 import { logger } from '../lib/logger';
+import { Icons } from '@renderer/lib/icons';
+import { tokens, cn } from '@renderer/styles';
 
 interface SettingsCategory {
   id: string;
   label: string;
-  icon: string;
+  iconName: string;
 }
 
 const SETTINGS_CATEGORIES: SettingsCategory[] = [
-  { id: 'general', label: 'General', icon: '⚙️' },
-  { id: 'appearance', label: 'Appearance', icon: '🎨' },
-  { id: 'privacy', label: 'Privacy & Security', icon: '🔒' },
-  { id: 'advanced', label: 'Advanced', icon: '⚡' },
+  { id: 'general', label: 'General', iconName: Icons.Settings },
+  { id: 'appearance', label: 'Appearance', iconName: Icons.Settings },
+  { id: 'privacy', label: 'Privacy & Security', iconName: Icons.Settings },
+  { id: 'advanced', label: 'Advanced', iconName: Icons.Settings },
 ];
 
 export const SettingsPage: React.FC = () => {
@@ -36,7 +38,7 @@ export const SettingsPage: React.FC = () => {
       case 'general':
         return (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">General Settings</h2>
+            <h2 className={cn('text-2xl font-bold mb-6', tokens.colors.text.primary)}>General Settings</h2>
             <SettingRow
               label="Homepage"
               description="Set your browser's homepage"
@@ -45,7 +47,7 @@ export const SettingsPage: React.FC = () => {
                 type="text"
                 value={typeof settings.homepage === 'string' ? settings.homepage : ''}
                 onChange={(e) => updateSetting('homepage', e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input-base"
               />
             </SettingRow>
             <SettingRow
@@ -55,7 +57,7 @@ export const SettingsPage: React.FC = () => {
               <select
                 value={typeof settings.searchEngine === 'string' ? settings.searchEngine : 'google'}
                 onChange={(e) => updateSetting('searchEngine', e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input-base"
               >
                 <option value="google">Google</option>
                 <option value="bing">Bing</option>
@@ -68,7 +70,7 @@ export const SettingsPage: React.FC = () => {
       case 'appearance':
         return (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Appearance Settings</h2>
+            <h2 className={cn('text-2xl font-bold mb-6', tokens.colors.text.primary)}>Appearance Settings</h2>
             <SettingRow
               label="Theme"
               description="Choose your preferred theme"
@@ -76,7 +78,7 @@ export const SettingsPage: React.FC = () => {
               <select
                 value={typeof settings.theme === 'string' ? settings.theme : 'light'}
                 onChange={(e) => updateSetting('theme', e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input-base"
               >
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
@@ -89,7 +91,7 @@ export const SettingsPage: React.FC = () => {
       case 'privacy':
         return (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Privacy & Security</h2>
+            <h2 className={cn('text-2xl font-bold mb-6', tokens.colors.text.primary)}>Privacy & Security</h2>
             <SettingRow
               label="Block Ads"
               description="Enable ad blocking"
@@ -98,7 +100,7 @@ export const SettingsPage: React.FC = () => {
                 type="checkbox"
                 checked={typeof settings.blockAds === 'boolean' ? settings.blockAds : false}
                 onChange={(e) => updateSetting('blockAds', e.target.checked)}
-                className="w-5 h-5 rounded"
+                className="form-checkbox"
               />
             </SettingRow>
             <SettingRow
@@ -109,7 +111,7 @@ export const SettingsPage: React.FC = () => {
                 type="checkbox"
                 checked={typeof settings.blockTrackers === 'boolean' ? settings.blockTrackers : false}
                 onChange={(e) => updateSetting('blockTrackers', e.target.checked)}
-                className="w-5 h-5 rounded"
+                className="form-checkbox"
               />
             </SettingRow>
           </div>
@@ -118,8 +120,8 @@ export const SettingsPage: React.FC = () => {
       case 'advanced':
         return (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Advanced Settings</h2>
-            <p className="text-gray-600">No advanced settings available yet.</p>
+            <h2 className={cn('text-2xl font-bold mb-6', tokens.colors.text.primary)}>Advanced Settings</h2>
+            <p className={tokens.colors.text.secondary}>No advanced settings available yet.</p>
           </div>
         );
 

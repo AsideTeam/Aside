@@ -1,0 +1,107 @@
+/**
+ * Theme CSS Variables
+ *
+ * Tailwind와 함께 CSS 변수로 테마 시스템 구축
+ * - 다크 테마 기본값
+ * - 라이트 테마 지원 가능
+ * - 언어별 레이아웃 조정 가능 (RTL)
+ */
+
+:root {
+  /* ===== Color Palette ===== */
+  --color-bg-primary: rgb(3, 7, 18); /* gray-950 */
+  --color-bg-secondary: rgb(17, 24, 39); /* gray-900 */
+  --color-bg-tertiary: rgb(31, 41, 55); /* gray-800 */
+  --color-bg-hover: rgb(31, 41, 55); /* gray-800 */
+  --color-bg-input: rgb(243, 244, 246); /* gray-50 */
+
+  --color-text-primary: rgb(255, 255, 255);
+  --color-text-secondary: rgb(156, 163, 175); /* gray-400 */
+  --color-text-tertiary: rgb(107, 114, 128); /* gray-600 */
+  --color-text-muted: rgb(107, 114, 128); /* gray-600 */
+
+  --color-border-primary: rgb(31, 41, 55); /* gray-800 */
+  --color-border-light: rgb(55, 65, 81); /* gray-700 */
+
+  --color-accent: rgb(37, 99, 235); /* blue-600 */
+  --color-accent-hover: rgb(29, 78, 216); /* blue-700 */
+  --color-accent-light: rgb(96, 165, 250); /* blue-400 */
+
+  --color-danger: rgb(239, 68, 68); /* red-500 */
+  --color-danger-hover: rgb(220, 38, 38); /* red-600 */
+
+  /* ===== Button Styles ===== */
+  --button-primary-bg: rgb(37, 99, 235); /* blue-600 */
+  --button-primary-bg-hover: rgb(29, 78, 216); /* blue-700 */
+  --button-primary-text: rgb(255, 255, 255);
+
+  --button-secondary-bg: rgb(55, 65, 81); /* gray-700 */
+  --button-secondary-bg-hover: rgb(55, 65, 81); /* gray-600 */
+  --button-secondary-text: rgb(229, 231, 235); /* gray-200 */
+
+  --button-ghost-bg: transparent;
+  --button-ghost-bg-hover: rgb(31, 41, 55); /* gray-800 */
+  --button-ghost-text: rgb(107, 114, 128); /* gray-400 */
+  --button-ghost-text-hover: rgb(229, 231, 235); /* gray-200 */
+
+  /* ===== Sizing ===== */
+  --size-sidebar-width: 16rem; /* w-64 */
+  --size-sidebar-collapsed: 4rem; /* w-16 */
+  --size-spacing-xs: 0.25rem;
+  --size-spacing-sm: 0.5rem;
+  --size-spacing-md: 1rem;
+  --size-spacing-lg: 1.5rem;
+  --size-spacing-xl: 2rem;
+
+  /* ===== Z-Index ===== */
+  --z-sidebar: 50;
+  --z-modal: 100;
+  --z-tooltip: 150;
+
+  /* ===== Transitions ===== */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+
+  /* ===== Border Radius ===== */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+}
+
+/* ===== Light Theme (Optional) ===== */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg-primary: rgb(249, 250, 251); /* gray-50 */
+    --color-bg-secondary: rgb(255, 255, 255);
+    --color-bg-tertiary: rgb(243, 244, 246); /* gray-100 */
+    --color-bg-hover: rgb(229, 231, 235); /* gray-200 */
+    --color-bg-input: rgb(255, 255, 255);
+
+    --color-text-primary: rgb(17, 24, 39); /* gray-900 */
+    --color-text-secondary: rgb(75, 85, 99); /* gray-600 */
+    --color-text-tertiary: rgb(156, 163, 175); /* gray-400 */
+    --color-text-muted: rgb(156, 163, 175); /* gray-400 */
+
+    --color-border-primary: rgb(229, 231, 235); /* gray-200 */
+    --color-border-light: rgb(209, 213, 219); /* gray-300 */
+
+    --button-secondary-bg: rgb(229, 231, 235); /* gray-200 */
+    --button-secondary-bg-hover: rgb(209, 213, 219); /* gray-300 */
+    --button-secondary-text: rgb(17, 24, 39); /* gray-900 */
+
+    --button-ghost-bg: transparent;
+    --button-ghost-bg-hover: rgb(229, 231, 235); /* gray-200 */
+    --button-ghost-text: rgb(107, 114, 128); /* gray-600 */
+    --button-ghost-text-hover: rgb(17, 24, 39); /* gray-900 */
+  }
+}
+
+/* ===== RTL Support ===== */
+[dir='rtl'] {
+  --transform-flip: scaleX(-1);
+}
+
+[dir='ltr'] {
+  --transform-flip: scaleX(1);
+}

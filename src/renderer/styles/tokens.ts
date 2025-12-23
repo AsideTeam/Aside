@@ -1,69 +1,106 @@
 /**
- * Tailwind CSS Tokens
- * 
+ * Tailwind CSS Tokens (v4)
+ *
  * 목표: 하드코딩 제거 + 테마 시스템 구축
+ * 원칙: CSS 변수 기반 → 테마 변경 용이
+ *
  * 사용: className={cn(tokens.layout.sidebar.wrapper)}
  */
 
-// ===== 색상 토큰 =====
+// ===== CSS 변수 기반 색상 토큰 =====
+// theme.css의 CSS 변수를 활용하여 Tailwind 클래스로 변환
 export const colorTokens = {
   // 백그라운드
   bg: {
-    primary: 'bg-gray-950',
-    secondary: 'bg-gray-900',
-    tertiary: 'bg-gray-800',
-    hover: 'hover:bg-gray-800',
+    primary: 'bg-(--color-bg-primary)',
+    secondary: 'bg-(--color-bg-secondary)',
+    tertiary: 'bg-(--color-bg-tertiary)',
+    hover: 'hover:bg-(--color-bg-hover)',
+    input: 'bg-(--color-bg-input)',
   },
-  
+
   // 텍스트
   text: {
-    primary: 'text-white',
-    secondary: 'text-gray-400',
-    tertiary: 'text-gray-600',
+    primary: 'text-(--color-text-primary)',
+    secondary: 'text-(--color-text-secondary)',
+    tertiary: 'text-(--color-text-tertiary)',
+    muted: 'text-(--color-text-muted)',
   },
 
   // 보더
   border: {
-    primary: 'border-gray-800',
-    light: 'border-gray-700',
+    primary: 'border-(--color-border-primary)',
+    light: 'border-(--color-border-light)',
   },
 
   // 액션
   button: {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
-    secondary: 'bg-gray-800 hover:bg-gray-700 text-gray-200',
-    ghost: 'hover:bg-gray-800 text-gray-400 hover:text-gray-200',
+    primary: 'bg-(--button-primary-bg) hover:bg-(--button-primary-bg-hover) text-(--button-primary-text)',
+    secondary: 'bg-(--button-secondary-bg) hover:bg-(--button-secondary-bg-hover) text-(--button-secondary-text)',
+    ghost: 'bg-(--button-ghost-bg) hover:bg-(--button-ghost-bg-hover) text-(--button-ghost-text) hover:text-(--button-ghost-text-hover)',
+    danger: 'bg-(--color-danger) hover:bg-(--color-danger-hover) text-white',
+  },
+
+  // Accent
+  accent: {
+    default: 'text-(--color-accent)',
+    bg: 'bg-(--color-accent)',
+    hover: 'hover:bg-(--color-accent-hover)',
   },
 };
 
 // ===== 스페이싱 토큰 =====
 export const spacingTokens = {
-  xs: 'p-1',
-  sm: 'p-2',
-  md: 'p-4',
-  lg: 'p-6',
-  xl: 'p-8',
+  xs: 'p-(--size-spacing-xs)',
+  sm: 'p-(--size-spacing-sm)',
+  md: 'p-(--size-spacing-md)',
+  lg: 'p-(--size-spacing-lg)',
+  xl: 'p-(--size-spacing-xl)',
 };
 
-// ===== 레이아웃 토큰 =====
+// ===== 사이징 토큰 =====
+export const sizingTokens = {
+  sidebar: {
+    width: 'w-(--size-sidebar-width)',
+    collapsed: 'w-(--size-sidebar-collapsed)',
+  },
+};
+
+// ===== 레이아웃 토큰 (CSS 클래스 조합) =====
 export const layoutTokens = {
   sidebar: {
-    wrapper: 'w-64 flex-none flex flex-col bg-gradient-to-b from-gray-900/80 to-gray-950/80 backdrop-blur-md border-r border-gray-800 flex flex-col z-50',
-    header: 'flex items-center justify-between p-4 border-b border-gray-800 drag-region',
-    title: 'text-lg font-bold text-white',
-    content: 'flex-1 overflow-y-auto scroll-smooth',
-    actions: 'border-t border-gray-800 p-3 space-y-2',
+    wrapper: 'sidebar-wrapper w-[var(--size-sidebar-width)] flex-none flex',
+    header: 'sidebar-header drag-region',
+    title: 'sidebar-title',
+    content: 'sidebar-content',
+    actions: 'sidebar-actions',
+    collapsed: 'sidebar-collapsed',
   },
 
   contentArea: {
-    wrapper: 'flex-1 relative bg-black overflow-hidden',
-    placeholder: 'w-full h-full bg-transparent',
+    wrapper: 'content-area',
+    placeholder: 'content-placeholder',
   },
 
   tab: {
-    active: 'bg-blue-600 text-white',
-    inactive: 'text-gray-400 hover:bg-gray-800 hover:text-gray-200',
-    wrapper: 'group flex items-center gap-2 p-2 rounded cursor-pointer transition-colors',
+    wrapper: 'tab-wrapper',
+    active: 'tab-active',
+    inactive: 'tab-inactive',
+    closeBtn: 'tab-close-btn',
+  },
+
+  addressBar: {
+    wrapper: 'address-bar',
+    input: 'address-input',
+  },
+
+  settings: {
+    container: 'settings-container',
+    sidebar: 'settings-sidebar',
+    content: 'settings-content',
+    section: 'settings-section',
+    sectionTitle: 'settings-section-title',
+    row: 'settings-row',
   },
 };
 
@@ -71,10 +108,19 @@ export const layoutTokens = {
 export const tokens = {
   colors: colorTokens,
   spacing: spacingTokens,
+  sizing: sizingTokens,
   layout: layoutTokens,
 };
 
 // ===== 편의 함수: 클래스 병합 =====
+/**
+ * 여러 클래스를 공백으로 구분하여 병합
+ * - undefined, null, false 값 제거
+ * - 조건부 클래스 적용 간편
+ *
+ * @example
+ * cn('btn', isActive && 'btn-primary', className)
+ */
 export const cn = (...classes: (string | undefined | null | false)[]): string => {
   return classes.filter(Boolean).join(' ');
 };
@@ -83,10 +129,10 @@ export const cn = (...classes: (string | undefined | null | false)[]): string =>
 /*
 import { tokens, cn } from '@renderer/styles/tokens'
 
-// 1. 직접 사용
+// 1. CSS 변수 기반 직접 사용
 <div className={tokens.layout.sidebar.wrapper}>...</div>
 
-// 2. 조건부 병합
+// 2. 조건부 병합 (테마 변경 시에도 자동 반영)
 <button className={cn(
   tokens.layout.tab.wrapper,
   isActive ? tokens.layout.tab.active : tokens.layout.tab.inactive
@@ -97,5 +143,10 @@ import { tokens, cn } from '@renderer/styles/tokens'
 // 3. 커스텀 클래스 추가
 <div className={cn(tokens.layout.sidebar.wrapper, 'custom-shadow')}>
   ...
+</div>
+
+// 4. 동적 스타일링 (CSS 변수)
+<div style={{ color: 'var(--color-text-primary)' }}>
+  CSS 변수 기반 스타일
 </div>
 */

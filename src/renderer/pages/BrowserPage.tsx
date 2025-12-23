@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserLayout } from '../layouts/BrowserLayout';
 import { useBrowser } from '../hooks/useBrowser';
 import { logger } from '../lib/logger';
+import { tokens, cn } from '@renderer/styles';
 
 export const BrowserPage: React.FC = () => {
   const {
@@ -30,11 +31,11 @@ export const BrowserPage: React.FC = () => {
       onGoBack={goBack}
       onGoForward={goForward}
     >
-      <div className="w-full h-full flex items-center justify-center bg-gray-50">
+      <div className={cn('w-full h-full flex items-center justify-center', tokens.colors.bg.primary)}>
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Aside Browser</h1>
-          <p className="text-gray-600">Enter a URL to get started</p>
-          <p className="text-sm text-gray-500 mt-4">Currently: {currentUrl}</p>
+          <h1 className={cn('text-3xl font-bold mb-2', tokens.colors.text.primary)}>Aside Browser</h1>
+          <p className={tokens.colors.text.secondary}>Enter a URL to get started</p>
+          <p className={cn('text-sm mt-4', tokens.colors.text.muted)}>Currently: {currentUrl}</p>
         </div>
       </div>
     </BrowserLayout>

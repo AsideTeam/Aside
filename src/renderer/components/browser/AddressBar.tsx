@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { logger } from '../../lib/logger';
+import { tokens } from '@renderer/styles';
 
 interface AddressBarProps {
   currentUrl: string;
@@ -42,7 +43,7 @@ export const AddressBar: React.FC<AddressBarProps> = ({
   };
 
   return (
-    <div className="flex items-center gap-2 bg-white border-b border-gray-200 px-4 py-3">
+    <div className={tokens.layout.addressBar.wrapper}>
       {/* Navigation Buttons */}
       <Button
         variant="secondary"
@@ -50,6 +51,7 @@ export const AddressBar: React.FC<AddressBarProps> = ({
         onClick={onGoBack}
         disabled={!canGoBack}
         className="disabled:opacity-50"
+        title="Go back"
       >
         ←
       </Button>
@@ -59,6 +61,7 @@ export const AddressBar: React.FC<AddressBarProps> = ({
         onClick={onGoForward}
         disabled={!canGoForward}
         className="disabled:opacity-50"
+        title="Go forward"
       >
         →
       </Button>
@@ -70,6 +73,7 @@ export const AddressBar: React.FC<AddressBarProps> = ({
         onClick={onReload}
         disabled={isLoading}
         className="disabled:opacity-50"
+        title="Reload page"
       >
         {isLoading ? '⟳' : '🔄'}
       </Button>
@@ -81,7 +85,7 @@ export const AddressBar: React.FC<AddressBarProps> = ({
         onChange={handleInputChange}
         onKeyPress={handleKeyPress}
         placeholder="Enter URL..."
-        className="flex-1 px-3 py-2 border border-gray-300 rounded bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+        className={tokens.layout.addressBar.input}
       />
 
       {/* Navigate Button */}

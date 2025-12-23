@@ -49,7 +49,7 @@ export const ZenLayout: React.FC = () => {
   }, [updateBounds]);
 
   return (
-    <div className="flex h-screen w-full bg-gray-950 text-white overflow-hidden">
+    <div className={cn('flex h-screen w-full overflow-hidden', tokens.colors.bg.primary, tokens.colors.text.primary)}>
       {/* ===== 좌측: 사이드바 ===== */}
       <aside className={tokens.layout.sidebar.wrapper}>
         <Sidebar />
@@ -63,7 +63,7 @@ export const ZenLayout: React.FC = () => {
         />
 
         {/* 로딩 상태 표시기 (선택사항) */}
-        <div className={cn(tokens.colors.text.tertiary, 'absolute top-4 right-4 z-40 text-xs')}>
+        <div className={cn('absolute top-4 right-4 z-40 text-xs', tokens.colors.text.secondary)}>
           {currentUrl}
         </div>
       </main>

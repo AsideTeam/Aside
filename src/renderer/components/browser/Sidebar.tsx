@@ -5,19 +5,24 @@
  * - 탭 목록
  * - 빠른 접근 (북마크, 방문 기록)
  * - 설정 버튼
+ *
+ * CSS 변수 기반 스타일 사용
+ * - 테마 변경 시 자동 반영
+ * - 언어/레이아웃 선택 용이
  */
 
 import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { logger } from '@renderer/lib/logger';
 import { tokens, cn } from '@renderer/styles';
+import { Icons } from '@renderer/lib/icons';
 
 interface Tab {
   id: string;
   title: string;
   url: string;
   isActive: boolean;
-  favicon?: string;
+  iconName?: string;
 }
 
 export const Sidebar: React.FC = () => {
@@ -27,7 +32,7 @@ export const Sidebar: React.FC = () => {
       title: 'Google',
       url: 'https://google.com',
       isActive: true,
-      favicon: '🔍',
+      iconName: Icons.Search,
     },
   ]);
 
@@ -40,7 +45,7 @@ export const Sidebar: React.FC = () => {
       title: 'New Tab',
       url: 'https://www.google.com',
       isActive: true,
-      favicon: '📄',
+      iconName: Icons.Plus,
     };
     setTabs((prev) => [
       ...prev.map((t) => ({ ...t, isActive: false })),
@@ -65,20 +70,20 @@ export const Sidebar: React.FC = () => {
 
   if (isCollapsed) {
     return (
-      <div className="w-16 flex flex-col items-center justify-between py-4 bg-gradient-to-b from-gray-900 to-gray-950 border-r border-gray-800">
+      <div className={tokens.layout.sidebar.collapsed}>
         <button
           onClick={() => setIsCollapsed(false)}
           className={cn(tokens.colors.button.ghost, 'p-2 rounded transition-colors')}
           title="Expand sidebar"
         >
-          ☰
+          {Icons.Menu}
         </button>
         <button
           onClick={handleAddTab}
           className={cn(tokens.colors.button.ghost, 'p-2 rounded transition-colors')}
           title="New tab"
         >
-          ➕
+          {Icons.Plus}
         </button>
       </div>
     );
@@ -94,7 +99,7 @@ export const Sidebar: React.FC = () => {
           className={cn(tokens.colors.button.ghost, 'p-1 rounded transition-colors no-drag')}
           title="Collapse sidebar"
         >
-          ✕
+          {Icons.Close}
         </button>
       </div>
 
@@ -110,7 +115,7 @@ export const Sidebar: React.FC = () => {
               )}
               onClick={() => handleSwitchTab(tab.id)}
             >
-              <span className="text-sm flex-shrink-0">{tab.favicon}</span>
+              <span className="text-sm shrink-0">{tab.iconName || '📄'}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{tab.title}</p>
                 <p className="text-xs opacity-75 truncate">{tab.url}</p>
@@ -120,7 +125,7 @@ export const Sidebar: React.FC = () => {
                   e.stopPropagation();
                   handleCloseTab(tab.id);
                 }}
-                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-600/20 rounded transition-all no-drag"
+                className={tokens.layout.tab.closeBtn}
                 title="Close tab"
               >
                 ×
@@ -138,13 +143,13 @@ export const Sidebar: React.FC = () => {
           onClick={handleAddTab}
           className="w-full"
         >
-          ➕ New Tab
+          {Icons.Plus} New Tab
         </Button>
         <Button variant="secondary" size="sm" className="w-full">
-          ⭐ Bookmarks
+          {Icons.Bookmark} Bookmarks
         </Button>
         <Button variant="secondary" size="sm" className="w-full">
-          ⚙️ Settings
+          {Icons.Settings} Settings
         </Button>
       </div>
     </div>

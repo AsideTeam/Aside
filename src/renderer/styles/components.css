@@ -1,0 +1,178 @@
+/**
+ * Component Styles
+ *
+ * 재사용 가능한 컴포넌트 CSS 클래스
+ * - Button 변형들
+ * - Sidebar 요소들
+ * - AddressBar 요소들
+ * - 기타 UI 요소들
+ */
+
+/* ===== Button Variants ===== */
+.btn {
+  @apply font-medium rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent;
+}
+
+.btn-primary {
+  @apply bg-(--button-primary-bg) text-(--button-primary-text) hover:bg-(--button-primary-bg-hover);
+}
+
+.btn-secondary {
+  @apply bg-(--button-secondary-bg) text-(--button-secondary-text) hover:bg-(--button-secondary-bg-hover);
+}
+
+.btn-ghost {
+  @apply bg-(--button-ghost-bg) text-(--button-ghost-text) hover:bg-(--button-ghost-bg-hover) hover:text-(--button-ghost-text-hover);
+}
+
+.btn-danger {
+  @apply bg-(--color-danger) text-white hover:bg-(--color-danger-hover);
+}
+
+/* Button Sizes */
+.btn-sm {
+  @apply px-2 py-1 text-sm;
+}
+
+.btn-md {
+  @apply px-4 py-2 text-base;
+}
+
+.btn-lg {
+  @apply px-6 py-3 text-lg;
+}
+
+/* ===== Sidebar Components ===== */
+.sidebar-wrapper {
+  @apply bg-linear-to-b from-(--color-bg-secondary)/80 to-(--color-bg-primary)/80 backdrop-blur-md border-r border-(--color-border-primary) flex flex-col z-(--z-sidebar);
+}
+
+.sidebar-header {
+  @apply flex items-center justify-between p-4 border-b border-(--color-border-primary);
+}
+
+.sidebar-header.drag-region {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.sidebar-title {
+  @apply text-lg font-bold text-(--color-text-primary);
+}
+
+.sidebar-content {
+  @apply flex-1 overflow-y-auto scroll-smooth;
+}
+
+.sidebar-actions {
+  @apply border-t border-(--color-border-primary) p-3 space-y-2;
+}
+
+.sidebar-collapsed {
+  @apply w-16 flex flex-col items-center justify-between py-4 bg-linear-to-b from-(--color-bg-secondary) to-(--color-bg-primary) border-r border-(--color-border-primary);
+}
+
+/* ===== Tab Styles ===== */
+.tab-wrapper {
+  @apply flex items-center gap-2 p-2 rounded cursor-pointer transition-colors;
+}
+
+.tab-wrapper:hover .tab-close-btn {
+  opacity: 1;
+}
+
+.tab-active {
+  @apply bg-(--color-accent) text-white;
+}
+
+.tab-inactive {
+  @apply text-(--color-text-secondary) hover:bg-(--color-bg-hover) hover:text-(--color-text-primary);
+}
+
+.tab-close-btn {
+  opacity: 0;
+  @apply p-1 hover:bg-(--color-danger)/20 rounded transition-all;
+  -webkit-app-region: no-drag;
+}
+
+/* ===== AddressBar ===== */
+.address-bar {
+  @apply flex items-center gap-2 bg-white border-b border-(--color-border-light) px-4 py-3;
+}
+
+.address-input {
+  @apply flex-1 px-3 py-2 border border-(--color-border-light) rounded bg-(--color-bg-input) focus:outline-none focus:ring-2 focus:ring-(--color-accent) focus:bg-white;
+}
+
+/* ===== Input Fields ===== */
+.input-base {
+  @apply px-3 py-2 border border-(--color-border-light) rounded bg-(--color-bg-input) text-(--color-text-primary) focus:outline-none focus:ring-2 focus:ring-(--color-accent);
+}
+
+/* ===== Content Area ===== */
+.content-area {
+  @apply flex-1 relative bg-black overflow-hidden;
+}
+
+.content-placeholder {
+  @apply w-full h-full bg-transparent;
+}
+
+/* ===== Settings Page ===== */
+.settings-container {
+  @apply flex h-screen bg-(--color-bg-primary);
+}
+
+.settings-sidebar {
+  @apply w-48 bg-(--color-bg-secondary) border-r border-(--color-border-primary) px-0 py-4 h-full overflow-y-auto;
+}
+
+.settings-content {
+  @apply flex-1 p-6 overflow-y-auto;
+}
+
+.settings-section {
+  @apply mb-8;
+}
+
+.settings-section-title {
+  @apply text-2xl font-bold text-(--color-text-primary) mb-6;
+}
+
+.settings-row {
+  @apply flex items-center justify-between py-4 border-b border-(--color-border-light) last:border-b-0;
+}
+
+.settings-label {
+  @apply font-medium text-(--color-text-primary);
+}
+
+.settings-description {
+  @apply text-sm text-(--color-text-secondary) mt-1;
+}
+
+/* ===== Forms ===== */
+.form-group {
+  @apply mb-4;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-(--color-text-primary) mb-2;
+}
+
+.form-control {
+  @apply w-full px-3 py-2 border border-(--color-border-light) rounded bg-(--color-bg-input) text-(--color-text-primary) focus:outline-none focus:ring-2 focus:ring-(--color-accent);
+}
+
+.form-checkbox {
+  @apply w-5 h-5 rounded border-(--color-border-light) bg-(--color-bg-input) text-(--color-accent) cursor-pointer;
+}
+
+/* ===== Utility Classes ===== */
+.text-truncate {
+  @apply truncate;
+}
+
+.opacity-hover:hover {
+  @apply opacity-100;
+}

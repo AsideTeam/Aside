@@ -1,10 +1,11 @@
 import React from 'react';
 import { SettingsSidebar } from '../components/settings/SettingsSidebar';
+import { tokens, cn } from '@renderer/styles';
 
 interface SettingsCategory {
   id: string;
   label: string;
-  icon?: string;
+  iconName?: string;
 }
 
 interface SettingsLayoutProps {
@@ -21,13 +22,13 @@ export const SettingsLayout: React.FC<SettingsLayoutProps> = ({
   children,
 }) => {
   return (
-    <div className="flex h-screen bg-white">
+    <div className={cn('flex h-screen', tokens.colors.bg.primary)}>
       <SettingsSidebar
         categories={categories}
         activeCategory={activeCategory}
         onSelectCategory={onSelectCategory}
       />
-      <main className="flex-1 overflow-y-auto">
+      <main className={cn('flex-1 overflow-y-auto', tokens.colors.bg.secondary)}>
         <div className="max-w-3xl mx-auto px-8 py-6">
           {children}
         </div>

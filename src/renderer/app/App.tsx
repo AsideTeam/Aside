@@ -1,6 +1,7 @@
 import React from 'react';
 import { ZenLayout } from '../layouts/Layout';
 import { BrowserPage } from '../pages/BrowserPage';
+import { tokens, cn } from '@renderer/styles';
 
 export const App: React.FC = () => {
   // TODO: 설정에서 layout mode를 선택할 수 있도록 구현
@@ -10,7 +11,7 @@ export const App: React.FC = () => {
   const layoutMode = 'zen';
 
   return (
-    <div className="w-full h-screen overflow-hidden">
+    <div className={cn('w-full h-screen overflow-hidden', tokens.colors.bg.primary, tokens.colors.text.primary)}>
       {layoutMode === 'zen' ? (
         <ZenLayout />
       ) : (

@@ -1,4 +1,5 @@
 import React from 'react';
+import { tokens, cn } from '@renderer/styles';
 
 interface SettingRowProps {
   label: string;
@@ -8,10 +9,10 @@ interface SettingRowProps {
 
 export const SettingRow: React.FC<SettingRowProps> = ({ label, description, children }) => {
   return (
-    <div className="flex items-center justify-between py-4 border-b border-gray-200 last:border-b-0">
+    <div className={cn('flex items-center justify-between py-4 last:border-b-0', tokens.layout.settings.row)}>
       <div className="flex-1">
-        <h3 className="font-medium text-gray-900">{label}</h3>
-        {description && <p className="text-sm text-gray-600 mt-1">{description}</p>}
+        <h3 className={cn('font-medium', tokens.colors.text.primary)}>{label}</h3>
+        {description && <p className={cn('text-sm mt-1', tokens.colors.text.secondary)}>{description}</p>}
       </div>
       <div className="ml-4">{children}</div>
     </div>

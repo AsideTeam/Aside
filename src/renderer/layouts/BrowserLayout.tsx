@@ -1,5 +1,6 @@
 import React from 'react';
 import { AddressBar } from '../components/browser/AddressBar';
+import { tokens, cn } from '@renderer/styles';
 
 interface BrowserLayoutProps {
   currentUrl: string;
@@ -25,7 +26,7 @@ export const BrowserLayout: React.FC<BrowserLayoutProps> = ({
   children,
 }) => {
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className={cn('flex flex-col h-screen', tokens.colors.bg.secondary)}>
       <AddressBar
         currentUrl={currentUrl}
         onNavigate={onNavigate}
