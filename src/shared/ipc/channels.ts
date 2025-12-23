@@ -128,6 +128,8 @@ export const IPC_CHANNELS = {
     TOGGLE_HEADER_LATCH: 'overlay:toggle-header-latch',
     TOGGLE_SIDEBAR_LATCH: 'overlay:toggle-sidebar-latch',
     SET_INTERACTIVE: 'overlay:set-interactive',
+    /** Renderer가 실측한 hover hotzone(사이드바/헤더/titlebar) 업데이트 */
+    UPDATE_HOVER_METRICS: 'overlay:update-hover-metrics',
     /** [Event] Ghost 상태에서 edge hover 감지 (Main → Renderer) */
     EDGE_HOVER: 'overlay:edge-hover',
     /** [Event] WebView에서 마우스 다운/업 발생 (Main → Renderer) */

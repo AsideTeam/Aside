@@ -20,6 +20,14 @@ import {
   OverlayLatchChangedEventSchema,
 } from '@shared/validation/schemas'
 
+type OverlayHoverMetrics = {
+  sidebarRightPx: number
+  headerBottomPx: number
+  titlebarHeightPx: number
+  dpr: number
+  timestamp: number
+}
+
 type AttachArgs = {
   uiWindow: BrowserWindow
   contentWindow: BrowserWindow
@@ -39,10 +47,40 @@ export class OverlayController {
   private static hoverTrackingTimer: ReturnType<typeof setInterval> | null = null
   private static currentState: OverlayState = { headerOpen: false, sidebarOpen: false }
 
-  // Edge hotzone 크기 (Arc/Zen과 동일)
-  private static readonly EDGE_SIDEBAR_PX = 24
-  private static readonly EDGE_HEADER_PX = 32
-  private static readonly TRACKING_INTERVAL_MS = 16 // 60fps (Arc와 동일)
+  // Renderer 실측 기반 hover metrics (DOM getBoundingClientRect)
+  private static hoverMetrics: OverlayHoverMetrics | null = null
+  private static readonly TRACKING_INTERVAL_MS = 16  // 60fps (Arc와 동일)
+  private static readonly MAX_METRICS_AGE_MS = 3000
+  private static lastMetricsLogAt = 0
+  private static lastStaleLogAt = 0
+
+  static updateHoverMetrics(metrics: OverlayHoverMetrics): void {
+    // Renderer가 보낸 값은 언제든 이상할 수 있으니 최소한의 sanity만 적용
+    if (!Number.isFinite(metrics.sidebarRightPx)) return
+    if (!Number.isFinite(metrics.headerBottomPx)) return
+    if (!Number.isFinite(metrics.titlebarHeightPx)) return
+    if (!Number.isFinite(metrics.dpr) || metrics.dpr <= 0) return
+    if (!Number.isFinite(metrics.timestamp)) return
+
+    // 음수 방지 (DOM rect가 음수가 될 수 있음)
+    if (metrics.sidebarRightPx < 0) metrics.sidebarRightPx = 0
+    if (metrics.headerBottomPx < 0) metrics.headerBottomPx = 0
+    if (metrics.titlebarHeightPx < 0) metrics.titlebarHeightPx = 0
+
+    this.hoverMetrics = metrics
+
+    const now = Date.now()
+    if (now - this.lastMetricsLogAt > 5000) {
+      this.lastMetricsLogAt = now
+      logger.debug('[OverlayController] hover metrics updated', {
+        sidebarRightPx: metrics.sidebarRightPx,
+        headerBottomPx: metrics.headerBottomPx,
+        titlebarHeightPx: metrics.titlebarHeightPx,
+        dpr: metrics.dpr,
+        ageMs: Math.max(0, now - metrics.timestamp),
+      })
+    }
+  }
 
   // Latch state (pinned)
   static getHeaderLatched(): boolean {
@@ -219,15 +257,46 @@ export class OverlayController {
       return
     }
 
+    // Renderer 실측값이 끊기면(스테일) 안전하게 닫는다.
+    // Electron에서는 stale metrics로 hit-test를 계속하면 “안 닫힘/엉뚱한 곳에서 열림”이 생길 수 있음.
+    const metricsAgeMs = this.hoverMetrics ? Date.now() - this.hoverMetrics.timestamp : Number.POSITIVE_INFINITY
+    if (!Number.isFinite(metricsAgeMs) || metricsAgeMs > this.MAX_METRICS_AGE_MS) {
+      const now = Date.now()
+      if (now - this.lastStaleLogAt > 2000) {
+        this.lastStaleLogAt = now
+        logger.debug('[OverlayController] metrics stale - forcing ghost/close', {
+          hasMetrics: Boolean(this.hoverMetrics),
+          metricsAgeMs,
+          maxAgeMs: this.MAX_METRICS_AGE_MS,
+        })
+      }
+      this.closeNonLatchedOverlays()
+      this.setUIWindowGhost()
+      return
+    }
+
     // Arc Step 3: Hover zone 판정 (window 안에 있을 때만)
     const relativeX = Math.max(0, Math.floor(mouseX - bounds.x))
     const relativeY = Math.max(0, Math.floor(mouseY - bounds.y))
 
     const { headerLatched, sidebarLatched } = overlayStore.getState()
 
-    // Edge hotzone 판정
-    const inSidebarZone = relativeX <= this.EDGE_SIDEBAR_PX
-    const inHeaderZone = relativeY <= this.EDGE_HEADER_PX
+    // Zone 판정: Renderer 실측값만 사용 (하드코딩 금지)
+    // - sidebarRightPx: .aside-sidebar.getBoundingClientRect().right
+    // - headerBottomPx: .aside-header.getBoundingClientRect().bottom
+    // - titlebarHeightPx: innerHeight - documentElement.clientHeight (추정)
+    const metrics = this.hoverMetrics
+    const sidebarZoneRight = metrics ? Math.max(0, metrics.sidebarRightPx) : 0
+    const headerZoneBottom = metrics
+      ? Math.max(0, metrics.headerBottomPx + Math.max(0, metrics.titlebarHeightPx))
+      : 0
+
+    // window bounds를 넘는 값은 clamp (예: 오차/레이스)
+    const effectiveSidebarZoneRight = Math.min(Math.max(0, sidebarZoneRight), bounds.width)
+    const effectiveHeaderZoneBottom = Math.min(Math.max(0, headerZoneBottom), bounds.height)
+
+    const inSidebarZone = relativeX <= effectiveSidebarZoneRight
+    const inHeaderZone = relativeY <= effectiveHeaderZoneBottom
 
     const wantHeaderOpen = headerLatched || inHeaderZone
     const wantSidebarOpen = sidebarLatched || inSidebarZone
@@ -242,6 +311,24 @@ export class OverlayController {
 
       // Solid: zone 위에 있거나 latch된 경우
       const shouldBeSolid = wantHeaderOpen || wantSidebarOpen
+      
+      logger.debug('[OverlayController] State changed', {
+        mouse: { x: relativeX, y: relativeY },
+        zones: { sidebar: inSidebarZone, header: inHeaderZone },
+        state: { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen },
+        latch: { header: headerLatched, sidebar: sidebarLatched },
+        shouldBeSolid,
+        metrics: metrics
+          ? {
+              sidebarRightPx: metrics.sidebarRightPx,
+              headerBottomPx: metrics.headerBottomPx,
+              titlebarHeightPx: metrics.titlebarHeightPx,
+              dpr: metrics.dpr,
+              ageMs: Math.max(0, Date.now() - metrics.timestamp),
+            }
+          : null,
+      })
+      
       if (shouldBeSolid) {
         this.setUIWindowSolid()
       } else {

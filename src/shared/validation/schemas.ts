@@ -63,6 +63,19 @@ export const OverlayContentPointerEventSchema = z.object({
 })
 
 /**
+ * Overlay hover metrics (Renderer → Main)
+ * - DOM 실측 기반으로 hit-test를 안정화하기 위한 값들
+ * - 좌표계: Renderer viewport 기준(px/CSSpx). Main에서는 window bounds 기준 relativeX/Y와 직접 비교.
+ */
+export const OverlayHoverMetricsSchema = z.object({
+  sidebarRightPx: z.number().finite(),
+  headerBottomPx: z.number().finite(),
+  titlebarHeightPx: z.number().finite(),
+  dpr: z.number().positive().finite(),
+  timestamp: z.number(),
+})
+
+/**
  * View Events (Main → Renderer)
  */
 

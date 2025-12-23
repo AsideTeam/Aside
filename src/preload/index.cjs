@@ -179,6 +179,7 @@ const electronAPI = {
       'overlay:toggle-header-latch',
       'overlay:toggle-sidebar-latch',
       'overlay:set-interactive',
+      'overlay:update-hover-metrics',
       'overlay:debug',
     ]
 

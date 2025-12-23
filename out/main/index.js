@@ -250,6 +250,13 @@ const OverlayContentPointerEventSchema = z.object({
   kind: z.enum(["mouseDown", "mouseUp"]),
   timestamp: z.number()
 });
+const OverlayHoverMetricsSchema = z.object({
+  sidebarRightPx: z.number().finite(),
+  headerBottomPx: z.number().finite(),
+  titlebarHeightPx: z.number().finite(),
+  dpr: z.number().positive().finite(),
+  timestamp: z.number()
+});
 z.object({
   url: z.string().min(1),
   timestamp: z.number()
@@ -318,11 +325,35 @@ class OverlayController {
   // Arc 스타일 global mouse tracking
   static hoverTrackingTimer = null;
   static currentState = { headerOpen: false, sidebarOpen: false };
-  // Edge hotzone 크기 (Arc/Zen과 동일)
-  static EDGE_SIDEBAR_PX = 24;
-  static EDGE_HEADER_PX = 32;
+  // Renderer 실측 기반 hover metrics (DOM getBoundingClientRect)
+  static hoverMetrics = null;
   static TRACKING_INTERVAL_MS = 16;
   // 60fps (Arc와 동일)
+  static MAX_METRICS_AGE_MS = 3e3;
+  static lastMetricsLogAt = 0;
+  static lastStaleLogAt = 0;
+  static updateHoverMetrics(metrics) {
+    if (!Number.isFinite(metrics.sidebarRightPx)) return;
+    if (!Number.isFinite(metrics.headerBottomPx)) return;
+    if (!Number.isFinite(metrics.titlebarHeightPx)) return;
+    if (!Number.isFinite(metrics.dpr) || metrics.dpr <= 0) return;
+    if (!Number.isFinite(metrics.timestamp)) return;
+    if (metrics.sidebarRightPx < 0) metrics.sidebarRightPx = 0;
+    if (metrics.headerBottomPx < 0) metrics.headerBottomPx = 0;
+    if (metrics.titlebarHeightPx < 0) metrics.titlebarHeightPx = 0;
+    this.hoverMetrics = metrics;
+    const now = Date.now();
+    if (now - this.lastMetricsLogAt > 5e3) {
+      this.lastMetricsLogAt = now;
+      logger.debug("[OverlayController] hover metrics updated", {
+        sidebarRightPx: metrics.sidebarRightPx,
+        headerBottomPx: metrics.headerBottomPx,
+        titlebarHeightPx: metrics.titlebarHeightPx,
+        dpr: metrics.dpr,
+        ageMs: Math.max(0, now - metrics.timestamp)
+      });
+    }
+  }
   // Latch state (pinned)
   static getHeaderLatched() {
     return overlayStore.getState().headerLatched;
@@ -453,17 +484,51 @@ class OverlayController {
       this.setUIWindowGhost();
       return;
     }
+    const metricsAgeMs = this.hoverMetrics ? Date.now() - this.hoverMetrics.timestamp : Number.POSITIVE_INFINITY;
+    if (!Number.isFinite(metricsAgeMs) || metricsAgeMs > this.MAX_METRICS_AGE_MS) {
+      const now = Date.now();
+      if (now - this.lastStaleLogAt > 2e3) {
+        this.lastStaleLogAt = now;
+        logger.debug("[OverlayController] metrics stale - forcing ghost/close", {
+          hasMetrics: Boolean(this.hoverMetrics),
+          metricsAgeMs,
+          maxAgeMs: this.MAX_METRICS_AGE_MS
+        });
+      }
+      this.closeNonLatchedOverlays();
+      this.setUIWindowGhost();
+      return;
+    }
     const relativeX = Math.max(0, Math.floor(mouseX - bounds.x));
     const relativeY = Math.max(0, Math.floor(mouseY - bounds.y));
     const { headerLatched, sidebarLatched } = overlayStore.getState();
-    const inSidebarZone = relativeX <= this.EDGE_SIDEBAR_PX;
-    const inHeaderZone = relativeY <= this.EDGE_HEADER_PX;
+    const metrics = this.hoverMetrics;
+    const sidebarZoneRight = metrics ? Math.max(0, metrics.sidebarRightPx) : 0;
+    const headerZoneBottom = metrics ? Math.max(0, metrics.headerBottomPx + Math.max(0, metrics.titlebarHeightPx)) : 0;
+    const effectiveSidebarZoneRight = Math.min(Math.max(0, sidebarZoneRight), bounds.width);
+    const effectiveHeaderZoneBottom = Math.min(Math.max(0, headerZoneBottom), bounds.height);
+    const inSidebarZone = relativeX <= effectiveSidebarZoneRight;
+    const inHeaderZone = relativeY <= effectiveHeaderZoneBottom;
     const wantHeaderOpen = headerLatched || inHeaderZone;
     const wantSidebarOpen = sidebarLatched || inSidebarZone;
     if (this.currentState.headerOpen !== wantHeaderOpen || this.currentState.sidebarOpen !== wantSidebarOpen) {
       this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen };
       this.broadcastOverlayState(this.currentState);
       const shouldBeSolid = wantHeaderOpen || wantSidebarOpen;
+      logger.debug("[OverlayController] State changed", {
+        mouse: { x: relativeX, y: relativeY },
+        zones: { sidebar: inSidebarZone, header: inHeaderZone },
+        state: { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen },
+        latch: { header: headerLatched, sidebar: sidebarLatched },
+        shouldBeSolid,
+        metrics: metrics ? {
+          sidebarRightPx: metrics.sidebarRightPx,
+          headerBottomPx: metrics.headerBottomPx,
+          titlebarHeightPx: metrics.titlebarHeightPx,
+          dpr: metrics.dpr,
+          ageMs: Math.max(0, Date.now() - metrics.timestamp)
+        } : null
+      });
       if (shouldBeSolid) {
         this.setUIWindowSolid();
       } else {
@@ -867,6 +932,8 @@ const IPC_CHANNELS = {
     TOGGLE_HEADER_LATCH: "overlay:toggle-header-latch",
     TOGGLE_SIDEBAR_LATCH: "overlay:toggle-sidebar-latch",
     SET_INTERACTIVE: "overlay:set-interactive",
+    /** Renderer가 실측한 hover hotzone(사이드바/헤더/titlebar) 업데이트 */
+    UPDATE_HOVER_METRICS: "overlay:update-hover-metrics",
     /** [Event] Ghost 상태에서 edge hover 감지 (Main → Renderer) */
     EDGE_HOVER: "overlay:edge-hover",
     /** [Event] WebView에서 마우스 다운/업 발생 (Main → Renderer) */
@@ -1908,6 +1975,19 @@ function setupAppHandlers(registry2) {
       return { success: true };
     } catch (error) {
       logger.error("[AppHandler] overlay:debug failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  registry2.handle(IPC_CHANNELS.OVERLAY.UPDATE_HOVER_METRICS, async (_event, payload) => {
+    try {
+      const parsed = OverlayHoverMetricsSchema.safeParse(payload);
+      if (!parsed.success) {
+        return { success: false, error: parsed.error.message };
+      }
+      OverlayController.updateHoverMetrics(parsed.data);
+      return { success: true };
+    } catch (error) {
+      logger.error("[AppHandler] overlay:update-hover-metrics failed:", error);
       return { success: false, error: String(error) };
     }
   });

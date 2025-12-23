@@ -17,7 +17,7 @@ export const AsideHeader: React.FC = () => {
   const headerBtnClass = isHeaderLatched ? 'aside-header-btn aside-header-btn--active' : 'aside-header-btn'
 
   return (
-    <div className={headerClass} data-overlay-zone="header">
+    <div className={headerClass} data-overlay-zone="header" data-interactive="true">
       <div className="aside-header-surface">
         <AddressBar wrapperClassName="flex-1 min-w-0" inputClassName="aside-header-input" />
 

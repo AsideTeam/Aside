@@ -19,6 +19,7 @@ import { AppState } from '@main/managers/AppState'
 import { ViewManager } from '@main/managers/ViewManager'
 import { IPC_CHANNELS } from '@shared/ipc/channels'
 import type { IpcRegistry } from './IpcRegistry'
+import { OverlayHoverMetricsSchema } from '@shared/validation/schemas'
 
 /**
  * 앱 제어 핸들러 등록
@@ -158,6 +159,22 @@ export function setupAppHandlers(registry: IpcRegistry): void {
       return { success: true }
     } catch (error) {
       logger.error('[AppHandler] overlay:debug failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // Renderer 실측 기반 hover metrics 업데이트
+  registry.handle(IPC_CHANNELS.OVERLAY.UPDATE_HOVER_METRICS, async (_event, payload: unknown) => {
+    try {
+      const parsed = OverlayHoverMetricsSchema.safeParse(payload)
+      if (!parsed.success) {
+        return { success: false, error: parsed.error.message }
+      }
+
+      OverlayController.updateHoverMetrics(parsed.data)
+      return { success: true }
+    } catch (error) {
+      logger.error('[AppHandler] overlay:update-hover-metrics failed:', error)
       return { success: false, error: String(error) }
     }
   })
