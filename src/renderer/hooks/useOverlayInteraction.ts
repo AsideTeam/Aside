@@ -67,6 +67,41 @@
         // ignore
         }
 
+        // latch 토글은 mousemove가 없어도 즉시 반영되어야 한다.
+        // (핀 버튼 클릭 후 마우스를 안 움직이면 open/interactive가 갱신되지 않는 문제 방지)
+        let unsubscribeLatch: (() => void) | null = null
+        try {
+        let prevHeaderLatched = useOverlayStore.getState().headerLatched
+        let prevSidebarLatched = useOverlayStore.getState().sidebarLatched
+        unsubscribeLatch = useOverlayStore.subscribe((state) => {
+            const headerChanged = state.headerLatched !== prevHeaderLatched
+            const sidebarChanged = state.sidebarLatched !== prevSidebarLatched
+            if (!headerChanged && !sidebarChanged) return
+
+            prevHeaderLatched = state.headerLatched
+            prevSidebarLatched = state.sidebarLatched
+
+            if (!state.focused) {
+            closeAll()
+            return
+            }
+
+            if (state.headerLatched || state.sidebarLatched) {
+            clearCloseTimer()
+            useOverlayStore.setState({
+                headerOpen: state.headerLatched || useOverlayStore.getState().headerOpen,
+                sidebarOpen: state.sidebarLatched || useOverlayStore.getState().sidebarOpen,
+            })
+            setInteractive(true)
+            } else {
+            // 둘 다 unlatched가 되었고, 현재 zone도 없으면 닫힘 지연으로 처리
+            scheduleCloseIfStillIdle()
+            }
+        })
+        } catch {
+        // ignore
+        }
+
         const scheduleCloseIfStillIdle = () => {
         if (closeTimerRef.current) return
 
@@ -160,6 +195,13 @@
         if (unsubscribeFocus) {
             try {
             unsubscribeFocus()
+            } catch {
+            // ignore
+            }
+        }
+        if (unsubscribeLatch) {
+            try {
+            unsubscribeLatch()
             } catch {
             // ignore
             }

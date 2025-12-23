@@ -297,6 +297,12 @@
 
 /* ===== Overlay Root (UIWindow) ===== */
 .aside-overlay {
+  /* Pinned 레이아웃 Safe Area (WebContentsView bounds 계산에 사용)
+     - 사이드바 pinned: 좌측 영역을 항상 확보
+     - 헤더 pinned: 상단 영역을 항상 확보 (컨테이너 padding 포함 실제 높이와 맞춰야 잘림이 없다) */
+  --aside-sidebar-pinned-width: var(--size-sidebar-width);
+  --aside-header-pinned-height: 60px;
+
   width: 100vw;
   height: 100vh;
   background: transparent;
@@ -355,6 +361,34 @@
   -webkit-app-region: no-drag;
   width: calc(100% - 32px);
   max-width: none;
+}
+
+/* Header pinned (Chrome-style top bar) */
+.aside-header--pinned {
+  top: 0;
+  left: 0;
+  transform: none;
+  width: 100%;
+  padding: 8px 12px;
+}
+
+/* L-Shape: 사이드바 pinned면 헤더는 옆에서 시작 (겹침 방지) */
+.aside-overlay--sidebar-pinned .aside-header--pinned {
+  left: var(--aside-sidebar-pinned-width);
+  width: calc(100% - var(--aside-sidebar-pinned-width));
+}
+
+.aside-header--pinned.aside-header--open {
+  transform: none;
+  opacity: 1;
+}
+
+.aside-header--pinned .aside-header-surface {
+  border-radius: var(--radius-lg);
+}
+
+.aside-header--pinned .aside-header-input {
+  border-radius: var(--radius-md);
 }
 
 .aside-header--open {
@@ -449,6 +483,8 @@
 
 /* ===== Frame + Placeholder (WebContentsView 자리) ===== */
 .aside-frame {
+  position: fixed;
+  inset: 0;
   display: flex;
   width: 100%;
   height: 100vh;

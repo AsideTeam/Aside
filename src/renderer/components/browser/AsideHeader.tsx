@@ -10,7 +10,9 @@ export const AsideHeader: React.FC = () => {
   const toggleHeaderLatch = useOverlayStore((s) => s.toggleHeaderLatch)
   const toggleSidebarLatch = useOverlayStore((s) => s.toggleSidebarLatch)
 
-  const headerClass = isOpen ? 'aside-header aside-header--open' : 'aside-header'
+  const headerClass =
+    (isOpen ? 'aside-header aside-header--open' : 'aside-header') +
+    (isHeaderLatched ? ' aside-header--pinned' : '')
   const sidebarBtnClass = isSidebarLatched ? 'aside-header-btn aside-header-btn--active' : 'aside-header-btn'
   const headerBtnClass = isHeaderLatched ? 'aside-header-btn aside-header-btn--active' : 'aside-header-btn'
 
