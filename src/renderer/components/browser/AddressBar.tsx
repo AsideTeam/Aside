@@ -1,106 +1,103 @@
-import React, { useEffect, useState } from 'react';
-import { Button } from '../ui/Button';
-import { logger } from '../../lib/logger';
-import { tokens } from '@renderer/styles';
-import { ArrowLeft, ArrowRight, RotateCw, ArrowRightCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react'
+import { ChevronLeft, ChevronRight, RotateCw } from 'lucide-react'
+import { useWebContents } from '@renderer/hooks'
+import { cn } from '@renderer/lib/utils'
 
 interface AddressBarProps {
-  currentUrl: string;
-  onNavigate: (url: string) => void;
-  onReload: () => void;
-  onGoBack: () => void;
-  onGoForward: () => void;
-  canGoBack?: boolean;
-  canGoForward?: boolean;
-  isLoading?: boolean;
-  wrapperClassName?: string;
-  inputClassName?: string;
+  wrapperClassName?: string
+  inputClassName?: string
+
+  // BrowserLayout(일반 레이아웃)에서 제어형으로 쓰고 싶을 때
+  currentUrl?: string
+  onNavigate?: (url: string) => void
+  onReload?: () => void
+  onGoBack?: () => void
+  onGoForward?: () => void
+  canGoBack?: boolean
+  canGoForward?: boolean
+  isLoading?: boolean
 }
 
-export const AddressBar: React.FC<AddressBarProps> = ({
-  currentUrl,
+export function AddressBar({
+  wrapperClassName,
+  inputClassName,
+  currentUrl: currentUrlProp,
   onNavigate,
   onReload,
   onGoBack,
   onGoForward,
-  canGoBack = false,
-  canGoForward = false,
-  isLoading = false,
-  wrapperClassName,
-  inputClassName,
-}) => {
-  const [inputValue, setInputValue] = useState(currentUrl);
+  canGoBack: canGoBackProp,
+  canGoForward: canGoForwardProp,
+  isLoading: isLoadingProp,
+}: AddressBarProps) {
+  const web = useWebContents()
+
+  const currentUrl = currentUrlProp ?? web.currentUrl
+  const navigate = onNavigate ?? web.navigate
+  const goBack = onGoBack ?? web.goBack
+  const goForward = onGoForward ?? web.goForward
+  const reload = onReload ?? web.reload
+
+  const canGoBack = canGoBackProp ?? web.canGoBack
+  const canGoForward = canGoForwardProp ?? web.canGoForward
+  const isLoading = isLoadingProp ?? web.isLoading
+
+  const [inputValue, setInputValue] = useState(currentUrl)
 
   useEffect(() => {
-    setInputValue(currentUrl);
-  }, [currentUrl]);
+    setInputValue(currentUrl)
+  }, [currentUrl])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      logger.info('AddressBar - Navigate', { url: inputValue });
-      onNavigate(inputValue);
-    }
-  };
-
-  const handleNavigateClick = () => {
-    logger.info('AddressBar - Navigate button clicked', { url: inputValue });
-    onNavigate(inputValue);
-  };
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const url = inputValue.startsWith('http')
+      ? inputValue
+      : `https://${inputValue}`
+    navigate(url)
+  }
 
   return (
-    <div className={wrapperClassName ?? tokens.layout.addressBar.wrapper}>
-      {/* Navigation Buttons */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onGoBack}
-        disabled={!canGoBack}
-        className="disabled:opacity-50"
-        title="Go back"
-      >
-        <ArrowLeft size={16} />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onGoForward}
-        disabled={!canGoForward}
-        className="disabled:opacity-50"
-        title="Go forward"
-      >
-        <ArrowRight size={16} />
-      </Button>
+    <div className={cn('flex items-center gap-2 w-full', wrapperClassName)}>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={goBack}
+          disabled={!canGoBack}
+          className="p-1.5 hover:bg-white/10 rounded transition-colors"
+          title="뒤로"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <button
+          onClick={goForward}
+          disabled={!canGoForward}
+          className="p-1.5 hover:bg-white/10 rounded transition-colors"
+          title="앞으로"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+        <button
+          onClick={reload}
+          disabled={isLoading}
+          className="p-1.5 hover:bg-white/10 rounded transition-colors"
+          title="새로고침"
+        >
+          <RotateCw className="w-4 h-4" />
+        </button>
+      </div>
 
-      {/* Reload Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onReload}
-        disabled={isLoading}
-        className="disabled:opacity-50"
-        title="Reload page"
-      >
-        <RotateCw size={16} />
-      </Button>
-
-      {/* Address Input */}
-      <input
-        type="text"
-        value={inputValue}
-        onChange={handleInputChange}
-        onKeyPress={handleKeyPress}
-        placeholder="Enter URL..."
-        className={inputClassName ?? tokens.layout.addressBar.input}
-      />
-
-      {/* Navigate Button */}
-      <Button variant="primary" size="sm" onClick={handleNavigateClick}>
-        <ArrowRightCircle size={16} />
-      </Button>
+      <form onSubmit={handleSubmit} className="flex-1 min-w-0">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder="주소 입력..."
+          className={cn(
+            'w-full px-3 py-0.5 bg-transparent text-sm focus:outline-none transition-colors placeholder:text-gray-500',
+            inputClassName,
+          )}
+          style={{ height: '32px' }}
+        />
+      </form>
     </div>
-  );
-};
+  )
+}

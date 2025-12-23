@@ -39,18 +39,20 @@ body,
 .aside-overlay-mode,
 .aside-overlay-mode body,
 .aside-overlay-mode #root {
-  background-color: transparent !important;
+  background-color: transparent;
 }
 
 /* Input 기본 스타일 제거 */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 
 input[type='number'] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 /* 선택 텍스트 스타일 */

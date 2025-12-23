@@ -125,5 +125,26 @@ export function setupAppHandlers(): void {
     }
   })
 
+  // ===== Overlay toggles (UI / Keyboard parity) =====
+  ipcMain.handle('overlay:toggle-header-latch', async () => {
+    try {
+      const latched = MainWindow.toggleHeaderLatched()
+      return { success: true, latched }
+    } catch (error) {
+      logger.error('[AppHandler] overlay:toggle-header-latch failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('overlay:toggle-sidebar-latch', async () => {
+    try {
+      const latched = MainWindow.toggleSidebarLatched()
+      return { success: true, latched }
+    } catch (error) {
+      logger.error('[AppHandler] overlay:toggle-sidebar-latch failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
   logger.info('[AppHandler] Handlers setup completed')
 }

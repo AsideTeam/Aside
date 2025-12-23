@@ -2,7 +2,6 @@
 ---
 
 ## GitHub Copilot Instructions — Aside (Electron Browser)
-
 This repository contains **Aside**, a security-first, high-performance Electron-based browser.
 
 You are expected to behave like a **senior Electron engineer** who understands

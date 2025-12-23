@@ -10,7 +10,9 @@
 :root {
   /* ===== Color Palette ===== */
   --color-bg-primary: rgb(3, 7, 18); /* gray-950 */
+  --color-bg-primary-rgb: 3, 7, 18; /* gray-950 (RGB only for rgba) */
   --color-bg-secondary: rgb(17, 24, 39); /* gray-900 */
+  --color-bg-secondary-rgb: 17, 24, 39; /* gray-900 (RGB only for rgba) */
   --color-bg-tertiary: rgb(31, 41, 55); /* gray-800 */
   --color-bg-hover: rgb(31, 41, 55); /* gray-800 */
   --color-bg-input: rgb(243, 244, 246); /* gray-50 */

@@ -27,16 +27,27 @@
   user-select: none;
   transform: translateX(calc(-1 * var(--size-sidebar-width) - 8px));
   opacity: 0;
+  /* 기본 상태: 마우스 이벤트 투과 (uiWindow의 setIgnoreMouseEvents가 제어) */
   pointer-events: none;
   transition:
     transform var(--duration-slow) ease,
     opacity var(--duration-fast) ease;
 }
 
+/* overlay-mode에서도 배경 유지 (투명하지 않음) */
+.aside-overlay-mode .aside-sidebar {
+  background: linear-gradient(
+    180deg,
+    rgb(17, 24, 39) 0%,
+    rgb(31, 41, 55) 100%
+  );
+}
+
 /* 오버레이: 열릴 때만 화면에 나타남 */
 .aside-sidebar--open {
   transform: translateX(0);
   opacity: 1;
+  /* Electron의 setUIInteractivity(true)와 함께 작동 */
   pointer-events: auto;
 }
 
@@ -289,54 +300,74 @@
   width: 100vw;
   height: 100vh;
   background: transparent;
+  /* Electron의 setIgnoreMouseEvents(true, { forward: true })와 협력 */
+  pointer-events: none;
 }
 
 /* ===== Header (AddressBar Overlay) ===== */
 .aside-header {
   position: fixed;
-  top: 10px;
+  top: 12px;
   left: 50%;
-  transform: translate(-50%, -12px);
+  transform: translateX(-50%) translateY(-100%);
   opacity: 0;
+  /* 기본 상태: 마우스 이벤트 투과 */
   pointer-events: none;
   z-index: calc(var(--z-sidebar) + 1);
   transition:
-    transform var(--duration-slow) ease,
-    opacity var(--duration-fast) ease;
+    transform 0.2s ease,
+    opacity 0.2s ease;
   -webkit-app-region: no-drag;
+  width: calc(100% - 32px);
+  max-width: none;
 }
 
 .aside-header--open {
-  transform: translate(-50%, 0);
+  transform: translateX(-50%) translateY(0);
   opacity: 1;
+  /* Electron의 setUIInteractivity(true)와 함께 작동 */
   pointer-events: auto;
 }
 
 .aside-header-surface {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  width: min(820px, calc(100vw - 24px));
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border-primary);
-  background-color: color-mix(in srgb, var(--color-bg-secondary) 80%, transparent);
-  backdrop-filter: blur(14px);
+  gap: 10px;
+  padding: 6px 16px;
+  height: 44px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  /* 완전 불투명 (비침 없음) */
+  background: rgb(3, 7, 18);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* overlay-mode에서도 배경 유지 */
+.aside-overlay-mode .aside-header-surface {
+  background: rgb(3, 7, 18);
 }
 
 .aside-header-input {
   flex: 1;
-  height: 34px;
+  min-width: 0;
+  height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid var(--color-border-light);
-  background-color: color-mix(in srgb, var(--color-bg-primary) 72%, transparent);
+  border: none;
+  background: transparent;
   color: var(--color-text-primary);
+  font-size: 14px;
   outline: none;
 }
 
+.aside-header-input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
 .aside-header-input:focus {
-  border-color: var(--color-accent);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 /* ===== Frame + Placeholder (WebContentsView 자리) ===== */

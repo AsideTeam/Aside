@@ -207,6 +207,37 @@ class MainWindow {
   static contentWindow = null;
   static isCreating = false;
   static overlayTimer = null;
+  // Overlay latch states (keyboard/UI toggles)
+  static headerLatched = false;
+  static sidebarLatched = false;
+  static getHeaderLatched() {
+    return this.headerLatched;
+  }
+  static getSidebarLatched() {
+    return this.sidebarLatched;
+  }
+  static toggleHeaderLatched() {
+    this.headerLatched = !this.headerLatched;
+    try {
+      this.uiWindow?.webContents.send("header:latch-changed", {
+        latched: this.headerLatched,
+        timestamp: Date.now()
+      });
+    } catch {
+    }
+    return this.headerLatched;
+  }
+  static toggleSidebarLatched() {
+    this.sidebarLatched = !this.sidebarLatched;
+    try {
+      this.uiWindow?.webContents.send("sidebar:latch-changed", {
+        latched: this.sidebarLatched,
+        timestamp: Date.now()
+      });
+    } catch {
+    }
+    return this.sidebarLatched;
+  }
   /**
    * MainWindow 생성
    *
@@ -282,7 +313,9 @@ class MainWindow {
           if (!this.contentWindow || !this.uiWindow) return;
           this.contentWindow.setBounds(this.uiWindow.getBounds());
           this.contentWindow.show();
+          this.contentWindow.moveTop();
           this.uiWindow.show();
+          this.uiWindow.moveTop();
           this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
           this.startOverlayMouseTracker();
           didShow = true;
@@ -418,11 +451,39 @@ class MainWindow {
     const HOTZONE_WIDTH = 6;
     const SIDEBAR_WIDTH = 256;
     const CLOSE_DELAY_MS = 180;
-    const HEADER_HOTZONE_HEIGHT = 6;
+    const HEADER_HOTZONE_HEIGHT = 40;
     const HEADER_HEIGHT = 64;
     let isSidebarOpen = false;
     let isHeaderOpen = false;
     let closeArmedAt = null;
+    let isOverlayOnTop = false;
+    let isUIInteractive = false;
+    const ensureOverlayOnTop = (onTop) => {
+      if (!this.uiWindow) return;
+      if (isOverlayOnTop === onTop) return;
+      isOverlayOnTop = onTop;
+      try {
+        if (process.platform === "darwin") {
+          this.uiWindow.setAlwaysOnTop(onTop, "floating");
+        } else {
+          this.uiWindow.setAlwaysOnTop(onTop);
+        }
+        if (onTop) {
+          this.uiWindow.moveTop();
+        }
+      } catch {
+      }
+    };
+    const setUIInteractivity = (interactive) => {
+      if (!this.uiWindow) return;
+      if (isUIInteractive === interactive) return;
+      isUIInteractive = interactive;
+      if (interactive) {
+        this.uiWindow.setIgnoreMouseEvents(false);
+      } else {
+        this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
+      }
+    };
     const openSidebar = () => {
       if (!this.uiWindow) return;
       if (!isSidebarOpen) {
@@ -433,7 +494,6 @@ class MainWindow {
       }
       isSidebarOpen = true;
       closeArmedAt = null;
-      this.uiWindow.setIgnoreMouseEvents(false);
     };
     const closeSidebar = () => {
       if (!this.uiWindow) return;
@@ -455,7 +515,6 @@ class MainWindow {
       }
       isHeaderOpen = true;
       closeArmedAt = null;
-      this.uiWindow.setIgnoreMouseEvents(false);
     };
     const closeHeader = () => {
       if (!this.uiWindow) return;
@@ -472,35 +531,143 @@ class MainWindow {
       closeSidebar();
       closeHeader();
       closeArmedAt = null;
-      this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
+      ensureOverlayOnTop(false);
+      setUIInteractivity(false);
     };
     closeAll();
+    let appFocused = true;
+    const isOurAppFocused = () => {
+      try {
+        const focused = BrowserWindow.getFocusedWindow();
+        if (!focused) return false;
+        if (focused === this.uiWindow || focused === this.contentWindow) return true;
+        const parent = focused.getParentWindow?.();
+        return parent === this.uiWindow || parent === this.contentWindow;
+      } catch {
+        return false;
+      }
+    };
+    let focusRecalcTimer = null;
+    const scheduleFocusRecalc = () => {
+      if (focusRecalcTimer) clearTimeout(focusRecalcTimer);
+      focusRecalcTimer = setTimeout(() => {
+        focusRecalcTimer = null;
+        appFocused = isOurAppFocused();
+        if (!appFocused) {
+          closeAll();
+        }
+      }, 60);
+    };
+    try {
+      this.uiWindow.on("focus", scheduleFocusRecalc);
+      this.uiWindow.on("blur", scheduleFocusRecalc);
+      this.contentWindow?.on("focus", scheduleFocusRecalc);
+      this.contentWindow?.on("blur", scheduleFocusRecalc);
+      app.on("browser-window-focus", (_event, win) => {
+        if (win === this.uiWindow || win === this.contentWindow) scheduleFocusRecalc();
+      });
+      app.on("browser-window-blur", (_event, win) => {
+        if (win === this.uiWindow || win === this.contentWindow) scheduleFocusRecalc();
+      });
+    } catch {
+    }
+    scheduleFocusRecalc();
+    try {
+      this.contentWindow?.webContents.on("before-input-event", (event, input) => {
+        if (!this.uiWindow) return;
+        if (input.type !== "keyDown") return;
+        const key = (input.key || "").toLowerCase();
+        const mod = Boolean(input.control || input.meta);
+        if (mod && key === "l") {
+          event.preventDefault();
+          this.toggleHeaderLatched();
+          closeArmedAt = null;
+          if (this.headerLatched) {
+            openHeader();
+            ensureOverlayOnTop(true);
+          } else {
+            closeHeader();
+          }
+        }
+        if (mod && key === "b") {
+          event.preventDefault();
+          this.toggleSidebarLatched();
+          closeArmedAt = null;
+          if (this.sidebarLatched) {
+            openSidebar();
+            ensureOverlayOnTop(true);
+          } else {
+            closeSidebar();
+          }
+        }
+        if (key === "escape") {
+          if (this.headerLatched || this.sidebarLatched || isHeaderOpen || isSidebarOpen) {
+            event.preventDefault();
+            this.headerLatched = false;
+            this.sidebarLatched = false;
+            try {
+              this.uiWindow?.webContents.send("header:latch-changed", {
+                latched: this.headerLatched,
+                timestamp: Date.now()
+              });
+              this.uiWindow?.webContents.send("sidebar:latch-changed", {
+                latched: this.sidebarLatched,
+                timestamp: Date.now()
+              });
+            } catch {
+            }
+            closeAll();
+          }
+        }
+      });
+    } catch {
+    }
     this.overlayTimer = setInterval(() => {
       if (!this.uiWindow) return;
+      if (!appFocused) {
+        if (isSidebarOpen || isHeaderOpen || isOverlayOnTop || isUIInteractive) {
+          closeAll();
+        }
+        return;
+      }
       const bounds = this.uiWindow.getBounds();
       const pt = screen.getCursorScreenPoint();
-      const insideWindow = pt.x >= bounds.x && pt.x <= bounds.x + bounds.width && pt.y >= bounds.y && pt.y <= bounds.y + bounds.height;
+      const EDGE_PAD = 2;
+      const insideWindow = pt.x >= bounds.x - EDGE_PAD && pt.x <= bounds.x + bounds.width + EDGE_PAD && pt.y >= bounds.y - HEADER_HOTZONE_HEIGHT && pt.y <= bounds.y + bounds.height + EDGE_PAD;
       if (!insideWindow) {
+        if (this.headerLatched || this.sidebarLatched) {
+          ensureOverlayOnTop(true);
+          setUIInteractivity(false);
+          return;
+        }
         if (isSidebarOpen || isHeaderOpen) closeAll();
         return;
       }
       const relX = pt.x - bounds.x;
       const relY = pt.y - bounds.y;
       const sidebarWidth = isSidebarOpen ? SIDEBAR_WIDTH : HOTZONE_WIDTH;
-      const headerHeight = isHeaderOpen ? HEADER_HEIGHT : HEADER_HOTZONE_HEIGHT;
-      const wantSidebar = relX <= sidebarWidth;
-      const wantHeader = relY <= headerHeight;
-      if (wantSidebar) {
-        if (isHeaderOpen) closeHeader();
-        openSidebar();
-        return;
-      }
-      if (wantHeader) {
-        if (isSidebarOpen) closeSidebar();
+      const headerHotzoneHeight = isHeaderOpen ? HEADER_HEIGHT : HEADER_HOTZONE_HEIGHT;
+      const wantHeaderHover = relY <= headerHotzoneHeight;
+      const wantHeaderVisible = this.headerLatched || wantHeaderHover;
+      const wantSidebarVisible = this.sidebarLatched || !wantHeaderVisible && relX <= sidebarWidth;
+      ensureOverlayOnTop(wantHeaderVisible || wantSidebarVisible);
+      const wantHeaderInteractive = wantHeaderVisible && relY <= HEADER_HEIGHT;
+      const wantSidebarInteractive = wantSidebarVisible && relX <= (isSidebarOpen ? SIDEBAR_WIDTH : HOTZONE_WIDTH);
+      setUIInteractivity(wantHeaderInteractive || wantSidebarInteractive);
+      if (wantHeaderVisible) {
+        if (isSidebarOpen && !this.sidebarLatched) closeSidebar();
         openHeader();
         return;
       }
+      if (wantSidebarVisible) {
+        if (isHeaderOpen && !this.headerLatched) closeHeader();
+        openSidebar();
+        return;
+      }
       if (isSidebarOpen || isHeaderOpen) {
+        if (this.headerLatched || this.sidebarLatched) {
+          return;
+        }
         if (closeArmedAt === null) {
           closeArmedAt = Date.now();
           return;
@@ -508,8 +675,6 @@ class MainWindow {
         if (Date.now() - closeArmedAt >= CLOSE_DELAY_MS) {
           closeAll();
         }
-      } else {
-        this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
       }
     }, 33);
   }
@@ -1494,6 +1659,24 @@ function setupAppHandlers() {
       return { success: true, state };
     } catch (error) {
       logger.error("[AppHandler] app:state failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  ipcMain.handle("overlay:toggle-header-latch", async () => {
+    try {
+      const latched = MainWindow.toggleHeaderLatched();
+      return { success: true, latched };
+    } catch (error) {
+      logger.error("[AppHandler] overlay:toggle-header-latch failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  ipcMain.handle("overlay:toggle-sidebar-latch", async () => {
+    try {
+      const latched = MainWindow.toggleSidebarLatched();
+      return { success: true, latched };
+    } catch (error) {
+      logger.error("[AppHandler] overlay:toggle-sidebar-latch failed:", error);
       return { success: false, error: String(error) };
     }
   });

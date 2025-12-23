@@ -27,6 +27,8 @@ const allowedEventChannels = [
   'sidebar:close',
   'header:open',
   'header:close',
+  'header:latch-changed',
+  'sidebar:latch-changed',
 ]
 
 /**
@@ -143,6 +145,10 @@ const electronAPI = {
       'settings:get',
       'settings:update',
       'settings:reset',
+
+      // Overlay toggles
+      'overlay:toggle-header-latch',
+      'overlay:toggle-sidebar-latch',
     ]
 
     if (!allowedChannels.includes(channel)) {
