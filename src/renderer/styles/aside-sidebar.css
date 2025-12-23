@@ -323,13 +323,15 @@
   top: 0;
   left: 0;
   width: 100vw;
-  height: 18px;
+  /* macOS 상단(title bar/traffic lights) 근처까지 감지되도록 여유를 둔다 */
+  height: 32px;
 }
 
 .aside-hit-zone--sidebar {
   top: 0;
   left: 0;
-  width: 14px;
+  /* edge hover가 1px만 벗어나도 닫히는 덜그럭 방지용 buffer */
+  width: 24px;
   height: 100vh;
 }
 
