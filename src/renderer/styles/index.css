@@ -1,0 +1,10 @@
+/**
+ * 메인 스타일 진입점
+ * 
+ * 모든 스타일 모듈을 순서대로 import
+ */
+
+@import "tailwindcss";
+@import "./variables.css";
+@import "./base.css";
+@import "./settings.css";

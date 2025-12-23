@@ -12,10 +12,10 @@ interface AppearanceSectionProps {
 
 export function AppearanceSection({ settings, onUpdateSetting }: AppearanceSectionProps) {
   const fontSizeOptions = [
-    { value: 'small', label: '작게' },
-    { value: 'medium', label: '보통' },
-    { value: 'large', label: '크게' },
-    { value: 'xlarge', label: '아주 크게' },
+    { value: 'small', label: '작게 (12px)' },
+    { value: 'medium', label: '보통 (14px)' },
+    { value: 'large', label: '크게 (16px)' },
+    { value: 'xlarge', label: '아주 크게 (18px)' },
   ]
 
   const zoomOptions = [

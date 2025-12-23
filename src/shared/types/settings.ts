@@ -19,6 +19,15 @@ export interface SettingsSchema {
   blockThirdPartyCookies: boolean
   continueSession: boolean
   language: 'ko' | 'en' | 'ja'
+  
+  // Autofill
+  savePasswords: boolean
+  savePaymentInfo: boolean
+  saveAddresses: boolean
+  
+  // Privacy
+  doNotTrack: boolean
+  blockAds: boolean
 }
 
 /**

@@ -1,35 +1,32 @@
 @import "tailwindcss";
 
-/* ===== Chrome Browser 스타일 정확한 복제 ===== */
-
+/* ===== 라이트 모드 기본값 ===== */
 :root {
-  /* 배경색 */
-  --bg-main: #202124;
-  --bg-toolbar: #35363a;
-  --bg-input: #292a2d;
-  --bg-input-hover: #303134;
-  --bg-settings: #f8f9fa;
-  --bg-card: #ffffff;
+  /* 배경색 - 라이트 */
+  --bg-main: #ffffff;
+  --bg-toolbar: #f8f9fa;
+  --bg-input: #f1f3f4;
+  --bg-input-hover: #e8eaed;
+  --bg-surface: #ffffff;
+  --bg-hover: #f1f3f4;
+  --bg-secondary: #f8f9fa;
   
-  /* 텍스트 */
-  --text-primary: #e8eaed;
-  --text-secondary: #9aa0a6;
-  --text-disabled: #5f6368;
-  --text-dark: #202124;
-  --text-dark-secondary: #5f6368;
-  
-  /* 아이콘/버튼 */
-  --icon-default: #9aa0a6;
-  --icon-hover: #e8eaed;
-  --icon-disabled: #5f6368;
+  /* 텍스트 - 라이트 */
+  --text-primary: #202124;
+  --text-secondary: #5f6368;
+  --text-tertiary: #80868b;
+  --text-disabled: #9aa0a6;
   
   /* 액센트 */
+  --accent: #2563eb;
+  --accent-rgb: 37, 99, 235;
   --accent-primary: #1967d2;
+  --accent-light: #e8f0fe;
   --accent-bg: #e8f0fe;
   
   /* Border */
-  --border-light: #dadce0;
-  --border-lighter: #e8eaed;
+  --border-color: #dadce0;
+  --border-light: #e8eaed;
   
   /* 간격 표준 */
   --space-xs: 4px;
@@ -37,6 +34,7 @@
   --space-md: 12px;
   --space-lg: 16px;
   --space-xl: 24px;
+  --space-2xl: 32px;
   
   /* 높이 표준 */
   --height-tab: 40px;
@@ -62,6 +60,51 @@
   /* transition */
   --transition-fast: 150ms ease;
   --transition-normal: 200ms ease;
+}
+
+/* ===== 다크 모드 ===== */
+html[data-theme="dark"],
+:root[data-theme="dark"] {
+  /* 배경색 - 다크 */
+  --bg-main: #202124;
+  --bg-toolbar: #35363a;
+  --bg-input: #292a2d;
+  --bg-input-hover: #303134;
+  --bg-surface: #292a2d;
+  --bg-hover: #3c3f43;
+  --bg-secondary: #292a2d;
+  
+  /* 텍스트 - 다크 */
+  --text-primary: #e8eaed;
+  --text-secondary: #9aa0a6;
+  --text-tertiary: #80868b;
+  --text-disabled: #5f6368;
+  
+  /* 액센트 - 다크 (더 밝음) */
+  --accent: #8ab4f8;
+  --accent-rgb: 138, 180, 248;
+  --accent-primary: #8ab4f8;
+  --accent-light: #0d3a6b;
+  --accent-bg: #0d3a6b;
+}
+
+/* ===== 라이트 모드 명시적 ===== */
+html[data-theme="light"],
+:root[data-theme="light"] {
+  /* 배경색 - 라이트 */
+  --bg-main: #ffffff;
+  --bg-toolbar: #f8f9fa;
+  --bg-input: #f1f3f4;
+  --bg-input-hover: #e8eaed;
+  --bg-surface: #ffffff;
+  --bg-hover: #f1f3f4;
+  --bg-secondary: #f8f9fa;
+  
+  /* 텍스트 - 라이트 */
+  --text-primary: #202124;
+  --text-secondary: #5f6368;
+  --text-tertiary: #80868b;
+  --text-disabled: #9aa0a6;
 }
 
 /* ===== Reset & Base ===== */

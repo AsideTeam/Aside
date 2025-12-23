@@ -132,8 +132,8 @@ export const SETTINGS_MENU_ITEMS_FULL: SettingsMenuItem[] = [
 ]
 
 /**
- * Priority 필터링된 활성 메뉴 (현재는 1~2만 표시)
+ * Priority 필터링된 활성 메뉴 (현재는 1~4: Appearance, Language, Autofill, Privacy)
  */
-export function getActiveMenuItems(maxPriority = 2): SettingsMenuItem[] {
+export function getActiveMenuItems(maxPriority = 4): SettingsMenuItem[] {
   return SETTINGS_MENU_ITEMS_FULL.filter((item) => item.priority <= maxPriority)
 }

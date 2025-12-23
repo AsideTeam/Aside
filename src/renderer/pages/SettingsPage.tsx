@@ -4,6 +4,8 @@ import {
   SettingsSearch,
   AppearanceSection,
   LanguageSection,
+  AutofillSection,
+  PrivacySection,
 } from '../components/Settings'
 import { getActiveMenuItems } from '../constants/settingsMenu'
 import type { SettingsMenuId } from '../constants/settingsMenu'
@@ -28,14 +30,24 @@ export function SettingsPage() {
   const [settings, setSettings] = useState<SettingsSchema | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const activeMenuItems = useMemo(() => getActiveMenuItems(2), [])
+  const activeMenuItems = useMemo(() => getActiveMenuItems(4), [])
 
   // Main에서 설정 로드
   useEffect(() => {
     const loadSettings = async () => {
       try {
         const saved = await window.electronAPI?.settings?.getSettings?.()
-        if (saved) setSettings(saved as SettingsSchema)
+        if (saved) {
+          const settings = saved as SettingsSchema
+          setSettings(settings)
+          
+          // 모든 설정 초기 적용
+          applyTheme(settings.theme)
+          applyFontSize(settings.fontSize)
+          applyPageZoom(settings.pageZoom)
+          applyShowBookmarksBar(settings.showBookmarksBar)
+          applyShowHomeButton(settings.showHomeButton)
+        }
       } catch (error) {
         console.error('[SettingsPage] Failed to load settings:', error)
       } finally {
@@ -46,12 +58,78 @@ export function SettingsPage() {
     void loadSettings()
   }, [])
 
+  // 테마 적용
+  const applyTheme = (theme: SettingsSchema['theme']) => {
+    const root = document.documentElement
+    if (theme === 'system') {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      root.setAttribute('data-theme', isDark ? 'dark' : 'light')
+    } else {
+      root.setAttribute('data-theme', theme)
+    }
+  }
+
+  // 텍스트 크기 적용
+  const applyFontSize = (sizeValue: string) => {
+    const sizes: Record<string, string> = {
+      small: '12px',
+      normal: '14px',
+      large: '16px',
+      'x-large': '18px',
+    }
+    const fontSize = sizes[sizeValue] || '14px'
+    document.documentElement.style.fontSize = fontSize
+  }
+
+  // 페이지 줌 적용
+  const applyPageZoom = (zoomValue: string) => {
+    const zooms: Record<string, number> = {
+      '75': 0.75,
+      '90': 0.9,
+      '100': 1,
+      '125': 1.25,
+      '150': 1.5,
+    }
+    const zoom = zooms[zoomValue] || 1
+    document.body.style.zoom = `${zoom * 100}%`
+  }
+
+  // 북마크 바 표시 제어
+  const applyShowBookmarksBar = (show: boolean) => {
+    const bookmarksBar = document.querySelector('[data-element="bookmarks-bar"]')
+    if (bookmarksBar) {
+      ;(bookmarksBar as HTMLElement).style.display = show ? 'block' : 'none'
+    }
+  }
+
+  // 홈 버튼 표시 제어
+  const applyShowHomeButton = (show: boolean) => {
+    const homeButton = document.querySelector('[data-element="home-button"]')
+    if (homeButton) {
+      ;(homeButton as HTMLElement).style.display = show ? 'block' : 'none'
+    }
+  }
+
   // 설정값 업데이트
   const updateSetting = async <K extends keyof SettingsSchema>(
     key: K,
     value: SettingsSchema[K]
   ) => {
     setSettings((prev) => (prev ? { ...prev, [key]: value } : prev))
+    
+    // 즉시 UI에 적용
+    if (key === 'theme') {
+      applyTheme(value as SettingsSchema['theme'])
+    } else if (key === 'fontSize') {
+      applyFontSize(value as string)
+    } else if (key === 'pageZoom') {
+      applyPageZoom(value as string)
+    } else if (key === 'showBookmarksBar') {
+      applyShowBookmarksBar(value as boolean)
+    } else if (key === 'showHomeButton') {
+      applyShowHomeButton(value as boolean)
+    }
+    
     try {
       await window.electronAPI?.settings?.updateSetting?.(key as string, value)
       console.log('[SettingsPage] Setting saved:', { key, value })
@@ -113,6 +191,22 @@ export function SettingsPage() {
         {/* Language 섹션 */}
         {activeMenuId === 'language' && (
           <LanguageSection
+            settings={settings}
+            onUpdateSetting={updateSetting}
+          />
+        )}
+
+        {/* Autofill 섹션 */}
+        {activeMenuId === 'autofill' && (
+          <AutofillSection
+            settings={settings}
+            onUpdateSetting={updateSetting}
+          />
+        )}
+
+        {/* Privacy 섹션 */}
+        {activeMenuId === 'privacy' && (
+          <PrivacySection
             settings={settings}
             onUpdateSetting={updateSetting}
           />
