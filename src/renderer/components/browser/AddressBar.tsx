@@ -60,7 +60,7 @@ export function AddressBar({
         <button
           onClick={goBack}
           disabled={!canGoBack}
-          className="p-1.5 hover:bg-white/10 rounded transition-colors"
+          className="p-1.5 hover:bg-white/10 rounded transition-colors cursor-pointer disabled:cursor-not-allowed"
           title="뒤로"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -68,7 +68,7 @@ export function AddressBar({
         <button
           onClick={goForward}
           disabled={!canGoForward}
-          className="p-1.5 hover:bg-white/10 rounded transition-colors"
+          className="p-1.5 hover:bg-white/10 rounded transition-colors cursor-pointer disabled:cursor-not-allowed"
           title="앞으로"
         >
           <ChevronRight className="w-4 h-4" />
@@ -76,7 +76,7 @@ export function AddressBar({
         <button
           onClick={reload}
           disabled={isLoading}
-          className="p-1.5 hover:bg-white/10 rounded transition-colors"
+          className="p-1.5 hover:bg-white/10 rounded transition-colors cursor-pointer disabled:cursor-not-allowed"
           title="새로고침"
         >
           <RotateCw className="w-4 h-4" />

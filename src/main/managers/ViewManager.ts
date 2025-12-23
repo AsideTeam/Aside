@@ -20,7 +20,9 @@
 
 import { BrowserWindow, WebContentsView } from 'electron'
 import { logger } from '@main/utils/Logger'
+import { IPC_CHANNELS } from '@shared/ipc/channels'
 import type { ViewBounds } from '@shared/types/view'
+import { OverlayContentPointerEventSchema } from '@shared/validation/schemas'
 
 /**
  * 탭 데이터 모델
@@ -514,6 +516,24 @@ export class ViewManager {
    * @param view - WebContentsView 인스턴스
    */
   private static setupTabEvents(tabId: string, view: WebContentsView): void {
+    // WebView(content)에서 발생한 마우스 업/다운을 Renderer(UI overlay)로 브로드캐스트한다.
+    // uiWindow가 Ghost일 때 Renderer가 mouseup을 못 받아 overlay open이 "붙는" 문제를 방지.
+    view.webContents.on('before-input-event', (_event, input) => {
+      try {
+        if (!this.uiWindow) return
+        if (input.type !== 'mouseDown' && input.type !== 'mouseUp') return
+
+        const payload = OverlayContentPointerEventSchema.parse({
+          kind: input.type,
+          timestamp: Date.now(),
+        })
+
+        this.uiWindow.webContents.send(IPC_CHANNELS.OVERLAY.CONTENT_POINTER, payload)
+      } catch {
+        // ignore
+      }
+    })
+
     // 타이틀 변경
     view.webContents.on('page-title-updated', (_event, title) => {
       const tabData = this.tabs.get(tabId)
@@ -535,8 +555,8 @@ export class ViewManager {
         if (this.uiWindow && tabData.isActive) {
           this.uiWindow.webContents.send('view:navigated', {
             url,
-            canGoBack: view.webContents.canGoBack(),
-            canGoForward: view.webContents.canGoForward(),
+            canGoBack: view.webContents.navigationHistory.canGoBack(),
+            canGoForward: view.webContents.navigationHistory.canGoForward(),
             timestamp: Date.now(),
           })
         }
@@ -553,8 +573,8 @@ export class ViewManager {
         if (this.uiWindow && tabData.isActive) {
           this.uiWindow.webContents.send('view:navigated', {
             url,
-            canGoBack: view.webContents.canGoBack(),
-            canGoForward: view.webContents.canGoForward(),
+            canGoBack: view.webContents.navigationHistory.canGoBack(),
+            canGoForward: view.webContents.navigationHistory.canGoForward(),
             timestamp: Date.now(),
           })
         }

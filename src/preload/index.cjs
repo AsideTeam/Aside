@@ -49,6 +49,10 @@ const allowedEventChannels = [
   'header:latch-changed',
   'sidebar:latch-changed',
 
+  // Overlay edge hover fallback (Main -> Renderer)
+  'overlay:edge-hover',
+  'overlay:content-pointer',
+
   // Window focus state (Main -> Renderer)
   'window:focus-changed',
 ]

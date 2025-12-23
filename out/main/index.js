@@ -241,6 +241,16 @@ const OverlayLatchChangedEventSchema = z.object({
   timestamp: z.number()
 });
 z.object({
+  zone: z.enum(["header", "sidebar"]),
+  x: z.number().int().nonnegative(),
+  y: z.number().int().nonnegative(),
+  timestamp: z.number()
+});
+const OverlayContentPointerEventSchema = z.object({
+  kind: z.enum(["mouseDown", "mouseUp"]),
+  timestamp: z.number()
+});
+z.object({
   url: z.string().min(1),
   timestamp: z.number()
 });
@@ -305,8 +315,15 @@ class OverlayController {
   static uiWindow = null;
   static contentWindow = null;
   static cleanupFns = [];
-  static lastInteractive = null;
-  // Latch state getters/toggles (for IPC handlers)
+  // Arc 스타일 global mouse tracking
+  static hoverTrackingTimer = null;
+  static currentState = { headerOpen: false, sidebarOpen: false };
+  // Edge hotzone 크기 (Arc/Zen과 동일)
+  static EDGE_SIDEBAR_PX = 24;
+  static EDGE_HEADER_PX = 32;
+  static TRACKING_INTERVAL_MS = 16;
+  // 60fps (Arc와 동일)
+  // Latch state (pinned)
   static getHeaderLatched() {
     return overlayStore.getState().headerLatched;
   }
@@ -331,33 +348,7 @@ class OverlayController {
     }
   }
   /**
-   * Set UI window interactivity
-   * 
-   * Renderer의 hover 감지에 따라 uiWindow의 마우스 이벤트를 활성화/비활성화
-   * - interactive=true: 마우스 이벤트 받음 (hover 상태)
-   * - interactive=false: 마우스 이벤트 투과 (click-through)
-   */
-  static setInteractive(interactive) {
-    if (!this.uiWindow) return;
-    if (this.lastInteractive === interactive) return;
-    this.lastInteractive = interactive;
-    try {
-      if (interactive) {
-        this.uiWindow.setIgnoreMouseEvents(false);
-      } else {
-        this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
-      }
-      logger.debug("[OverlayController] setInteractive", {
-        interactive,
-        windowId: this.uiWindow.id
-      });
-    } catch {
-    }
-  }
-  /**
    * Attach controller to windows
-   * - Setup focus/blur event listeners
-   * - Setup keyboard shortcuts
    */
   static attach({ uiWindow, contentWindow }) {
     if (this.uiWindow === uiWindow && this.contentWindow === contentWindow) return;
@@ -365,9 +356,12 @@ class OverlayController {
     this.uiWindow = uiWindow;
     this.contentWindow = contentWindow;
     this.setupFocusTracking();
+    this.startGlobalMouseTracking();
     this.setupKeyboardShortcuts();
+    logger.info("[OverlayController] Attached (Arc/Zen style)");
   }
   static dispose() {
+    this.stopGlobalMouseTracking();
     for (const fn of this.cleanupFns.splice(0)) {
       try {
         fn();
@@ -378,7 +372,8 @@ class OverlayController {
     this.contentWindow = null;
   }
   /**
-   * Focus tracking - Main의 유일한 "상태 감지" 책임
+   * Arc 스타일 Step 1: Window Focus Tracking
+   * - blur되면 즉시 닫힘 (최우선 조건)
    */
   static setupFocusTracking() {
     if (!this.uiWindow || !this.contentWindow) return;
@@ -396,6 +391,9 @@ class OverlayController {
       try {
         uiWindow.webContents.send("window:focus-changed", focused);
       } catch {
+      }
+      if (!focused) {
+        this.closeNonLatchedOverlays();
       }
       logger.debug("[OverlayController] focus changed", {
         focused,
@@ -417,18 +415,118 @@ class OverlayController {
       contentWindow.removeListener("blur", onAnyFocusBlur);
     });
     broadcastFocus(computeFocused());
-    logger.debug("[OverlayController] focus tracking attached", {
-      uiWindowId: uiWindow.id,
-      contentWindowId: contentWindow.id,
-      initialFocused: computeFocused()
+  }
+  /**
+   * Arc 스타일 Step 2+3: Global Mouse Tracking
+   * - 마우스가 window bounds 밖이면 즉시 닫힘
+   * - hover zone 판정 (edge hotzone)
+   */
+  static startGlobalMouseTracking() {
+    if (!this.uiWindow || !this.contentWindow) return;
+    this.hoverTrackingTimer = setInterval(() => {
+      this.trackMouseAndUpdateState();
+    }, this.TRACKING_INTERVAL_MS);
+    this.cleanupFns.push(() => {
+      this.stopGlobalMouseTracking();
     });
+    logger.debug("[OverlayController] Global mouse tracking started");
+  }
+  static stopGlobalMouseTracking() {
+    if (this.hoverTrackingTimer) {
+      clearInterval(this.hoverTrackingTimer);
+      this.hoverTrackingTimer = null;
+    }
+  }
+  static trackMouseAndUpdateState() {
+    if (!this.uiWindow || !this.contentWindow) return;
+    const windowFocused = overlayStore.getState().focused;
+    if (!windowFocused) {
+      this.closeNonLatchedOverlays();
+      this.setUIWindowGhost();
+      return;
+    }
+    const { x: mouseX, y: mouseY } = screen.getCursorScreenPoint();
+    const bounds = this.uiWindow.getBounds();
+    const insideWindow = mouseX >= bounds.x && mouseX < bounds.x + bounds.width && mouseY >= bounds.y && mouseY < bounds.y + bounds.height;
+    if (!insideWindow) {
+      this.closeNonLatchedOverlays();
+      this.setUIWindowGhost();
+      return;
+    }
+    const relativeX = Math.max(0, Math.floor(mouseX - bounds.x));
+    const relativeY = Math.max(0, Math.floor(mouseY - bounds.y));
+    const { headerLatched, sidebarLatched } = overlayStore.getState();
+    const inSidebarZone = relativeX <= this.EDGE_SIDEBAR_PX;
+    const inHeaderZone = relativeY <= this.EDGE_HEADER_PX;
+    const wantHeaderOpen = headerLatched || inHeaderZone;
+    const wantSidebarOpen = sidebarLatched || inSidebarZone;
+    if (this.currentState.headerOpen !== wantHeaderOpen || this.currentState.sidebarOpen !== wantSidebarOpen) {
+      this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen };
+      this.broadcastOverlayState(this.currentState);
+      const shouldBeSolid = wantHeaderOpen || wantSidebarOpen;
+      if (shouldBeSolid) {
+        this.setUIWindowSolid();
+      } else {
+        this.setUIWindowGhost();
+      }
+    }
+  }
+  /**
+   * Arc 핵심: focus=false OR insideWindow=false일 때 호출
+   * latch되지 않은 overlay는 즉시 닫음
+   */
+  static closeNonLatchedOverlays() {
+    const { headerLatched, sidebarLatched } = overlayStore.getState();
+    const newState = {
+      headerOpen: headerLatched,
+      sidebarOpen: sidebarLatched
+    };
+    if (this.currentState.headerOpen !== newState.headerOpen || this.currentState.sidebarOpen !== newState.sidebarOpen) {
+      this.currentState = newState;
+      this.broadcastOverlayState(newState);
+    }
+  }
+  /**
+   * Renderer에 overlay open/close 상태 전송
+   */
+  static broadcastOverlayState(state) {
+    if (!this.uiWindow) return;
+    try {
+      if (state.headerOpen) {
+        this.uiWindow.webContents.send("header:open", { timestamp: Date.now() });
+      } else {
+        this.uiWindow.webContents.send("header:close", { timestamp: Date.now() });
+      }
+      if (state.sidebarOpen) {
+        this.uiWindow.webContents.send("sidebar:open", { timestamp: Date.now() });
+      } else {
+        this.uiWindow.webContents.send("sidebar:close", { timestamp: Date.now() });
+      }
+    } catch {
+    }
+  }
+  /**
+   * UI Window를 Ghost (click-through) 모드로 전환
+   */
+  static setUIWindowGhost() {
+    if (!this.uiWindow) return;
+    try {
+      this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
+    } catch {
+    }
+  }
+  /**
+   * UI Window를 Solid (interactive) 모드로 전환
+   */
+  static setUIWindowSolid() {
+    if (!this.uiWindow) return;
+    try {
+      this.uiWindow.setIgnoreMouseEvents(false);
+    } catch {
+    }
   }
   /**
    * Keyboard shortcuts - contentWindow에서 처리
-   * 
-   * - Cmd/Ctrl + L: Header latch toggle
-   * - Cmd/Ctrl + B: Sidebar latch toggle
-   * - Esc: Close all latched overlays
    */
   static setupKeyboardShortcuts() {
     if (!this.contentWindow) return;
@@ -514,7 +612,9 @@ class MainWindow {
         // UI 준비될 때까지 숨김
         show: false,
         // 컨텐츠 배경 (투명 금지)
-        backgroundColor: "#000000"
+        // Renderer 테마의 --color-bg-secondary (rgb(17, 24, 39))와 맞춰
+        // sidebar 그림자/투명 합성에서 언더레이가 튀며 seam처럼 보이는 현상을 줄인다.
+        backgroundColor: "#111827"
       };
       this.contentWindow = new BrowserWindow(contentWindowOptions);
       const uiWindowOptions = {
@@ -677,6 +777,103 @@ class MainWindow {
     logger.info("[MainWindow] Event listeners attached (dual-window)");
   }
 }
+const IPC_CHANNELS = {
+  // ===== APP 영역 =====
+  APP: {
+    /** 앱이 준비됨 (모든 초기화 완료) */
+    READY: "app:ready",
+    /** 앱 종료 요청 */
+    QUIT: "app:quit",
+    /** 앱 재시작 요청 */
+    RESTART: "app:restart",
+    /** 앱 상태 조회 */
+    STATE: "app:state"
+  },
+  // ===== WINDOW 영역 (Renderer에서 Main으로 요청) =====
+  WINDOW: {
+    /** 윈도우 최소화 */
+    MINIMIZE: "window:minimize",
+    /** 윈도우 최대화/복원 토글 */
+    MAXIMIZE: "window:maximize",
+    /** 윈도우 닫기 */
+    CLOSE: "window:close"
+  },
+  // ===== TAB 영역 (탭 관리 - Request/Response) =====
+  TAB: {
+    /** 새 탭 생성 (Request: URL, Response: tabId) */
+    CREATE: "tab:create",
+    /** 탭 닫기 (Request: tabId) */
+    CLOSE: "tab:close",
+    /** 탭 전환 (Request: tabId) */
+    SWITCH: "tab:switch",
+    /** 탭 URL 변경 (Request: tabId, url) */
+    UPDATE_URL: "tab:update-url",
+    /** 탭 목록 조회 */
+    LIST: "tab:list",
+    /** 활성 탭 ID 조회 */
+    ACTIVE: "tab:active",
+    /** 현재 탭 네비게이션 */
+    NAVIGATE: "tab:navigate",
+    /** 뒤로 가기 */
+    BACK: "tab:back",
+    /** 앞으로 가기 */
+    FORWARD: "tab:forward",
+    /** 새로고침 */
+    RELOAD: "tab:reload",
+    /** [Event] 탭 목록 업데이트 (Main → Renderer) */
+    UPDATED: "tabs:updated"
+  },
+  // ===== NAVIGATION 영역 (브라우징 네비게이션) =====
+  NAV: {
+    /** URL로 이동 (Request: url) */
+    NAVIGATE: "nav:navigate",
+    /** 뒤로 가기 */
+    BACK: "nav:back",
+    /** 앞으로 가기 */
+    FORWARD: "nav:forward",
+    /** 새로고침 */
+    RELOAD: "nav:reload",
+    /** [Event] 네비게이션 상태 변경 (뒤/앞 가능 여부 변경) */
+    STATE_CHANGED: "nav:state-changed"
+  },
+  // ===== SIDEBAR 영역 =====
+  SIDEBAR: {
+    /** 사이드바 토글 (확장/축소) */
+    TOGGLE: "sidebar:toggle"
+  },
+  // ===== VIEW 영역 (WebContentsView 관리 - Zen Layout) =====
+  VIEW: {
+    /** WebContentsView 크기/위치 조절 (Request: bounds) */
+    RESIZE: "view:resize",
+    /** WebContentsView로 네비게이션 (Request: url) */
+    NAVIGATE: "view:navigate",
+    /** Settings 페이지 열림/닫힘 토글 */
+    SETTINGS_TOGGLED: "view:settings-toggled",
+    /** [Event] WebContentsView 로드 완료 */
+    LOADED: "view:loaded",
+    /** [Event] WebContentsView 네비게이션 완료 */
+    NAVIGATED: "view:navigated"
+  },
+  // ===== SETTINGS 영역 =====
+  SETTINGS: {
+    GET_ALL: "settings:get-all",
+    GET: "settings:get",
+    UPDATE: "settings:update",
+    UPDATE_MULTIPLE: "settings:update-multiple",
+    RESET: "settings:reset"
+  },
+  // ===== OVERLAY 영역 (UI overlay latch/toggles) =====
+  OVERLAY: {
+    TOGGLE_HEADER_LATCH: "overlay:toggle-header-latch",
+    TOGGLE_SIDEBAR_LATCH: "overlay:toggle-sidebar-latch",
+    SET_INTERACTIVE: "overlay:set-interactive",
+    /** [Event] Ghost 상태에서 edge hover 감지 (Main → Renderer) */
+    EDGE_HOVER: "overlay:edge-hover",
+    /** [Event] WebView에서 마우스 다운/업 발생 (Main → Renderer) */
+    CONTENT_POINTER: "overlay:content-pointer",
+    DEBUG: "overlay:debug"
+  }
+};
 class ViewManager {
   static tabs = /* @__PURE__ */ new Map();
   static activeTabId = null;
@@ -1046,6 +1243,18 @@ class ViewManager {
    * @param view - WebContentsView 인스턴스
    */
   static setupTabEvents(tabId, view) {
+    view.webContents.on("before-input-event", (_event, input) => {
+      try {
+        if (!this.uiWindow) return;
+        if (input.type !== "mouseDown" && input.type !== "mouseUp") return;
+        const payload = OverlayContentPointerEventSchema.parse({
+          kind: input.type,
+          timestamp: Date.now()
+        });
+        this.uiWindow.webContents.send(IPC_CHANNELS.OVERLAY.CONTENT_POINTER, payload);
+      } catch {
+      }
+    });
     view.webContents.on("page-title-updated", (_event, title) => {
       const tabData = this.tabs.get(tabId);
       if (tabData) {
@@ -1063,8 +1272,8 @@ class ViewManager {
         if (this.uiWindow && tabData.isActive) {
           this.uiWindow.webContents.send("view:navigated", {
             url,
-            canGoBack: view.webContents.canGoBack(),
-            canGoForward: view.webContents.canGoForward(),
+            canGoBack: view.webContents.navigationHistory.canGoBack(),
+            canGoForward: view.webContents.navigationHistory.canGoForward(),
             timestamp: Date.now()
           });
         }
@@ -1078,8 +1287,8 @@ class ViewManager {
         if (this.uiWindow && tabData.isActive) {
           this.uiWindow.webContents.send("view:navigated", {
             url,
-            canGoBack: view.webContents.canGoBack(),
-            canGoForward: view.webContents.canGoForward(),
+            canGoBack: view.webContents.navigationHistory.canGoBack(),
+            canGoForward: view.webContents.navigationHistory.canGoForward(),
             timestamp: Date.now()
           });
         }
@@ -1587,71 +1796,6 @@ class AppState {
     logger.info("[AppState] State reset");
   }
 }
-const IPC_CHANNELS = {
-  // ===== APP 영역 =====
-  APP: {
-    /** 앱 종료 요청 */
-    QUIT: "app:quit",
-    /** 앱 재시작 요청 */
-    RESTART: "app:restart",
-    /** 앱 상태 조회 */
-    STATE: "app:state"
-  },
-  // ===== WINDOW 영역 (Renderer에서 Main으로 요청) =====
-  WINDOW: {
-    /** 윈도우 최소화 */
-    MINIMIZE: "window:minimize",
-    /** 윈도우 최대화/복원 토글 */
-    MAXIMIZE: "window:maximize",
-    /** 윈도우 닫기 */
-    CLOSE: "window:close"
-  },
-  // ===== TAB 영역 (탭 관리 - Request/Response) =====
-  TAB: {
-    /** 새 탭 생성 (Request: URL, Response: tabId) */
-    CREATE: "tab:create",
-    /** 탭 닫기 (Request: tabId) */
-    CLOSE: "tab:close",
-    /** 탭 전환 (Request: tabId) */
-    SWITCH: "tab:switch",
-    /** 탭 목록 조회 */
-    LIST: "tab:list",
-    /** 활성 탭 ID 조회 */
-    ACTIVE: "tab:active",
-    /** 현재 탭 네비게이션 */
-    NAVIGATE: "tab:navigate",
-    /** 뒤로 가기 */
-    BACK: "tab:back",
-    /** 앞으로 가기 */
-    FORWARD: "tab:forward",
-    /** 새로고침 */
-    RELOAD: "tab:reload"
-  },
-  // ===== VIEW 영역 (WebContentsView 관리 - Zen Layout) =====
-  VIEW: {
-    /** WebContentsView 크기/위치 조절 (Request: bounds) */
-    RESIZE: "view:resize",
-    /** WebContentsView로 네비게이션 (Request: url) */
-    NAVIGATE: "view:navigate",
-    /** Settings 페이지 열림/닫힘 토글 */
-    SETTINGS_TOGGLED: "view:settings-toggled"
-  },
-  // ===== SETTINGS 영역 =====
-  SETTINGS: {
-    GET_ALL: "settings:get-all",
-    GET: "settings:get",
-    UPDATE: "settings:update",
-    UPDATE_MULTIPLE: "settings:update-multiple",
-    RESET: "settings:reset"
-  },
-  // ===== OVERLAY 영역 (UI overlay latch/toggles) =====
-  OVERLAY: {
-    TOGGLE_HEADER_LATCH: "overlay:toggle-header-latch",
-    TOGGLE_SIDEBAR_LATCH: "overlay:toggle-sidebar-latch",
-    SET_INTERACTIVE: "overlay:set-interactive",
-    DEBUG: "overlay:debug"
-  }
-};
 function setupAppHandlers(registry2) {
   logger.info("[AppHandler] Setting up handlers...");
   registry2.handle(IPC_CHANNELS.APP.QUIT, async () => {
@@ -1755,18 +1899,6 @@ function setupAppHandlers(registry2) {
       return { success: true, latched };
     } catch (error) {
       logger.error("[AppHandler] overlay:toggle-sidebar-latch failed:", error);
-      return { success: false, error: String(error) };
-    }
-  });
-  registry2.handle(IPC_CHANNELS.OVERLAY.SET_INTERACTIVE, async (_event, interactive) => {
-    try {
-      const parsed = z.boolean().safeParse(interactive);
-      const isInteractive = parsed.success ? parsed.data : false;
-      logger.debug("[AppHandler] overlay:set-interactive", { isInteractive });
-      OverlayController.setInteractive(isInteractive);
-      return { success: true };
-    } catch (error) {
-      logger.error("[AppHandler] overlay:set-interactive failed:", error);
       return { success: false, error: String(error) };
     }
   });

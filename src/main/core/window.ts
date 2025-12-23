@@ -87,7 +87,9 @@ export class MainWindow {
         show: false,
 
         // 컨텐츠 배경 (투명 금지)
-        backgroundColor: '#000000',
+        // Renderer 테마의 --color-bg-secondary (rgb(17, 24, 39))와 맞춰
+        // sidebar 그림자/투명 합성에서 언더레이가 튀며 seam처럼 보이는 현상을 줄인다.
+        backgroundColor: '#111827',
       }
 
       // Step 3: ContentWindow 생성

@@ -17,6 +17,7 @@ import { AsideHeader } from '../components/browser/AsideHeader';
 import { cn, tokens } from '@renderer/styles';
 import { useViewBounds, useWindowFocus, useOverlayInteraction } from '@renderer/hooks';
 import { useOverlayStore } from '@renderer/lib/overlayStore';
+import { logger } from '@renderer/lib';
 
 export const ZenLayout: React.FC = () => {
   const isFocused = useWindowFocus();
@@ -25,9 +26,11 @@ export const ZenLayout: React.FC = () => {
   const headerLatched = useOverlayStore((s) => s.headerLatched)
   const sidebarLatched = useOverlayStore((s) => s.sidebarLatched)
 
-  const [pinnedSizes, setPinnedSizes] = useState<{ sidebarW: number; headerH: number }>({
-    sidebarW: 0,
-    headerH: 0,
+  // Pinned 상태에서 WebContentsView가 차지할 수 없는 safe-area(inset)를 측정한다.
+  // width/height가 아니라 실제 경계(right/bottom)를 쓰면 transform/서브픽셀/보더로 인한 오차에 강하다.
+  const [pinnedInsets, setPinnedInsets] = useState<{ left: number; top: number }>({
+    left: 0,
+    top: 0,
   })
 
   const viewPlaceholderRef = useRef<HTMLDivElement | null>(null)
@@ -49,12 +52,14 @@ export const ZenLayout: React.FC = () => {
       const sidebarEl = document.querySelector('.aside-sidebar') as HTMLElement | null
       const headerEl = document.querySelector('.aside-header--pinned') as HTMLElement | null
 
-      const sidebarW = sidebarLatched && sidebarEl ? Math.round(sidebarEl.getBoundingClientRect().width) : 0
-      const headerH = headerLatched && headerEl ? Math.round(headerEl.getBoundingClientRect().height) : 0
+      const sidebarRect = sidebarLatched && sidebarEl ? sidebarEl.getBoundingClientRect() : null
+      const headerRect = headerLatched && headerEl ? headerEl.getBoundingClientRect() : null
+      const left = sidebarRect ? Math.round(sidebarRect.right) : 0
+      const top = headerRect ? Math.round(headerRect.bottom) : 0
 
-      setPinnedSizes((prev) => {
-        if (prev.sidebarW === sidebarW && prev.headerH === headerH) return prev
-        return { sidebarW, headerH }
+      setPinnedInsets((prev) => {
+        if (prev.left === left && prev.top === top) return prev
+        return { left, top }
       })
     }
 
@@ -73,7 +78,7 @@ export const ZenLayout: React.FC = () => {
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => updateBounds())
     return () => window.cancelAnimationFrame(raf)
-  }, [pinnedSizes.sidebarW, pinnedSizes.headerH, updateBounds])
+  }, [pinnedInsets.left, pinnedInsets.top, updateBounds])
 
   // WebContentsView bounds 업데이트
   // - 기본: 전체 화면
@@ -106,8 +111,8 @@ export const ZenLayout: React.FC = () => {
       )}
       style={
         {
-          '--aside-sidebar-pinned-width': `${pinnedSizes.sidebarW}px`,
-          '--aside-header-pinned-height': `${pinnedSizes.headerH}px`,
+          '--aside-sidebar-pinned-width': `${pinnedInsets.left}px`,
+          '--aside-header-pinned-height': `${pinnedInsets.top}px`,
         } as React.CSSProperties
       }
     >
@@ -120,15 +125,14 @@ export const ZenLayout: React.FC = () => {
         }}
       >
         <div className="aside-view-container">
-          <div
-            ref={viewPlaceholderRef}
-            className="aside-view-placeholder"
-            style={{
-              marginLeft: sidebarLatched ? '-1px' : '0px',
-            }}
-          />
+          <div ref={viewPlaceholderRef} className="aside-view-placeholder" />
         </div>
       </div>
+
+      {/* DEV-only: sidebar와 WebContentsView placeholder 사이 실제 레이아웃 gap 측정 */}
+      {import.meta.env.DEV ? (
+        <GapProbe enabled={sidebarLatched} placeholderRef={viewPlaceholderRef} insetLeft={pinnedInsets.left} />
+      ) : null}
 
       {/* Hit-test zones (Ghost 모드에서 elementFromPoint로 감지) */}
       <div className="aside-hit-zone aside-hit-zone--header" data-overlay-zone="header" />
@@ -139,3 +143,50 @@ export const ZenLayout: React.FC = () => {
     </div>
   );
 };
+
+const GapProbe: React.FC<{
+  enabled: boolean
+  placeholderRef: React.RefObject<HTMLDivElement | null>
+  insetLeft: number
+}> = ({ enabled, placeholderRef, insetLeft }) => {
+  const lastKeyRef = useRef<string>('')
+
+  useLayoutEffect(() => {
+    if (!enabled) return
+
+    const sidebarEl = document.querySelector('.aside-sidebar') as HTMLElement | null
+    const placeholderEl = placeholderRef.current
+    if (!sidebarEl || !placeholderEl) return
+
+    const raf = window.requestAnimationFrame(() => {
+      const sidebarRect = sidebarEl.getBoundingClientRect()
+      const placeholderRect = placeholderEl.getBoundingClientRect()
+
+      const gap = Math.round(placeholderRect.left - sidebarRect.right)
+      const key = `${Math.round(sidebarRect.right)}:${Math.round(placeholderRect.left)}:${gap}:${insetLeft}`
+      if (key === lastKeyRef.current) return
+      lastKeyRef.current = key
+
+  logger.info('[📏 GAP]', {
+    sidebarRight: Math.round(sidebarRect.right),
+    placeholderLeft: Math.round(placeholderRect.left),
+    gap,
+    insetLeft,
+  })
+
+
+      const electronAPI = (window as unknown as { electronAPI?: { invoke?: (channel: string, ...args: unknown[]) => Promise<unknown> } }).electronAPI
+      void electronAPI?.invoke?.('overlay:debug', {
+        event: 'gap-measure',
+        sidebarRight: Math.round(sidebarRect.right),
+        placeholderLeft: Math.round(placeholderRect.left),
+        gap,
+        insetLeft,
+      })
+    })
+
+    return () => window.cancelAnimationFrame(raf)
+  }, [enabled, placeholderRef, insetLeft])
+
+  return null
+}

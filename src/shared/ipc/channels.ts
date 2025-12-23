@@ -128,6 +128,10 @@ export const IPC_CHANNELS = {
     TOGGLE_HEADER_LATCH: 'overlay:toggle-header-latch',
     TOGGLE_SIDEBAR_LATCH: 'overlay:toggle-sidebar-latch',
     SET_INTERACTIVE: 'overlay:set-interactive',
+    /** [Event] Ghost 상태에서 edge hover 감지 (Main → Renderer) */
+    EDGE_HOVER: 'overlay:edge-hover',
+    /** [Event] WebView에서 마우스 다운/업 발생 (Main → Renderer) */
+    CONTENT_POINTER: 'overlay:content-pointer',
     DEBUG: 'overlay:debug',
   },
 } as const

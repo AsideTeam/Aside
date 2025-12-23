@@ -50,6 +50,18 @@ export const OverlayLatchChangedEventSchema = z.object({
   timestamp: z.number(),
 })
 
+export const OverlayEdgeHoverEventSchema = z.object({
+  zone: z.enum(['header', 'sidebar']),
+  x: z.number().int().nonnegative(),
+  y: z.number().int().nonnegative(),
+  timestamp: z.number(),
+})
+
+export const OverlayContentPointerEventSchema = z.object({
+  kind: z.enum(['mouseDown', 'mouseUp']),
+  timestamp: z.number(),
+})
+
 /**
  * View Events (Main → Renderer)
  */

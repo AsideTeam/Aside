@@ -1,40 +1,50 @@
 /**
- * OverlayController - Clean Focus-Only Architecture
+ * OverlayController - Arc/Zen Browser Style
  *
- * 책임:
- * 1. Window focus 상태를 Renderer로 broadcast
- * 2. Latch 상태 toggle IPC 핸들링
- * 3. Keyboard shortcut 처리
+ * Arc/Zen의 3단계 state-gate 구현:
+ * 1. Window focus 상태 (blur → 즉시 닫힘)
+ * 2. 마우스가 window bounds 안에 있는지 (밖이면 즉시 닫힘)
+ * 3. Hover zone 안에 있는지 (zone 판정)
  *
- * ❌ 하지 않는 것:
- * - 마우스 위치 추적 (Renderer가 처리)
- * - Hotzone 계산 (Renderer가 처리)
- * - setInterval 폴링 (이벤트 기반)
- * - UI 열고 닫기 (Renderer가 CSS로 처리)
- *
- * 이 구조는 Electron 공식 문서의 overlay window 패턴을 따릅니다:
- * https://www.electronjs.org/docs/latest/tutorial/custom-window-interactions
- * - Main: focus 이벤트만 broadcast
- * - Renderer: mousemove로 hover 감지
+ * 핵심 원칙:
+ * - close 조건은 Main에서 global하게 판단 (Renderer mouseleave 신뢰 불가)
+ * - focus=false OR insideWindow=false → 무조건 close
+ * - ignoreMouseEvents(true)는 renderer 이벤트를 죽이므로 hover-out은 Main 처리
+ * - Renderer는 open/close animation만 담당
  */
 
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import { logger } from '@main/utils/Logger'
 import { overlayStore } from '@main/state/overlayStore'
-import { OverlayLatchChangedEventSchema } from '@shared/validation/schemas'
+import {
+  OverlayLatchChangedEventSchema,
+} from '@shared/validation/schemas'
 
 type AttachArgs = {
   uiWindow: BrowserWindow
   contentWindow: BrowserWindow
 }
 
+type OverlayState = {
+  headerOpen: boolean
+  sidebarOpen: boolean
+}
+
 export class OverlayController {
   private static uiWindow: BrowserWindow | null = null
   private static contentWindow: BrowserWindow | null = null
   private static cleanupFns: Array<() => void> = []
-  private static lastInteractive: boolean | null = null
+  
+  // Arc 스타일 global mouse tracking
+  private static hoverTrackingTimer: ReturnType<typeof setInterval> | null = null
+  private static currentState: OverlayState = { headerOpen: false, sidebarOpen: false }
 
-  // Latch state getters/toggles (for IPC handlers)
+  // Edge hotzone 크기 (Arc/Zen과 동일)
+  private static readonly EDGE_SIDEBAR_PX = 24
+  private static readonly EDGE_HEADER_PX = 32
+  private static readonly TRACKING_INTERVAL_MS = 16 // 60fps (Arc와 동일)
+
+  // Latch state (pinned)
   static getHeaderLatched(): boolean {
     return overlayStore.getState().headerLatched
   }
@@ -65,38 +75,7 @@ export class OverlayController {
   }
 
   /**
-   * Set UI window interactivity
-   * 
-   * Renderer의 hover 감지에 따라 uiWindow의 마우스 이벤트를 활성화/비활성화
-   * - interactive=true: 마우스 이벤트 받음 (hover 상태)
-   * - interactive=false: 마우스 이벤트 투과 (click-through)
-   */
-  static setInteractive(interactive: boolean): void {
-    if (!this.uiWindow) return
-
-    if (this.lastInteractive === interactive) return
-    this.lastInteractive = interactive
-
-    try {
-      if (interactive) {
-        this.uiWindow.setIgnoreMouseEvents(false)
-      } else {
-        this.uiWindow.setIgnoreMouseEvents(true, { forward: true })
-      }
-
-      logger.debug('[OverlayController] setInteractive', {
-        interactive,
-        windowId: this.uiWindow.id,
-      })
-    } catch {
-      // ignore
-    }
-  }
-
-  /**
    * Attach controller to windows
-   * - Setup focus/blur event listeners
-   * - Setup keyboard shortcuts
    */
   static attach({ uiWindow, contentWindow }: AttachArgs): void {
     if (this.uiWindow === uiWindow && this.contentWindow === contentWindow) return
@@ -105,11 +84,17 @@ export class OverlayController {
     this.uiWindow = uiWindow
     this.contentWindow = contentWindow
 
+    // Arc 스타일: focus tracking + global mouse tracking + keyboard shortcuts
     this.setupFocusTracking()
+    this.startGlobalMouseTracking()
     this.setupKeyboardShortcuts()
+
+    logger.info('[OverlayController] Attached (Arc/Zen style)')
   }
 
   static dispose(): void {
+    this.stopGlobalMouseTracking()
+    
     for (const fn of this.cleanupFns.splice(0)) {
       try {
         fn()
@@ -117,12 +102,14 @@ export class OverlayController {
         // ignore
       }
     }
+    
     this.uiWindow = null
     this.contentWindow = null
   }
 
   /**
-   * Focus tracking - Main의 유일한 "상태 감지" 책임
+   * Arc 스타일 Step 1: Window Focus Tracking
+   * - blur되면 즉시 닫힘 (최우선 조건)
    */
   private static setupFocusTracking(): void {
     if (!this.uiWindow || !this.contentWindow) return
@@ -140,10 +127,16 @@ export class OverlayController {
 
     const broadcastFocus = (focused: boolean) => {
       overlayStore.getState().setFocused(focused)
+      
       try {
         uiWindow.webContents.send('window:focus-changed', focused)
       } catch {
         // ignore
+      }
+
+      // Arc 핵심: blur되면 즉시 모든 hover UI 닫음 (latch 제외)
+      if (!focused) {
+        this.closeNonLatchedOverlays()
       }
 
       logger.debug('[OverlayController] focus changed', {
@@ -157,9 +150,6 @@ export class OverlayController {
       broadcastFocus(computeFocused())
     }
 
-    // IMPORTANT:
-    // 사용자가 주소창/사이드바(UIWindow)를 클릭하면 contentWindow는 blur 되지만
-    // 앱은 여전히 포커스 상태여야 한다. 따라서 둘 중 하나라도 focused면 true.
     uiWindow.on('focus', onAnyFocusBlur)
     uiWindow.on('blur', onAnyFocusBlur)
     contentWindow.on('focus', onAnyFocusBlur)
@@ -174,20 +164,162 @@ export class OverlayController {
 
     // Send initial state
     broadcastFocus(computeFocused())
+  }
 
-    logger.debug('[OverlayController] focus tracking attached', {
-      uiWindowId: uiWindow.id,
-      contentWindowId: contentWindow.id,
-      initialFocused: computeFocused(),
+  /**
+   * Arc 스타일 Step 2+3: Global Mouse Tracking
+   * - 마우스가 window bounds 밖이면 즉시 닫힘
+   * - hover zone 판정 (edge hotzone)
+   */
+  private static startGlobalMouseTracking(): void {
+    if (!this.uiWindow || !this.contentWindow) return
+
+    this.hoverTrackingTimer = setInterval(() => {
+      this.trackMouseAndUpdateState()
+    }, this.TRACKING_INTERVAL_MS)
+
+    this.cleanupFns.push(() => {
+      this.stopGlobalMouseTracking()
     })
+
+    logger.debug('[OverlayController] Global mouse tracking started')
+  }
+
+  private static stopGlobalMouseTracking(): void {
+    if (this.hoverTrackingTimer) {
+      clearInterval(this.hoverTrackingTimer)
+      this.hoverTrackingTimer = null
+    }
+  }
+
+  private static trackMouseAndUpdateState(): void {
+    if (!this.uiWindow || !this.contentWindow) return
+
+    // Arc Step 1: Window focused인가?
+    const windowFocused = overlayStore.getState().focused
+    if (!windowFocused) {
+      this.closeNonLatchedOverlays()
+      this.setUIWindowGhost()
+      return
+    }
+
+    // Arc Step 2: 마우스가 window bounds 안에 있는가?
+    const { x: mouseX, y: mouseY } = screen.getCursorScreenPoint()
+    const bounds = this.uiWindow.getBounds()
+
+    const insideWindow =
+      mouseX >= bounds.x &&
+      mouseX < bounds.x + bounds.width &&
+      mouseY >= bounds.y &&
+      mouseY < bounds.y + bounds.height
+
+    if (!insideWindow) {
+      this.closeNonLatchedOverlays()
+      this.setUIWindowGhost()
+      return
+    }
+
+    // Arc Step 3: Hover zone 판정 (window 안에 있을 때만)
+    const relativeX = Math.max(0, Math.floor(mouseX - bounds.x))
+    const relativeY = Math.max(0, Math.floor(mouseY - bounds.y))
+
+    const { headerLatched, sidebarLatched } = overlayStore.getState()
+
+    // Edge hotzone 판정
+    const inSidebarZone = relativeX <= this.EDGE_SIDEBAR_PX
+    const inHeaderZone = relativeY <= this.EDGE_HEADER_PX
+
+    const wantHeaderOpen = headerLatched || inHeaderZone
+    const wantSidebarOpen = sidebarLatched || inSidebarZone
+
+    // State 변경이 있으면 broadcast + interactive 갱신
+    if (
+      this.currentState.headerOpen !== wantHeaderOpen ||
+      this.currentState.sidebarOpen !== wantSidebarOpen
+    ) {
+      this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen }
+      this.broadcastOverlayState(this.currentState)
+
+      // Solid: zone 위에 있거나 latch된 경우
+      const shouldBeSolid = wantHeaderOpen || wantSidebarOpen
+      if (shouldBeSolid) {
+        this.setUIWindowSolid()
+      } else {
+        this.setUIWindowGhost()
+      }
+    }
+  }
+
+  /**
+   * Arc 핵심: focus=false OR insideWindow=false일 때 호출
+   * latch되지 않은 overlay는 즉시 닫음
+   */
+  private static closeNonLatchedOverlays(): void {
+    const { headerLatched, sidebarLatched } = overlayStore.getState()
+
+    const newState: OverlayState = {
+      headerOpen: headerLatched,
+      sidebarOpen: sidebarLatched,
+    }
+
+    if (
+      this.currentState.headerOpen !== newState.headerOpen ||
+      this.currentState.sidebarOpen !== newState.sidebarOpen
+    ) {
+      this.currentState = newState
+      this.broadcastOverlayState(newState)
+    }
+  }
+
+  /**
+   * Renderer에 overlay open/close 상태 전송
+   */
+  private static broadcastOverlayState(state: OverlayState): void {
+    if (!this.uiWindow) return
+
+    try {
+      if (state.headerOpen) {
+        this.uiWindow.webContents.send('header:open', { timestamp: Date.now() })
+      } else {
+        this.uiWindow.webContents.send('header:close', { timestamp: Date.now() })
+      }
+
+      if (state.sidebarOpen) {
+        this.uiWindow.webContents.send('sidebar:open', { timestamp: Date.now() })
+      } else {
+        this.uiWindow.webContents.send('sidebar:close', { timestamp: Date.now() })
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * UI Window를 Ghost (click-through) 모드로 전환
+   */
+  private static setUIWindowGhost(): void {
+    if (!this.uiWindow) return
+    try {
+      this.uiWindow.setIgnoreMouseEvents(true, { forward: true })
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * UI Window를 Solid (interactive) 모드로 전환
+   */
+  private static setUIWindowSolid(): void {
+    if (!this.uiWindow) return
+    try {
+      this.uiWindow.setIgnoreMouseEvents(false)
+    } catch {
+      // ignore
+    }
   }
 
   /**
    * Keyboard shortcuts - contentWindow에서 처리
-   * 
-   * - Cmd/Ctrl + L: Header latch toggle
-   * - Cmd/Ctrl + B: Sidebar latch toggle
-   * - Esc: Close all latched overlays
    */
   private static setupKeyboardShortcuts(): void {
     if (!this.contentWindow) return

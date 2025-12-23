@@ -13,7 +13,6 @@
 
 import { app } from 'electron'
 import { logger } from '@main/utils/Logger'
-import { z } from 'zod'
 import { MainWindow } from '@main/core/Window'
 import { OverlayController } from '@main/core/OverlayController'
 import { AppState } from '@main/managers/AppState'
@@ -150,19 +149,8 @@ export function setupAppHandlers(registry: IpcRegistry): void {
     }
   })
 
-  registry.handle(IPC_CHANNELS.OVERLAY.SET_INTERACTIVE, async (_event, interactive: unknown) => {
-    try {
-      const parsed = z.boolean().safeParse(interactive)
-      const isInteractive = parsed.success ? parsed.data : false
-
-      logger.debug('[AppHandler] overlay:set-interactive', { isInteractive })
-      OverlayController.setInteractive(isInteractive)
-      return { success: true }
-    } catch (error) {
-      logger.error('[AppHandler] overlay:set-interactive failed:', error)
-      return { success: false, error: String(error) }
-    }
-  })
+  // Arc 스타일: setInteractive는 Main의 global mouse tracking이 자동으로 처리
+  // Renderer에서 호출할 필요 없음 (deprecated)
 
   registry.handle(IPC_CHANNELS.OVERLAY.DEBUG, async (_event, payload: unknown) => {
     try {
