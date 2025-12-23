@@ -23,6 +23,8 @@ const allowedEventChannels = [
   'navigate-to-settings', // Protocol handler: about:settings interception
   'view:loaded', // WebContentsView 로드 완료
   'view:navigated', // WebContentsView 네비게이션 완료
+  'sidebar:open',
+  'sidebar:close',
 ]
 
 /**

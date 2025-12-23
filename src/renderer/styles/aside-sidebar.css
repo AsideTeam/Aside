@@ -9,7 +9,7 @@
 .aside-sidebar {
   display: flex;
   flex-direction: column;
-  width: var(--size-sidebar-collapsed);
+  width: var(--size-sidebar-width);
   height: 100vh;
   background: linear-gradient(
     180deg,
@@ -19,15 +19,25 @@
   border-right: 1px solid var(--color-border-primary);
   color: var(--color-text-primary);
   font-size: 13px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-sidebar);
   -webkit-app-region: drag;
   user-select: none;
-  transition: width var(--duration-normal) ease;
+  transform: translateX(calc(-1 * var(--size-sidebar-width) - 8px));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--duration-slow) ease,
+    opacity var(--duration-fast) ease;
 }
 
-/* 기본은 숨김(접힘), hover / focus-within 시 자연스럽게 확장 */
-.aside-sidebar:hover,
-.aside-sidebar:focus-within {
-  width: var(--size-sidebar-width);
+/* 오버레이: 열릴 때만 화면에 나타남 */
+.aside-sidebar--open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* ===== Pinned Tabs Area ===== */
@@ -274,23 +284,11 @@
   background-color: var(--color-bg-hover);
 }
 
-/* ===== Collapsed behavior (기본 상태) ===== */
-.aside-sidebar:not(:hover):not(:focus-within) .aside-space-header,
-.aside-sidebar:not(:hover):not(:focus-within) .aside-tabs-area,
-.aside-sidebar:not(:hover):not(:focus-within) .aside-divider {
-  display: none;
-}
-
-.aside-sidebar:not(:hover):not(:focus-within) .aside-pinned-grid {
-  justify-content: center;
-}
-
-.aside-sidebar:not(:hover):not(:focus-within) .aside-new-tab {
-  justify-content: center;
-}
-
-.aside-sidebar:not(:hover):not(:focus-within) .aside-new-tab .aside-label {
-  display: none;
+/* ===== Overlay Root (UIWindow) ===== */
+.aside-overlay {
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
 }
 
 /* ===== Frame + Placeholder (WebContentsView 자리) ===== */

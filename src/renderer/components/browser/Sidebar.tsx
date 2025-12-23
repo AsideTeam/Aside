@@ -7,7 +7,7 @@
  * - 하단: 액션 버튼
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Plus,
   X,
@@ -50,6 +50,28 @@ const INITIAL_TABS: Tab[] = [
 
 export const Sidebar: React.FC = () => {
   const [tabs, setTabs] = useState<Tab[]>(INITIAL_TABS);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const open = () => setIsOpen(true);
+    const close = () => setIsOpen(false);
+
+    try {
+      window.electronAPI?.on('sidebar:open', open);
+      window.electronAPI?.on('sidebar:close', close);
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      try {
+        window.electronAPI?.off('sidebar:open', open);
+        window.electronAPI?.off('sidebar:close', close);
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
 
   const handleAddTab = () => {
     const newTab: Tab = {
@@ -77,7 +99,7 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className="aside-sidebar">
+    <aside className={isOpen ? 'aside-sidebar aside-sidebar--open' : 'aside-sidebar'}>
 
       {/* Pinned Tabs */}
       <div className="aside-pinned-area">

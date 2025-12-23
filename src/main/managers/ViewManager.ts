@@ -20,7 +20,6 @@
 
 import { BrowserWindow, WebContentsView } from 'electron'
 import { logger } from '@main/utils/Logger'
-import { LAYOUT } from '@shared/constants/layout'
 
 /**
  * 탭 데이터 모델
@@ -44,7 +43,8 @@ interface TabData {
 export class ViewManager {
   private static tabs: Map<string, TabData> = new Map()
   private static activeTabId: string | null = null
-  private static mainWindow: BrowserWindow | null = null
+  private static contentWindow: BrowserWindow | null = null
+  private static uiWindow: BrowserWindow | null = null
   private static isInitializing = false
   private static externalActiveBounds: { x: number; y: number; width: number; height: number } | null = null
 
@@ -58,8 +58,8 @@ export class ViewManager {
    *
    * @param window - 부모 BrowserWindow
    */
-  static async initialize(window: BrowserWindow): Promise<void> {
-    if (this.mainWindow) {
+  static async initialize(contentWindow: BrowserWindow, uiWindow: BrowserWindow): Promise<void> {
+    if (this.contentWindow) {
       logger.warn('[ViewManager] Already initialized. Skipping.')
       return
     }
@@ -73,10 +73,11 @@ export class ViewManager {
     try {
       logger.info('[ViewManager] Initializing...')
 
-      this.mainWindow = window
+      this.contentWindow = contentWindow
+      this.uiWindow = uiWindow
 
       // 윈도우 리사이즈 시 레이아웃 재계산
-      this.mainWindow.on('resize', () => {
+      this.contentWindow.on('resize', () => {
         this.layout()
       })
 
@@ -113,7 +114,7 @@ export class ViewManager {
    * @returns 생성된 탭 ID
    */
   static async createTab(url: string): Promise<string> {
-    if (!this.mainWindow) {
+    if (!this.contentWindow) {
       throw new Error('[ViewManager] Not initialized. Call initialize() first.')
     }
 
@@ -142,9 +143,9 @@ export class ViewManager {
 
       this.tabs.set(tabId, tabData)
 
-      // Step 4: MainWindow에 추가 (초기에는 숨김)
+      // Step 4: ContentWindow에 추가 (초기에는 숨김)
       // ⚠️ Electron 39: contentView는 게터 메서드로 변경됨
-      this.mainWindow.getContentView().addChildView(view)
+      this.contentWindow.getContentView().addChildView(view)
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
 
       // Step 5: URL 로드
@@ -223,8 +224,8 @@ export class ViewManager {
     try {
       // WebContentsView 제거
       // ⚠️ Electron 39: contentView는 게터 메서드로 변경됨
-      if (this.mainWindow) {
-        this.mainWindow.getContentView().removeChildView(tabData.view)
+      if (this.contentWindow) {
+        this.contentWindow.getContentView().removeChildView(tabData.view)
       }
 
       tabData.view.webContents.close()
@@ -392,7 +393,8 @@ export class ViewManager {
 
     this.tabs.clear()
     this.activeTabId = null
-    this.mainWindow = null
+    this.contentWindow = null
+    this.uiWindow = null
 
     logger.info('[ViewManager] All tabs destroyed')
   }
@@ -405,7 +407,7 @@ export class ViewManager {
     if (!this.activeTabId) return
 
     const tabData = this.tabs.get(this.activeTabId)
-    if (tabData && this.mainWindow) {
+    if (tabData && this.contentWindow) {
       tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
       logger.info('[ViewManager] Active view hidden', { tabId: this.activeTabId })
     }
@@ -431,17 +433,16 @@ export class ViewManager {
    * React UI 영역 (TabBar + AddressBar)을 제외한 영역에 WebContentsView 배치
    */
   private static layout(): void {
-    if (!this.mainWindow) return
+    if (!this.contentWindow) return
 
-    const { width, height } = this.mainWindow.getBounds()
+    const { width, height } = this.contentWindow.getBounds()
 
-    // 기본값: 기존 BrowserLayout(상단 툴바) 호환
-    const toolbarHeight = LAYOUT.TOOLBAR_HEIGHT
+    // Dual-window 오버레이 모드 기본: 전체를 꽉 채움 (UI는 다른 창에서 오버레이)
     const defaultBounds = {
       x: 0,
-      y: toolbarHeight,
+      y: 0,
       width,
-      height: Math.max(0, height - toolbarHeight),
+      height: Math.max(0, height),
     }
 
     // Zen/Arc: Renderer에서 들어온 bounds가 있으면 그걸 우선
@@ -469,7 +470,7 @@ export class ViewManager {
    * tabs:updated 이벤트를 Main Window의 webContents로 전송
    */
   private static syncToRenderer(): void {
-    if (!this.mainWindow) return
+    if (!this.uiWindow) return
 
     const state = {
       tabs: this.getTabs(),
@@ -477,7 +478,7 @@ export class ViewManager {
     }
 
     try {
-      this.mainWindow.webContents.send('tabs:updated', state)
+      this.uiWindow.webContents.send('tabs:updated', state)
       logger.info('[ViewManager] Synced to renderer', { tabCount: state.tabs.length })
     } catch (error) {
       logger.error('[ViewManager] Failed to sync to renderer:', error)
@@ -509,8 +510,8 @@ export class ViewManager {
         logger.info('[ViewManager] Tab URL changed', { tabId, url })
         this.syncToRenderer()
 
-        if (this.mainWindow && tabData.isActive) {
-          this.mainWindow.webContents.send('view:navigated', {
+        if (this.uiWindow && tabData.isActive) {
+          this.uiWindow.webContents.send('view:navigated', {
             url,
             canGoBack: view.webContents.canGoBack(),
             canGoForward: view.webContents.canGoForward(),
@@ -527,8 +528,8 @@ export class ViewManager {
         tabData.url = url
         this.syncToRenderer()
 
-        if (this.mainWindow && tabData.isActive) {
-          this.mainWindow.webContents.send('view:navigated', {
+        if (this.uiWindow && tabData.isActive) {
+          this.uiWindow.webContents.send('view:navigated', {
             url,
             canGoBack: view.webContents.canGoBack(),
             canGoForward: view.webContents.canGoForward(),
@@ -543,8 +544,8 @@ export class ViewManager {
       const tabData = this.tabs.get(tabId)
       if (!tabData) return
 
-      if (this.mainWindow && tabData.isActive) {
-        this.mainWindow.webContents.send('view:loaded', {
+      if (this.uiWindow && tabData.isActive) {
+        this.uiWindow.webContents.send('view:loaded', {
           url: view.webContents.getURL(),
           timestamp: Date.now(),
         })

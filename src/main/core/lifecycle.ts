@@ -84,7 +84,11 @@ export class AppLifecycle {
       // Step 5: Managers 초기화
       logger.info('Step 5/8: Initializing ViewManager')
       const mainWindow = await MainWindow.create()
-      await ViewManager.initialize(mainWindow)
+      const contentWindow = MainWindow.getContentWindow()
+      if (!contentWindow) {
+        throw new Error('[AppLifecycle] Content window not found')
+      }
+      await ViewManager.initialize(contentWindow, mainWindow)
       logger.info('Step 5/8: ViewManager initialized')
 
       // Step 6: Services 초기화

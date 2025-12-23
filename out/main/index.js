@@ -200,8 +200,13 @@ class Paths {
   }
 }
 class MainWindow {
-  static window = null;
+  // NOTE: Zen/Arc 스타일 오버레이를 위해 2-윈도우 구조를 사용
+  // - contentWindow: WebContentsView(웹페이지) 전용
+  // - uiWindow: React UI(투명 오버레이) 전용
+  static uiWindow = null;
+  static contentWindow = null;
   static isCreating = false;
+  static overlayTimer = null;
   /**
    * MainWindow 생성
    *
@@ -215,9 +220,9 @@ class MainWindow {
    * @throws 이미 생성 중이면 예외
    */
   static async create() {
-    if (this.window) {
-      logger.warn("[MainWindow] Window already exists. Returning existing instance.");
-      return this.window;
+    if (this.uiWindow && this.contentWindow) {
+      logger.warn("[MainWindow] Windows already exist. Returning existing instance.");
+      return this.uiWindow;
     }
     if (this.isCreating) {
       throw new Error("[MainWindow] Window creation already in progress");
@@ -227,52 +232,90 @@ class MainWindow {
       logger.info("[MainWindow] Creating main window...");
       const { width, height } = screen.getPrimaryDisplay().workAreaSize;
       const isMacOS = process.platform === "darwin";
-      const browserWindowOptions = {
+      const contentWindowOptions = {
         width,
         height,
         minWidth: 800,
         minHeight: 600,
-        // 네이티브 타이틀바 사용 (macOS 신호등 버튼)
-        // titleBarStyle: 'hiddenInset',
-        // trafficLightPosition: { x: 12, y: 12 },
-        titleBarStyle: "default",
-        // preload 스크립트 (IPC 통신용)
+        // 바닥창은 웹페이지만 보여주므로 프레임리스
+        frame: false,
+        webPreferences: {
+          // WebContentsView가 별도로 contextIsolation을 사용
+          contextIsolation: true,
+          sandbox: Env.isDev ? false : true
+        },
+        // UI 준비될 때까지 숨김
+        show: false,
+        // 컨텐츠 배경 (투명 금지)
+        backgroundColor: "#000000"
+      };
+      this.contentWindow = new BrowserWindow(contentWindowOptions);
+      const uiWindowOptions = {
+        width,
+        height,
+        minWidth: 800,
+        minHeight: 600,
+        frame: false,
+        transparent: isMacOS,
+        hasShadow: false,
+        backgroundColor: isMacOS ? "#00000000" : "#1a1a1a",
+        // 바닥창 위에 붙어서 같이 움직이도록
+        parent: this.contentWindow,
         webPreferences: {
           preload: join(__dirname, "../preload/index.cjs"),
           contextIsolation: true,
-          // 보안: 메인 ↔ 렌더러 격리
-          // NOTE: Dev에서는 Vite/HMR/CSS 주입 이슈를 피하기 위해 sandbox를 끔
           sandbox: Env.isDev ? false : true
         },
-        // 창 로드 전 숨김 (깜빡임 방지)
-        show: false,
-        // 배경색 (깜빡임 방지)
-        // ⚠️ Windows/Linux에서는 #00000000 투명 사용 금지 (렌더링 문제)
-        backgroundColor: "#1a1a1a"
+        show: false
       };
-      if (isMacOS) {
-        logger.debug("[MainWindow] macOS platform detected. Vibrancy available (currently disabled).");
-      }
-      this.window = new BrowserWindow(browserWindowOptions);
-      logger.info("[MainWindow] BrowserWindow instance created", {
+      this.uiWindow = new BrowserWindow(uiWindowOptions);
+      logger.info("[MainWindow] Windows created", {
         width,
         height,
         platform: process.platform
       });
       this.setupWindowEvents();
+      let didShow = false;
+      const showBoth = () => {
+        try {
+          if (didShow) return;
+          if (!this.contentWindow || !this.uiWindow) return;
+          this.contentWindow.setBounds(this.uiWindow.getBounds());
+          this.contentWindow.show();
+          this.uiWindow.show();
+          this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
+          this.startOverlayMouseTracker();
+          didShow = true;
+          logger.info("[MainWindow] Content/UI windows shown");
+        } catch (error) {
+          logger.error("[MainWindow] Failed to show windows:", error);
+        }
+      };
+      this.uiWindow.once("ready-to-show", showBoth);
       const startUrl = this.getStartUrl();
-      await this.window.loadURL(startUrl);
-      logger.info("[MainWindow] URL loaded", { url: startUrl });
-      this.window.show();
-      logger.info("[MainWindow] Window shown");
+      await this.uiWindow.loadURL(startUrl);
+      logger.info("[MainWindow] UI URL loaded", { url: startUrl });
+      setTimeout(() => {
+        try {
+          if (!this.uiWindow || !this.contentWindow) return;
+          if (didShow) return;
+          if (!this.uiWindow.isVisible() || !this.contentWindow.isVisible()) {
+            logger.warn("[MainWindow] ready-to-show fallback triggered; forcing show");
+            showBoth();
+          }
+        } catch (error) {
+          logger.error("[MainWindow] Fallback show failed:", error);
+        }
+      }, 1200);
       if (Env.isDev) {
-        this.window.webContents.openDevTools({ mode: "detach" });
+        this.uiWindow.webContents.openDevTools({ mode: "detach" });
         logger.info("[MainWindow] DevTools opened (dev mode, detached)");
       }
-      return this.window;
+      return this.uiWindow;
     } catch (error) {
       logger.error("[MainWindow] Creation failed:", error);
-      this.window = null;
+      this.uiWindow = null;
+      this.contentWindow = null;
       throw error;
     } finally {
       this.isCreating = false;
@@ -284,7 +327,11 @@ class MainWindow {
    * @returns BrowserWindow 또는 null
    */
   static getWindow() {
-    return this.window;
+    return this.uiWindow;
+  }
+  /** 바닥(Content) 윈도우 반환 (WebContentsView 호스팅) */
+  static getContentWindow() {
+    return this.contentWindow;
   }
   /**
    * MainWindow 파괴
@@ -294,15 +341,23 @@ class MainWindow {
    * - 메모리 해제
    */
   static destroy() {
-    if (this.window) {
-      this.window.removeAllListeners();
-      if (this.window.webContents) {
-        this.window.webContents.removeAllListeners();
-      }
-      this.window.destroy();
-      this.window = null;
-      logger.info("[MainWindow] Window destroyed and cleaned up");
+    if (this.overlayTimer) {
+      clearInterval(this.overlayTimer);
+      this.overlayTimer = null;
     }
+    if (this.uiWindow) {
+      this.uiWindow.removeAllListeners();
+      this.uiWindow.webContents?.removeAllListeners();
+      this.uiWindow.destroy();
+      this.uiWindow = null;
+    }
+    if (this.contentWindow) {
+      this.contentWindow.removeAllListeners();
+      this.contentWindow.webContents?.removeAllListeners();
+      this.contentWindow.destroy();
+      this.contentWindow = null;
+    }
+    logger.info("[MainWindow] Windows destroyed and cleaned up");
   }
   /**
    * React 앱 URL 결정
@@ -326,26 +381,105 @@ class MainWindow {
    * - closed → app 종료 (단일 창 기반)
    */
   static setupWindowEvents() {
-    if (!this.window) return;
-    this.window.on("closed", () => {
-      this.window = null;
-      logger.info("[MainWindow] Closed event received");
-      if (process.platform !== "darwin") {
-        app.quit();
+    if (!this.uiWindow || !this.contentWindow) return;
+    const syncBounds = () => {
+      if (!this.uiWindow || !this.contentWindow) return;
+      const bounds = this.uiWindow.getBounds();
+      this.contentWindow.setBounds(bounds);
+    };
+    this.uiWindow.on("move", syncBounds);
+    this.uiWindow.on("resize", syncBounds);
+    this.uiWindow.on("closed", () => {
+      logger.info("[MainWindow] UI window closed");
+      try {
+        this.uiWindow = null;
+        this.contentWindow?.close();
+      } finally {
+        if (process.platform !== "darwin") {
+          app.quit();
+        }
       }
     });
-    this.window.webContents.on("before-input-event", (event) => {
+    this.contentWindow.on("closed", () => {
+      logger.info("[MainWindow] Content window closed");
+      this.contentWindow = null;
+      this.uiWindow?.close();
     });
-    logger.info("[MainWindow] Event listeners attached");
+    logger.info("[MainWindow] Event listeners attached (dual-window)");
+  }
+  /**
+   * 마우스 위치 기반으로 오버레이(사이드바) 인터랙션 영역만 마우스를 받게 함.
+   * - 기본: UIWindow는 click-through (ignoreMouseEvents=true)
+   * - 커서가 좌측 핫존/사이드바 영역에 들어오면: ignoreMouseEvents=false + sidebar:open
+   * - 커서가 영역 밖으로 나가면: sidebar:close + ignoreMouseEvents=true
+   */
+  static startOverlayMouseTracker() {
+    if (this.overlayTimer || !this.uiWindow) return;
+    const HOTZONE_WIDTH = 6;
+    const SIDEBAR_WIDTH = 256;
+    const CLOSE_DELAY_MS = 180;
+    let isOpen = false;
+    let closeArmedAt = null;
+    const open = () => {
+      if (!this.uiWindow) return;
+      if (!isOpen) {
+        try {
+          this.uiWindow.webContents.send("sidebar:open", { timestamp: Date.now() });
+        } catch {
+        }
+      }
+      isOpen = true;
+      closeArmedAt = null;
+      this.uiWindow.setIgnoreMouseEvents(false);
+    };
+    const close = () => {
+      if (!this.uiWindow) return;
+      if (isOpen) {
+        try {
+          this.uiWindow.webContents.send("sidebar:close", { timestamp: Date.now() });
+        } catch {
+        }
+      }
+      isOpen = false;
+      closeArmedAt = null;
+      this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
+    };
+    close();
+    this.overlayTimer = setInterval(() => {
+      if (!this.uiWindow) return;
+      const bounds = this.uiWindow.getBounds();
+      const pt = screen.getCursorScreenPoint();
+      const insideWindow = pt.x >= bounds.x && pt.x <= bounds.x + bounds.width && pt.y >= bounds.y && pt.y <= bounds.y + bounds.height;
+      if (!insideWindow) {
+        if (isOpen) close();
+        return;
+      }
+      const relX = pt.x - bounds.x;
+      const interactiveWidth = isOpen ? SIDEBAR_WIDTH : HOTZONE_WIDTH;
+      const insideSidebarZone = relX <= interactiveWidth;
+      if (insideSidebarZone) {
+        open();
+        return;
+      }
+      if (isOpen) {
+        if (closeArmedAt === null) {
+          closeArmedAt = Date.now();
+          return;
+        }
+        if (Date.now() - closeArmedAt >= CLOSE_DELAY_MS) {
+          close();
+        }
+      } else {
+        this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
+      }
+    }, 33);
   }
 }
-const LAYOUT = {
-  TOOLBAR_HEIGHT: 92
-};
 class ViewManager {
   static tabs = /* @__PURE__ */ new Map();
   static activeTabId = null;
-  static mainWindow = null;
+  static contentWindow = null;
+  static uiWindow = null;
   static isInitializing = false;
   static externalActiveBounds = null;
   /**
@@ -358,8 +492,8 @@ class ViewManager {
    *
    * @param window - 부모 BrowserWindow
    */
-  static async initialize(window) {
-    if (this.mainWindow) {
+  static async initialize(contentWindow, uiWindow) {
+    if (this.contentWindow) {
       logger.warn("[ViewManager] Already initialized. Skipping.");
       return;
     }
@@ -369,8 +503,9 @@ class ViewManager {
     this.isInitializing = true;
     try {
       logger.info("[ViewManager] Initializing...");
-      this.mainWindow = window;
-      this.mainWindow.on("resize", () => {
+      this.contentWindow = contentWindow;
+      this.uiWindow = uiWindow;
+      this.contentWindow.on("resize", () => {
         this.layout();
       });
       const homeTabId = await this.createTab("https://www.google.com");
@@ -399,7 +534,7 @@ class ViewManager {
    * @returns 생성된 탭 ID
    */
   static async createTab(url) {
-    if (!this.mainWindow) {
+    if (!this.contentWindow) {
       throw new Error("[ViewManager] Not initialized. Call initialize() first.");
     }
     try {
@@ -419,7 +554,7 @@ class ViewManager {
         isActive: false
       };
       this.tabs.set(tabId, tabData);
-      this.mainWindow.getContentView().addChildView(view);
+      this.contentWindow.getContentView().addChildView(view);
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
       await view.webContents.loadURL(url);
       this.setupTabEvents(tabId, view);
@@ -479,8 +614,8 @@ class ViewManager {
       return;
     }
     try {
-      if (this.mainWindow) {
-        this.mainWindow.getContentView().removeChildView(tabData.view);
+      if (this.contentWindow) {
+        this.contentWindow.getContentView().removeChildView(tabData.view);
       }
       tabData.view.webContents.close();
       this.tabs.delete(tabId);
@@ -613,7 +748,8 @@ class ViewManager {
     }
     this.tabs.clear();
     this.activeTabId = null;
-    this.mainWindow = null;
+    this.contentWindow = null;
+    this.uiWindow = null;
     logger.info("[ViewManager] All tabs destroyed");
   }
   /**
@@ -623,7 +759,7 @@ class ViewManager {
   static hideActiveView() {
     if (!this.activeTabId) return;
     const tabData = this.tabs.get(this.activeTabId);
-    if (tabData && this.mainWindow) {
+    if (tabData && this.contentWindow) {
       tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
       logger.info("[ViewManager] Active view hidden", { tabId: this.activeTabId });
     }
@@ -646,14 +782,13 @@ class ViewManager {
    * React UI 영역 (TabBar + AddressBar)을 제외한 영역에 WebContentsView 배치
    */
   static layout() {
-    if (!this.mainWindow) return;
-    const { width, height } = this.mainWindow.getBounds();
-    const toolbarHeight = LAYOUT.TOOLBAR_HEIGHT;
+    if (!this.contentWindow) return;
+    const { width, height } = this.contentWindow.getBounds();
     const defaultBounds = {
       x: 0,
-      y: toolbarHeight,
+      y: 0,
       width,
-      height: Math.max(0, height - toolbarHeight)
+      height: Math.max(0, height)
     };
     const activeBounds = this.externalActiveBounds ?? defaultBounds;
     for (const [, tabData] of this.tabs) {
@@ -675,13 +810,13 @@ class ViewManager {
    * tabs:updated 이벤트를 Main Window의 webContents로 전송
    */
   static syncToRenderer() {
-    if (!this.mainWindow) return;
+    if (!this.uiWindow) return;
     const state = {
       tabs: this.getTabs(),
       activeTabId: this.activeTabId
     };
     try {
-      this.mainWindow.webContents.send("tabs:updated", state);
+      this.uiWindow.webContents.send("tabs:updated", state);
       logger.info("[ViewManager] Synced to renderer", { tabCount: state.tabs.length });
     } catch (error) {
       logger.error("[ViewManager] Failed to sync to renderer:", error);
@@ -708,8 +843,8 @@ class ViewManager {
         tabData.url = url;
         logger.info("[ViewManager] Tab URL changed", { tabId, url });
         this.syncToRenderer();
-        if (this.mainWindow && tabData.isActive) {
-          this.mainWindow.webContents.send("view:navigated", {
+        if (this.uiWindow && tabData.isActive) {
+          this.uiWindow.webContents.send("view:navigated", {
             url,
             canGoBack: view.webContents.canGoBack(),
             canGoForward: view.webContents.canGoForward(),
@@ -723,8 +858,8 @@ class ViewManager {
       if (tabData) {
         tabData.url = url;
         this.syncToRenderer();
-        if (this.mainWindow && tabData.isActive) {
-          this.mainWindow.webContents.send("view:navigated", {
+        if (this.uiWindow && tabData.isActive) {
+          this.uiWindow.webContents.send("view:navigated", {
             url,
             canGoBack: view.webContents.canGoBack(),
             canGoForward: view.webContents.canGoForward(),
@@ -736,8 +871,8 @@ class ViewManager {
     view.webContents.on("did-finish-load", () => {
       const tabData = this.tabs.get(tabId);
       if (!tabData) return;
-      if (this.mainWindow && tabData.isActive) {
-        this.mainWindow.webContents.send("view:loaded", {
+      if (this.uiWindow && tabData.isActive) {
+        this.uiWindow.webContents.send("view:loaded", {
           url: view.webContents.getURL(),
           timestamp: Date.now()
         });
@@ -1056,7 +1191,11 @@ class AppLifecycle {
       logger.info("Step 4/8: Database connected");
       logger.info("Step 5/8: Initializing ViewManager");
       const mainWindow = await MainWindow.create();
-      await ViewManager.initialize(mainWindow);
+      const contentWindow = MainWindow.getContentWindow();
+      if (!contentWindow) {
+        throw new Error("[AppLifecycle] Content window not found");
+      }
+      await ViewManager.initialize(contentWindow, mainWindow);
       logger.info("Step 5/8: ViewManager initialized");
       logger.info("Step 6/8: Services initialized");
       logger.info("Step 7/8: IPC handlers registered");
