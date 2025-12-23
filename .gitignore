@@ -10,3 +10,17 @@
 .env.local
 .env.production
 .env.development
+
+# Build output
+/out
+/dist-main
+/dist-preload
+/dist-renderer
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store

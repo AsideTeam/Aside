@@ -1,83 +1,111 @@
-import fs from 'fs'
-import path from 'path'
-import { Config } from './env'
-
+/* eslint-disable no-console */
 /**
- * Logger 유틸리티
- * 
- * 파일 + 콘솔에 로그 저장
+ * Main Process Logger Implementation
+ *
+ * Node.js 환경에서 동작하는 Logger 구현체
+ * - 파일 저장: userData/logs/app.log
+ * - 콘솔 출력: 개발 모드에서만
+ *
+ * Usage:
+ *   import { logger } from '@main/utils/logger'
+ *   logger.info('App started', { version: '1.0' })
  */
 
-interface LogEntry {
-  timestamp: string
-  level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG'
-  context: string
-  message: string
-  details?: unknown
-}
+import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { app } from 'electron'
+import type { ILogger, LogMeta } from '@shared/logger'
+import { LogLevel } from '@shared/logger'
 
-class Logger {
-  private context: string
-  private logsDir: string
+class MainLogger implements ILogger {
+  private logFilePath: string
+  private isDev: boolean
 
-  constructor(context: string) {
-    this.context = context
-    this.logsDir = Config.getInstance().logsDir
+  constructor() {
+    this.isDev = !app.isPackaged
+
+    // userData/logs/app.log
+    const logDir = join(app.getPath('userData'), 'logs')
+    if (!existsSync(logDir)) {
+      mkdirSync(logDir, { recursive: true })
+    }
+    this.logFilePath = join(logDir, 'app.log')
   }
 
-  private format(level: string, message: string): string {
-    const now = new Date().toISOString()
-    return `[${now}] [${level}] [${this.context}] ${message}`
-  }
+  /**
+   * Transport: 실제 로그를 파일과 콘솔에 출력
+   */
+  private write(level: LogLevel, message: string, meta?: unknown): void {
+    const timestamp = new Date().toISOString()
+    const metaStr = meta ? ` ${JSON.stringify(meta)}` : ''
+    const logLine = `[${timestamp}] [${this.getLevelString(level)}] ${message}${metaStr}`
 
-  private write(level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG', message: string, details?: unknown): void {
-    const formatted = this.format(level, message)
-
-    // 콘솔
-    const consoleMethod = level === 'ERROR' ? console.error : level === 'WARN' ? console.warn : console.log
-    consoleMethod(formatted)
-    if (details) {
-      consoleMethod(details)
+    // 1. 개발 모드: 터미널 출력 (색상 추가)
+    if (this.isDev) {
+      const color = this.getColor(level)
+      console.log(`${color}${logLine}\x1b[0m`)
     }
 
-    // 파일 (에러만)
-    if (level === 'ERROR') {
-      const logFile = path.join(this.logsDir, 'error.log')
-      const entry: LogEntry = {
-        timestamp: new Date().toISOString(),
-        level,
-        context: this.context,
-        message,
-        details,
-      }
-      try {
-        const line = JSON.stringify(entry) + '\n'
-        fs.appendFileSync(logFile, line, 'utf-8')
-      } catch (err) {
-        console.error('Failed to write log file:', err)
-      }
+    // 2. 프로덕션: 파일 저장
+    try {
+      appendFileSync(this.logFilePath, logLine + '\n', 'utf-8')
+    } catch (e) {
+      // 파일 쓰기 실패 시 최후의 수단으로만 콘솔 에러
+      console.error('Log file write failed:', e)
     }
   }
 
-  info(message: string, details?: unknown): void {
-    this.write('INFO', message, details)
-  }
-
-  warn(message: string, details?: unknown): void {
-    this.write('WARN', message, details)
-  }
-
-  error(message: string, details?: unknown): void {
-    this.write('ERROR', message, details)
-  }
-
-  debug(message: string, details?: unknown): void {
-    if (Config.getInstance().isDev) {
-      this.write('DEBUG', message, details)
+  private getLevelString(level: LogLevel): string {
+    const levelMap: Record<LogLevel, string> = {
+      [LogLevel.DEBUG]: 'DEBUG',
+      [LogLevel.INFO]: 'INFO ',
+      [LogLevel.WARN]: 'WARN ',
+      [LogLevel.ERROR]: 'ERROR',
     }
+    return levelMap[level]
+  }
+
+  private getColor(level: LogLevel): string {
+    const colorMap: Record<LogLevel, string> = {
+      [LogLevel.DEBUG]: '\x1b[90m', // gray
+      [LogLevel.INFO]: '\x1b[36m', // cyan
+      [LogLevel.WARN]: '\x1b[33m', // yellow
+      [LogLevel.ERROR]: '\x1b[31m', // red
+    }
+    return colorMap[level]
+  }
+
+  debug(message: string, meta?: LogMeta): void {
+    this.write(LogLevel.DEBUG, message, meta)
+  }
+
+  info(message: string, meta?: LogMeta): void {
+    this.write(LogLevel.INFO, message, meta)
+  }
+
+  warn(message: string, meta?: LogMeta): void {
+    this.write(LogLevel.WARN, message, meta)
+  }
+
+  error(message: string, error?: unknown, meta?: LogMeta): void {
+    const errorObj =
+      error instanceof Error
+        ? { name: error.name, message: error.message, stack: error.stack }
+        : error
+    this.write(LogLevel.ERROR, message, { ...meta, error: errorObj })
+  }
+
+  getContext(): string {
+    return 'main'
+  }
+
+  setLevel?(level: LogLevel): void {
+    // Main에서는 레벨 변경 미지원 (필요시 구현)
+    void level // unused
   }
 }
 
-export function createLogger(context: string): Logger {
-  return new Logger(context)
-}
+/**
+ * Main Process Logger 싱글톤 인스턴스
+ */
+export const logger = new MainLogger()

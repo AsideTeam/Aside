@@ -1,20 +1,20 @@
-# 📘 Aside - LITE-ZEN Browser PRD (v1.0)
+# Aside - Browser PRD (v1.0)
 
-## 🎯 프로젝트 개요
+## 프로젝트 개요
 
 **Aside (어사이드)**는 초경량의 액자형 몰입형 브라우저입니다.
 
 | 항목 | 내용 |
 |------|------|
-| **제품명** | LITE-ZEN Browser |
-| **핵심 철학** | LITE (리소스 최소화) + ZEN (UI 방해 최소화) + STABLE (명확한 생명주기) |
-| **기술 스택** | Electron 31 + React 19 + Vite + TypeScript + Tailwind CSS v4 + Prisma + SQLite |
+| **제품명** | Aside Browser |
+| **핵심 철학** | LITE  + ZEN  + STABLE |
+| **기술 스택** | Electron 39 + React 19 + Electron-Vite + TypeScript + Tailwind CSS v4 + Prisma + SQLite |
 | **개발 환경** | pnpm + electron-vite |
 | **상태** | MVP Phase 1: Lifecycle & Core Architecture |
 
 ---
 
-## 🔄 생명주기 명세 (Lifecycle) ★ 핵심
+## 생명주기 명세 (Lifecycle) ★ 핵심
 
 ### Phase 1: BOOTSTRAP (앱 시작)
 
@@ -59,7 +59,7 @@ app.exit(0)
 
 ---
 
-## 📊 데이터베이스 설계
+## 데이터베이스 설계
 
 **파일:** `prisma/schema.prisma`
 
@@ -71,7 +71,7 @@ app.exit(0)
 
 ---
 
-## 📁 핵심 디렉토리
+## 핵심 디렉토리
 
 ```
 src/main/
@@ -103,7 +103,7 @@ src/renderer/src/
 
 ---
 
-## 🚀 빠른 시작
+## 빠른 시작
 
 ```bash
 # 1. 의존성 설치
@@ -120,7 +120,7 @@ pnpm run dev
 
 ---
 
-## 💡 설계 철학
+## 설계 철학
 
 ### 1. **Lifecycle 명시화**
 - 앱 시작/종료의 각 단계를 명확히 정의
@@ -144,13 +144,9 @@ pnpm run dev
 
 ---
 
-## 📚 참고 자료
+## 참고 자료
 
 - [electron-vite-boilerplate](https://github.com/alex8088/electron-vite-boilerplate)
 - [Electron Docs](https://www.electronjs.org/docs)
 - [Prisma Docs](https://www.prisma.io/docs/)
 - [React 19 Docs](https://react.dev)
-
-# aside
-# Aside
-# Aside
