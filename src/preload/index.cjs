@@ -21,6 +21,8 @@ const allowedEventChannels = [
   'nav:state-changed',
   'app:ready',
   'navigate-to-settings', // Protocol handler: about:settings interception
+  'view:loaded', // WebContentsView 로드 완료
+  'view:navigated', // WebContentsView 네비게이션 완료
 ]
 
 /**
@@ -60,6 +62,22 @@ const electronAPI = {
   settings: {
     getSettings: () => ipcRenderer.invoke('settings:get-all'),
     updateSetting: (key, value) => ipcRenderer.invoke('settings:update', { key, value }),
+  },
+
+  // ===== View Management (WebContentsView - Zen Layout) =====
+  view: {
+    /**
+     * WebContentsView의 크기와 위치 조절
+     * @param {Object} bounds - { x, y, width, height, margin? }
+     */
+    resize: (bounds) => ipcRenderer.send('view:resize', bounds),
+    
+    /**
+     * WebContentsView로 URL 네비게이션
+     * @param {string} url - 네비게이션할 URL
+     * @returns {Promise<Object>} { success, url, error? }
+     */
+    navigate: (url) => ipcRenderer.invoke('view:navigate', { url }),
   },
 
   // ===== Main -> Renderer Events (safe wrapper) =====
@@ -102,6 +120,9 @@ const electronAPI = {
       'window:maximize',
       'window:close',
       
+      
+      // View (WebContentsView)
+      'view:navigate',
       // Tab
       'tab:create',
       'tab:close',

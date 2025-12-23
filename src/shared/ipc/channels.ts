@@ -83,6 +83,18 @@ export const IPC_CHANNELS = {
     /** 사이드바 토글 (확장/축소) */
     TOGGLE: 'sidebar:toggle',
   },
+
+  // ===== VIEW 영역 (WebContentsView 관리 - Zen Layout) =====
+  VIEW: {
+    /** WebContentsView 크기/위치 조절 (Request: bounds) */
+    RESIZE: 'view:resize',
+    /** WebContentsView로 네비게이션 (Request: url) */
+    NAVIGATE: 'view:navigate',
+    /** [Event] WebContentsView 로드 완료 */
+    LOADED: 'view:loaded',
+    /** [Event] WebContentsView 네비게이션 완료 */
+    NAVIGATED: 'view:navigated',
+  },
 } as const
 
 /**
@@ -97,3 +109,4 @@ export type IPCChannelType =
   | typeof IPC_CHANNELS.TAB[keyof typeof IPC_CHANNELS.TAB]
   | typeof IPC_CHANNELS.NAV[keyof typeof IPC_CHANNELS.NAV]
   | typeof IPC_CHANNELS.SIDEBAR[keyof typeof IPC_CHANNELS.SIDEBAR]
+  | typeof IPC_CHANNELS.VIEW[keyof typeof IPC_CHANNELS.VIEW]

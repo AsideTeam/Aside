@@ -5,6 +5,8 @@
  * src/types/global.d.ts와 연동
  */
 
+import type { ViewBounds, ViewNavigatePayload, ViewNavigateResponse } from '@shared/types/view'
+
 export interface ElectronAPIApp {
   quit: () => Promise<{ success: boolean; error?: string }>
   restart: () => Promise<{ success: boolean; error?: string }>
@@ -34,6 +36,13 @@ export interface ElectronAPISettings {
   updateSetting: (key: string, value: any) => Promise<boolean>
 }
 
+export interface ElectronAPIView {
+  /** WebContentsView 크기/위치 조절 */
+  resize: (bounds: ViewBounds) => void
+  /** WebContentsView 네비게이션 */
+  navigate: (url: string) => Promise<ViewNavigateResponse>
+}
+
 export interface ElectronAPIEvents {
   on: (channel: string, listener: (data: unknown) => void) => void
   off: (channel: string, listener: (data: unknown) => void) => void
@@ -59,6 +68,7 @@ export interface ElectronAPI extends ElectronAPIEvents {
   window: ElectronAPIWindow
   tab: ElectronAPITab
   settings: ElectronAPISettings
+  view: ElectronAPIView
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
 }
 
