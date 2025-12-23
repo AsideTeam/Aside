@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Sun, Moon, Monitor, ChevronRight } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Sun, Moon, Monitor } from 'lucide-react'
 import {
   SettingRow,
   Section,
@@ -9,68 +9,58 @@ import {
   SettingsSidebar,
   SettingsSearch,
 } from '../components/Settings'
-import {
-  THEME_OPTIONS,
-  SEARCH_ENGINE_OPTIONS,
-  FONT_SIZE_OPTIONS,
-  ZOOM_LEVEL_OPTIONS,
-  type Theme,
-  type SearchEngine,
-} from '@shared/constants/settings'
+import { getActiveMenuItems } from '../constants/settingsMenu'
+import type { SettingsMenuId } from '../constants/settingsMenu'
+import type { SettingsSchema } from '@shared/types'
 
 /**
- * SettingsPage - 메인 설정 페이지
+ * SettingsPage - Settings UI
  *
- * 책임: 전체 설정 UI 조합 + 상태 관리 + IPC 연동
- * 특징:
- * - 부모 역할: 각 컴포넌트에 상태와 콜백 전달
- * - Electron IPC: Main process의 설정 저장/로드
- * - 메뉴 기반: 왼쪽 사이드바에서 메뉴 선택 시 내용 변경
+ * 책임:
+ * - 활성 메뉴 필터링 (priority 기반)
+ * - 설정 상태 관리
+ * - IPC 연동 (electronAPI.settings)
  *
- * SRP 준수:
- * - 자신은 상태 관리와 조합만 담당
- * - 렌더링은 각 컴포넌트에 위임
+ * priority 시스템:
+ * - maxPriority=2: Appearance, Language만 표시
+ * - maxPriority=5: +Performance, Search Engine, Autofill
+ * - maxPriority=12: 모든 섹션
  */
 
-interface Settings {
-  theme: Theme
-  searchEngine: SearchEngine
-  fontSize: string
-  zoomLevel: number
-  showHomeButton: boolean
-  showBookmarksBar: boolean
-}
-
 export function SettingsPage() {
-  // 메뉴 상태
-  const [activeMenuId, setActiveMenuId] = useState('appearance')
+  const [activeMenuId, setActiveMenuId] = useState<SettingsMenuId>('appearance')
   const [searchQuery, setSearchQuery] = useState('')
+  const [settings, setSettings] = useState<SettingsSchema | null>(null)
 
-  // 설정 상태
-  const [settings, setSettings] = useState<Settings>({
-    theme: 'system',
-    searchEngine: 'Google',
-    fontSize: 'medium',
-    zoomLevel: 100,
-    showHomeButton: true,
-    showBookmarksBar: false,
-  })
+  // MVP: priority 1~2 (Appearance, Language)
+  const activeMenuItems = useMemo(() => getActiveMenuItems(2), [])
 
-  console.log('[SettingsPage] Rendering', { activeMenuId, settings })
+  const fontSizeOptions = useMemo(
+    () => [
+      { value: 'small', label: '작게' },
+      { value: 'medium', label: '보통' },
+      { value: 'large', label: '크게' },
+    ],
+    []
+  )
 
-  // 마운트 시 Main process에서 설정 로드
+  const zoomOptions = useMemo(
+    () => [
+      { value: '75', label: '75%' },
+      { value: '90', label: '90%' },
+      { value: '100', label: '100%' },
+      { value: '125', label: '125%' },
+      { value: '150', label: '150%' },
+    ],
+    []
+  )
+
+  // Main에서 설정 로드
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        if (window.electronAPI?.invoke) {
-          const savedSettings = await window.electronAPI.invoke(
-            'settings:get-all'
-          )
-          console.log('[SettingsPage] Loaded settings from Main:', savedSettings)
-          if (savedSettings) {
-            setSettings((prev) => ({ ...prev, ...savedSettings }))
-          }
-        }
+        const saved = await window.electronAPI?.settings?.getSettings?.()
+        if (saved) setSettings(saved as SettingsSchema)
       } catch (error) {
         console.error('[SettingsPage] Failed to load settings:', error)
       }
@@ -79,27 +69,25 @@ export function SettingsPage() {
     loadSettings()
   }, [])
 
-  // 설정 변경 + Main process에 저장
-  const updateSetting = async <K extends keyof Settings>(
+  // 설정값 업데이트
+  const updateSetting = async <K extends keyof SettingsSchema>(
     key: K,
-    value: Settings[K]
+    value: SettingsSchema[K]
   ) => {
-    console.log(`[SettingsPage] Updating ${key}:`, value)
-
-    // 로컬 상태 업데이트
-    setSettings((prev) => ({ ...prev, [key]: value }))
-
-    // Main process에 저장
+    setSettings((prev) => (prev ? { ...prev, [key]: value } : prev))
     try {
-      if (window.electronAPI?.invoke) {
-        await window.electronAPI.invoke('settings:update', {
-          [key]: value,
-        })
-        console.log(`[SettingsPage] Setting saved to Main: ${key}`)
-      }
+      await window.electronAPI?.settings?.updateSetting?.(key as string, value)
     } catch (error) {
-      console.error(`[SettingsPage] Failed to save setting ${key}:`, error)
+      console.error('[SettingsPage] Failed to save setting:', { key, error })
     }
+  }
+
+  if (!settings) {
+    return (
+      <div style={{ padding: '24px', color: 'var(--text-secondary)' }}>
+        설정을 불러오는 중…
+      </div>
+    )
   }
 
   return (
@@ -113,6 +101,7 @@ export function SettingsPage() {
     >
       {/* 왼쪽 사이드바 */}
       <SettingsSidebar
+        items={activeMenuItems}
         activeMenuId={activeMenuId}
         onMenuChange={setActiveMenuId}
       />
@@ -133,31 +122,27 @@ export function SettingsPage() {
           placeholder="설정 검색"
         />
 
-        {/* Appearance 섹션 */}
+        {/* ===== Appearance (Priority 1) ===== */}
         {activeMenuId === 'appearance' && (
           <>
             <Section
               title="모양"
               description="브라우저의 모양과 느낌을 커스터마이즈하세요"
             >
-              {/* 테마 선택 */}
+              {/* 테마 */}
               <SettingRow label="테마" description="선호하는 테마를 선택하세요">
                 <SegmentControl
                   value={settings.theme}
-                  onChange={(v) => updateSetting('theme', v as Theme)}
+                  onChange={(v) => updateSetting('theme', v as SettingsSchema['theme'])}
                   options={[
-                    { value: 'light', label: 'Light', icon: <Sun size={14} /> },
-                    { value: 'dark', label: 'Dark', icon: <Moon size={14} /> },
-                    {
-                      value: 'system',
-                      label: 'System',
-                      icon: <Monitor size={14} />,
-                    },
+                    { value: 'light', label: '라이트', icon: <Sun size={14} /> },
+                    { value: 'dark', label: '다크', icon: <Moon size={14} /> },
+                    { value: 'system', label: '시스템', icon: <Monitor size={14} /> },
                   ]}
                 />
               </SettingRow>
 
-              {/* 홈 버튼 표시 */}
+              {/* 홈 버튼 */}
               <SettingRow
                 label="홈 버튼 표시"
                 description="툴바에 홈 버튼을 표시합니다"
@@ -168,7 +153,7 @@ export function SettingsPage() {
                 />
               </SettingRow>
 
-              {/* 북마크 바 표시 */}
+              {/* 북마크 바 */}
               <SettingRow
                 label="북마크 바 표시"
                 description="북마크 바를 표시합니다"
@@ -186,129 +171,36 @@ export function SettingsPage() {
               >
                 <SelectBox
                   value={settings.fontSize}
-                  onChange={(v) => updateSetting('fontSize', v as string)}
-                  options={FONT_SIZE_OPTIONS.map((opt) => ({
-                    value: opt.value,
-                    label: opt.label,
-                  }))}
+                  onChange={(v) => updateSetting('fontSize', v as SettingsSchema['fontSize'])}
+                  options={fontSizeOptions}
                 />
               </SettingRow>
 
               {/* 줌 레벨 */}
               <SettingRow label="페이지 줌" description="기본 줌 레벨을 설정하세요">
                 <SelectBox
-                  value={settings.zoomLevel}
-                  onChange={(v) => updateSetting('zoomLevel', v as number)}
-                  options={ZOOM_LEVEL_OPTIONS.map((opt) => ({
-                    value: opt.value,
-                    label: opt.label,
-                  }))}
+                  value={settings.pageZoom}
+                  onChange={(v) => updateSetting('pageZoom', String(v) as SettingsSchema['pageZoom'])}
+                  options={zoomOptions}
                 />
               </SettingRow>
             </Section>
           </>
         )}
 
-        {/* Search Engine 섹션 */}
-        {activeMenuId === 'search-engine' && (
-          <Section title="검색 엔진" description="기본 검색 엔진을 설정하세요">
-            <SettingRow
-              label="주소창에서 사용할 검색 엔진"
-              description="새로운 탭에서 검색할 때 사용될 엔진을 선택하세요"
-            >
+        {/* ===== Language (Priority 2) ===== */}
+        {activeMenuId === 'language' && (
+          <Section title="언어" description="UI 언어를 설정합니다">
+            <SettingRow label="언어" description="앱 UI에 표시될 언어">
               <SelectBox
-                value={settings.searchEngine}
-                onChange={(v) => updateSetting('searchEngine', v as SearchEngine)}
-                options={SEARCH_ENGINE_OPTIONS.map((engine) => ({
-                  value: engine,
-                  label: engine,
-                }))}
+                value={settings.language}
+                onChange={(v) => updateSetting('language', v as SettingsSchema['language'])}
+                options={[
+                  { value: 'ko', label: '한국어' },
+                  { value: 'en', label: 'English' },
+                  { value: 'ja', label: '日本語' },
+                ]}
               />
-            </SettingRow>
-
-            {/* 검색 엔진 관리 */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 0',
-                cursor: 'pointer',
-                borderTop: '1px solid var(--border-color)',
-                marginTop: '12px',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--bg-input)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent'
-              }}
-            >
-              <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>
-                검색 엔진 및 사이트 검색 관리
-              </span>
-              <ChevronRight size={18} style={{ color: 'var(--text-secondary)' }} />
-            </div>
-          </Section>
-        )}
-
-        {/* 다른 섹션들 (스텁) */}
-        {activeMenuId === 'you-and-google' && (
-          <Section title="나와 Google">
-            <SettingRow label="계정 정보">
-              <div style={{ color: 'var(--text-secondary)' }}>
-                계정 설정은 준비 중입니다
-              </div>
-            </SettingRow>
-          </Section>
-        )}
-
-        {activeMenuId === 'autofill' && (
-          <Section title="자동 완성">
-            <SettingRow label="비밀번호">
-              <div style={{ color: 'var(--text-secondary)' }}>
-                비밀번호 설정은 준비 중입니다
-              </div>
-            </SettingRow>
-          </Section>
-        )}
-
-        {activeMenuId === 'privacy' && (
-          <Section title="개인정보 보호 및 보안">
-            <SettingRow label="쿠키 및 기타 사이트 데이터">
-              <div style={{ color: 'var(--text-secondary)' }}>
-                개인정보 설정은 준비 중입니다
-              </div>
-            </SettingRow>
-          </Section>
-        )}
-
-        {activeMenuId === 'languages' && (
-          <Section title="언어">
-            <SettingRow label="언어">
-              <div style={{ color: 'var(--text-secondary)' }}>
-                언어 설정은 준비 중입니다
-              </div>
-            </SettingRow>
-          </Section>
-        )}
-
-        {activeMenuId === 'downloads' && (
-          <Section title="다운로드">
-            <SettingRow label="다운로드 위치">
-              <div style={{ color: 'var(--text-secondary)' }}>
-                다운로드 설정은 준비 중입니다
-              </div>
-            </SettingRow>
-          </Section>
-        )}
-
-        {activeMenuId === 'about' && (
-          <Section title="정보">
-            <SettingRow label="버전">
-              <div style={{ color: 'var(--text-secondary)' }}>
-                Aside v0.1.0
-              </div>
             </SettingRow>
           </Section>
         )}
