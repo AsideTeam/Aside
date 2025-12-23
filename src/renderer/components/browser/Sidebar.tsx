@@ -15,8 +15,6 @@ import {
   FolderClosed,
   Globe,
   Settings,
-  PanelLeftClose,
-  PanelLeftOpen,
 } from 'lucide-react';
 
 interface Tab {
@@ -52,7 +50,6 @@ const INITIAL_TABS: Tab[] = [
 
 export const Sidebar: React.FC = () => {
   const [tabs, setTabs] = useState<Tab[]>(INITIAL_TABS);
-  const [collapsed, setCollapsed] = useState(false);
 
   const handleAddTab = () => {
     const newTab: Tab = {
@@ -80,17 +77,7 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className={collapsed ? 'aside-sidebar aside-sidebar--collapsed' : 'aside-sidebar'}>
-      {/* Collapse Toggle */}
-      <div className="aside-sidebar-top">
-        <button
-          className="aside-action-btn"
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          onClick={() => setCollapsed((v) => !v)}
-        >
-          {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-        </button>
-      </div>
+    <aside className="aside-sidebar">
 
       {/* Pinned Tabs */}
       <div className="aside-pinned-area">

@@ -21,7 +21,9 @@ import { tokens, cn } from '@renderer/styles';
 export const ZenLayout: React.FC = () => {
   const contentAreaRef = useRef<HTMLDivElement | null>(null);
   const { updateBounds } = useViewBounds(contentAreaRef, {
-    margin: 8, // Arc 스타일: 배경과 8px 여백
+    // Sidebar와 WebContentsView 사이에는 gap 없이 붙이고,
+    // 상/우/하만 살짝 띄워 'floating frame' 느낌을 유지
+    margin: { top: 8, right: 8, bottom: 8, left: 0 },
   });
   const { currentUrl } = useWebContents();
 

@@ -9,26 +9,25 @@
 .aside-sidebar {
   display: flex;
   flex-direction: column;
-  width: var(--size-sidebar-width);
+  width: var(--size-sidebar-collapsed);
   height: 100vh;
-  background-color: var(--color-bg-secondary);
+  background: linear-gradient(
+    180deg,
+    var(--color-bg-secondary) 0%,
+    var(--color-bg-tertiary) 100%
+  );
   border-right: 1px solid var(--color-border-primary);
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
   font-size: 13px;
   -webkit-app-region: drag;
   user-select: none;
   transition: width var(--duration-normal) ease;
 }
 
-.aside-sidebar--collapsed {
-  width: var(--size-sidebar-collapsed);
-}
-
-.aside-sidebar-top {
-  padding: 10px 12px;
-  display: flex;
-  justify-content: flex-end;
-  -webkit-app-region: no-drag;
+/* 기본은 숨김(접힘), hover / focus-within 시 자연스럽게 확장 */
+.aside-sidebar:hover,
+.aside-sidebar:focus-within {
+  width: var(--size-sidebar-width);
 }
 
 /* ===== Pinned Tabs Area ===== */
@@ -51,7 +50,7 @@
   align-items: center;
   justify-content: center;
   background-color: var(--color-bg-tertiary);
-  border: none;
+  border: 1px solid var(--color-border-light);
   border-radius: 10px;
   color: var(--color-text-secondary);
   cursor: pointer;
@@ -105,6 +104,7 @@
   cursor: pointer;
   transition: all 0.15s ease;
   position: relative;
+  color: var(--color-text-secondary);
 }
 
 .aside-tab:hover {
@@ -181,6 +181,7 @@
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
+  color: var(--color-text-secondary);
 }
 
 .aside-folder:hover {
@@ -273,20 +274,23 @@
   background-color: var(--color-bg-hover);
 }
 
-/* ===== Collapsed behavior ===== */
-.aside-sidebar--collapsed .aside-space-header,
-.aside-sidebar--collapsed .aside-tabs-area,
-.aside-sidebar--collapsed .aside-divider,
-.aside-sidebar--collapsed .aside-new-tab {
+/* ===== Collapsed behavior (기본 상태) ===== */
+.aside-sidebar:not(:hover):not(:focus-within) .aside-space-header,
+.aside-sidebar:not(:hover):not(:focus-within) .aside-tabs-area,
+.aside-sidebar:not(:hover):not(:focus-within) .aside-divider {
   display: none;
 }
 
-.aside-sidebar--collapsed .aside-pinned-grid {
+.aside-sidebar:not(:hover):not(:focus-within) .aside-pinned-grid {
   justify-content: center;
 }
 
-.aside-label {
-  display: inline-block;
+.aside-sidebar:not(:hover):not(:focus-within) .aside-new-tab {
+  justify-content: center;
+}
+
+.aside-sidebar:not(:hover):not(:focus-within) .aside-new-tab .aside-label {
+  display: none;
 }
 
 /* ===== Frame + Placeholder (WebContentsView 자리) ===== */
