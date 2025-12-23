@@ -11,7 +11,13 @@ export const App: React.FC = () => {
   const layoutMode = 'zen';
 
   return (
-    <div className={cn('w-full h-screen overflow-hidden', tokens.colors.bg.primary, tokens.colors.text.primary)}>
+    <div
+      className={cn(
+        'w-full h-screen overflow-hidden',
+        layoutMode === 'zen' ? '' : tokens.colors.bg.primary,
+        tokens.colors.text.primary
+      )}
+    >
       {layoutMode === 'zen' ? (
         <ZenLayout />
       ) : (

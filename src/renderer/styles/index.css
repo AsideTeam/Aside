@@ -35,6 +35,13 @@ body,
   color: var(--color-text-primary);
 }
 
+/* ===== Overlay Mode (Dual Window) ===== */
+.aside-overlay-mode,
+.aside-overlay-mode body,
+.aside-overlay-mode #root {
+  background-color: transparent !important;
+}
+
 /* Input 기본 스타일 제거 */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {

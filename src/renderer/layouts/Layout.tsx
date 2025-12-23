@@ -11,11 +11,18 @@
  *   └── WebContentsView (Electron Native, 자식 뷰)
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Sidebar } from '../components/browser/Sidebar';
 import { cn, tokens } from '@renderer/styles';
 
 export const ZenLayout: React.FC = () => {
+  useEffect(() => {
+    document.documentElement.classList.add('aside-overlay-mode');
+    return () => {
+      document.documentElement.classList.remove('aside-overlay-mode');
+    };
+  }, []);
+
   return (
     <div className={cn('aside-overlay', tokens.colors.text.primary)}>
       <Sidebar />
