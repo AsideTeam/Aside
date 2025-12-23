@@ -251,11 +251,8 @@ z.object({
   timestamp: z.number()
 });
 const ViewResizeSchema = z.object({
-  x: z.number().int(),
-  y: z.number().int(),
-  width: z.number().int().nonnegative(),
-  height: z.number().int().nonnegative(),
-  margin: z.number().int().nonnegative().optional()
+  left: z.number().int().nonnegative(),
+  top: z.number().int().nonnegative()
 });
 const ViewNavigateSchema = z.object({
   url: z.string().min(1, "URL cannot be empty").max(2048, "URL exceeds maximum length").refine(
@@ -795,16 +792,25 @@ class ViewManager {
     this.syncToRenderer();
   }
   /**
-   * Renderer(React)에서 계산한 "placeholder" 좌표로 활성 WebContentsView 배치
-   * - Zen/Arc 스타일: UI가 WebView 위에 떠 있는 느낌을 만들기 위한 핵심
+   * Renderer에서 들어온 safe-area 오프셋을 받아 실제 bounds 계산
    */
-  static setActiveViewBounds(bounds) {
+  static setActiveViewBounds(safeArea) {
+    if (!this.contentWindow) {
+      logger.warn("[ViewManager] contentWindow not available; ignoring safe-area");
+      return;
+    }
+    const { width, height } = this.contentWindow.getBounds();
     this.externalActiveBounds = {
-      x: Math.max(0, Math.round(bounds.x)),
-      y: Math.max(0, Math.round(bounds.y)),
-      width: Math.max(0, Math.round(bounds.width)),
-      height: Math.max(0, Math.round(bounds.height))
+      x: safeArea.left,
+      y: safeArea.top,
+      width: Math.max(0, width - safeArea.left),
+      height: Math.max(0, height - safeArea.top)
     };
+    logger.debug("[📐 MAIN] Calculated bounds from safe-area:", {
+      contentWindow: { w: width, h: height },
+      safeArea,
+      calculatedBounds: this.externalActiveBounds
+    });
     this.layout();
   }
   /**
@@ -996,6 +1002,12 @@ class ViewManager {
       height: Math.max(0, height)
     };
     const activeBounds = this.externalActiveBounds ?? defaultBounds;
+    logger.debug("[MAIN LAYOUT] Applying bounds:", {
+      contentWindow: { w: width, h: height },
+      externalBounds: this.externalActiveBounds,
+      finalBounds: activeBounds,
+      usingExternal: !!this.externalActiveBounds
+    });
     for (const [, tabData] of this.tabs) {
       if (tabData.isActive) {
         if (tabData.url.startsWith("about:")) {

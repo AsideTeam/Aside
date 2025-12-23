@@ -1,7 +1,7 @@
 {
   "name": "aside",
   "version": "0.1.0",
-  "description": "Lightweight, Zen-style Electron browser with WebContentsView architecture",
+  "description": "aside",
   "type": "module",
   "main": "out/main/index.js",
   "homepage": "./",

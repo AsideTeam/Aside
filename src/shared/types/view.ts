@@ -8,20 +8,16 @@
  */
 
 /**
- * WebContentsView의 위치와 크기
+ * WebContentsView의 Safe-Area Offsets
  *
- * Electron setBounds 기준 좌표
- * - 일반적으로 DIP(CSS px) 기준으로 맞추는 것이 안전
- * - x, y: 윈도우 내 좌상단 좌표
- * - width, height: 뷰 크기
- * - margin: 선택사항, 배경과의 여백
+ * Renderer가 pinned sidebar/header로 인해 빼야 할 영역 크기만 전달.
+ * Main이 contentWindow bounds 기준으로 나머지 영역을 계산.
+ * - left: sidebar pinned width (픽셀)
+ * - top: header pinned height (픽셀)
  */
 export interface ViewBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  margin?: number; // Arc 스타일: 배경과의 여백 (기본값: 0)
+  left: number;
+  top: number;
 }
 
 /**

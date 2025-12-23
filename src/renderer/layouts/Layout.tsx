@@ -49,9 +49,7 @@ export const ZenLayout: React.FC = () => {
       const sidebarEl = document.querySelector('.aside-sidebar') as HTMLElement | null
       const headerEl = document.querySelector('.aside-header--pinned') as HTMLElement | null
 
-      const sidebarWRaw = sidebarLatched && sidebarEl ? Math.round(sidebarEl.getBoundingClientRect().width) : 0
-      // gap 방지: 사이드바 보더와 1px 정도 겹치게
-      const sidebarW = sidebarWRaw > 0 ? Math.max(0, sidebarWRaw - 1) : 0
+      const sidebarW = sidebarLatched && sidebarEl ? Math.round(sidebarEl.getBoundingClientRect().width) : 0
       const headerH = headerLatched && headerEl ? Math.round(headerEl.getBoundingClientRect().height) : 0
 
       setPinnedSizes((prev) => {
@@ -122,7 +120,13 @@ export const ZenLayout: React.FC = () => {
         }}
       >
         <div className="aside-view-container">
-          <div ref={viewPlaceholderRef} className="aside-view-placeholder" />
+          <div
+            ref={viewPlaceholderRef}
+            className="aside-view-placeholder"
+            style={{
+              marginLeft: sidebarLatched ? '-1px' : '0px',
+            }}
+          />
         </div>
       </div>
 

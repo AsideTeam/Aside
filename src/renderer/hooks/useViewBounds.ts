@@ -49,16 +49,10 @@ export const useViewBounds = (
     try {
       const rect = contentAreaRef.current.getBoundingClientRect();
 
-      // 새로운 bounds 계산
-      const width = rect.width - margins.left - margins.right;
-      const height = rect.height - margins.top - margins.bottom;
-
+      // Safe-area 오프셋만 계산 (pinned sidebar/header 크기)
       const newBounds: ViewBounds = {
-        x: Math.round((rect.x + margins.left) * scaleFactor),
-        y: Math.round((rect.y + margins.top) * scaleFactor),
-        width: Math.max(0, Math.round(width * scaleFactor)),
-        height: Math.max(0, Math.round(height * scaleFactor)),
-        margin: typeof margin === 'number' ? margin : 0,
+        left: Math.round(rect.x * scaleFactor),
+        top: Math.round(rect.y * scaleFactor),
       };
 
       // 이전과 다를 때만 업데이트 (성능 최적화)
@@ -68,7 +62,10 @@ export const useViewBounds = (
           logger.warn('useViewBounds - Invalid bounds; skip resize')
           return
         }
-        logger.info('useViewBounds - Updating view bounds', { bounds: newBounds });
+        logger.info('[📐 RENDERER → MAIN] Sending safe-area offsets:', {
+          left: newBounds.left,
+          top: newBounds.top,
+        });
         window.electronAPI.view.resize(parsed.data);
         lastBoundsRef.current = newBounds;
       }
@@ -85,11 +82,8 @@ export const useViewBounds = (
  */
 function areBoundsEqual(bounds1: ViewBounds, bounds2: ViewBounds): boolean {
   return (
-    bounds1.x === bounds2.x &&
-    bounds1.y === bounds2.y &&
-    bounds1.width === bounds2.width &&
-    bounds1.height === bounds2.height &&
-    (bounds1.margin ?? 0) === (bounds2.margin ?? 0)
+    bounds1.left === bounds2.left &&
+    bounds1.top === bounds2.top
   );
 }
 

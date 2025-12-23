@@ -71,11 +71,8 @@ export const ViewNavigatedEventSchema = z.object({
  */
 
 export const ViewResizeSchema = z.object({
-  x: z.number().int(),
-  y: z.number().int(),
-  width: z.number().int().nonnegative(),
-  height: z.number().int().nonnegative(),
-  margin: z.number().int().nonnegative().optional(),
+  left: z.number().int().nonnegative(),
+  top: z.number().int().nonnegative(),
 })
 
 export const ViewNavigateSchema = z.object({

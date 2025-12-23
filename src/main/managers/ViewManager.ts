@@ -20,6 +20,7 @@
 
 import { BrowserWindow, WebContentsView } from 'electron'
 import { logger } from '@main/utils/Logger'
+import type { ViewBounds } from '@shared/types/view'
 
 /**
  * 탭 데이터 모델
@@ -196,16 +197,30 @@ export class ViewManager {
   }
 
   /**
-   * Renderer(React)에서 계산한 "placeholder" 좌표로 활성 WebContentsView 배치
-   * - Zen/Arc 스타일: UI가 WebView 위에 떠 있는 느낌을 만들기 위한 핵심
+   * Renderer에서 들어온 safe-area 오프셋을 받아 실제 bounds 계산
    */
-  static setActiveViewBounds(bounds: { x: number; y: number; width: number; height: number }): void {
-    this.externalActiveBounds = {
-      x: Math.max(0, Math.round(bounds.x)),
-      y: Math.max(0, Math.round(bounds.y)),
-      width: Math.max(0, Math.round(bounds.width)),
-      height: Math.max(0, Math.round(bounds.height)),
+  static setActiveViewBounds(safeArea: ViewBounds): void {
+    if (!this.contentWindow) {
+      logger.warn('[ViewManager] contentWindow not available; ignoring safe-area')
+      return
     }
+
+    const { width, height } = this.contentWindow.getBounds()
+
+    // Safe-area 오프셋을 빼서 실제 WebContentsView bounds 계산
+    this.externalActiveBounds = {
+      x: safeArea.left,
+      y: safeArea.top,
+      width: Math.max(0, width - safeArea.left),
+      height: Math.max(0, height - safeArea.top),
+    }
+
+    logger.debug('[📐 MAIN] Calculated bounds from safe-area:', {
+      contentWindow: { w: width, h: height },
+      safeArea,
+      calculatedBounds: this.externalActiveBounds
+    })
+
     this.layout()
   }
 
@@ -447,6 +462,13 @@ export class ViewManager {
 
     // Zen/Arc: Renderer에서 들어온 bounds가 있으면 그걸 우선
     const activeBounds = this.externalActiveBounds ?? defaultBounds
+
+    logger.debug('[MAIN LAYOUT] Applying bounds:', {
+      contentWindow: { w: width, h: height },
+      externalBounds: this.externalActiveBounds,
+      finalBounds: activeBounds,
+      usingExternal: !!this.externalActiveBounds
+    })
 
     for (const [, tabData] of this.tabs) {
       if (tabData.isActive) {
