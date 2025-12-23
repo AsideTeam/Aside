@@ -370,6 +370,29 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* ===== Focus Gate (Renderer-side) ===== */
+/* Electron은 창 blur 상태에서도 :hover가 동작할 수 있어,
+   포커스가 없을 때는 오버레이 UI를 CSS에서 강제로 비활성화/숨김 처리한다. */
+.aside-window-blurred .aside-header,
+.aside-window-blurred .aside-sidebar {
+  pointer-events: none !important;
+}
+
+.aside-window-blurred .aside-header *,
+.aside-window-blurred .aside-sidebar * {
+  pointer-events: none !important;
+}
+
+.aside-window-blurred .aside-header--open {
+  opacity: 0 !important;
+  transform: translateX(-50%) translateY(-100%) !important;
+}
+
+.aside-window-blurred .aside-sidebar--open {
+  opacity: 0 !important;
+  transform: translateX(calc(-1 * var(--size-sidebar-width) - 8px)) !important;
+}
+
 /* ===== Frame + Placeholder (WebContentsView 자리) ===== */
 .aside-frame {
   display: flex;

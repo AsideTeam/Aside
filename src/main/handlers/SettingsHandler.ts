@@ -9,25 +9,26 @@
  * - 에러 응답 처리
  */
 
-import { ipcMain } from 'electron'
 import { logger } from '@main/utils/Logger'
 import { ViewManager } from '@main/managers/ViewManager'
 import { SettingsService } from '@main/services/SettingsService'
 import type { SettingsSchema } from '@shared/types'
+import { IPC_CHANNELS } from '@shared/ipc/channels'
+import type { IpcRegistry } from './IpcRegistry'
 
 const settingsService = SettingsService.getInstance()
 
 /**
  * Settings IPC 핸들러 등록
  */
-export function setupSettingsHandlers(): void {
+export function setupSettingsHandlers(registry: IpcRegistry): void {
   logger.info('[SettingsHandler] Registering IPC handlers')
 
   /**
    * Settings 페이지 열림/닫힘 상태 처리
    * IPC: view:settings-toggled
    */
-  ipcMain.handle('view:settings-toggled', async (_event, input: unknown) => {
+  registry.handle(IPC_CHANNELS.VIEW.SETTINGS_TOGGLED, async (_event, input: unknown) => {
     try {
       const { isOpen } = input as { isOpen: boolean }
       if (isOpen) {
@@ -48,7 +49,7 @@ export function setupSettingsHandlers(): void {
    * 모든 설정값 조회
    * IPC: settings:get-all
    */
-  ipcMain.handle('settings:get-all', async () => {
+  registry.handle(IPC_CHANNELS.SETTINGS.GET_ALL, async () => {
     try {
       const settings = settingsService.getAllSettings()
       logger.info('[SettingsHandler] Settings retrieved')
@@ -64,7 +65,7 @@ export function setupSettingsHandlers(): void {
    * 특정 설정값 조회
    * IPC: settings:get
    */
-  ipcMain.handle('settings:get', async (_event, key: keyof SettingsSchema) => {
+  registry.handle(IPC_CHANNELS.SETTINGS.GET, async (_event, key: keyof SettingsSchema) => {
     try {
       if (!key) {
         throw new Error('Setting key is required')
@@ -83,8 +84,8 @@ export function setupSettingsHandlers(): void {
    * 설정값 업데이트
    * IPC: settings:update
    */
-  ipcMain.handle(
-    'settings:update',
+  registry.handle(
+    IPC_CHANNELS.SETTINGS.UPDATE,
     async (
       _event,
       { key, value }: { key: keyof SettingsSchema; value: SettingsSchema[keyof SettingsSchema] }
@@ -116,7 +117,7 @@ export function setupSettingsHandlers(): void {
    * 여러 설정값 한 번에 업데이트
    * IPC: settings:update-multiple
    */
-  ipcMain.handle('settings:update-multiple', async (_event, updates: Partial<SettingsSchema>) => {
+  registry.handle(IPC_CHANNELS.SETTINGS.UPDATE_MULTIPLE, async (_event, updates: Partial<SettingsSchema>) => {
     try {
       if (!updates || Object.keys(updates).length === 0) {
         throw new Error('Updates object is required')
@@ -142,7 +143,7 @@ export function setupSettingsHandlers(): void {
    * 모든 설정값 초기화
    * IPC: settings:reset
    */
-  ipcMain.handle('settings:reset', async () => {
+  registry.handle(IPC_CHANNELS.SETTINGS.RESET, async () => {
     try {
       const result = settingsService.resetAllSettings()
       if (!result.success) {

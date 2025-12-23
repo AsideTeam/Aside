@@ -23,27 +23,6 @@ export const App: React.FC = () => {
       ) : (
         <BrowserPage />
       )}
-
-      <style>{`
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        }
-        
-        /* Drag region 스타일 (창 이동 가능 영역) */
-        .drag-region {
-          -webkit-app-region: drag;
-        }
-        
-        /* 버튼 등은 클릭 가능해야 하므로 no-drag */
-        .no-drag {
-          -webkit-app-region: no-drag;
-        }
-      `}</style>
     </div>
   );
 };

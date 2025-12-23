@@ -11,20 +11,23 @@
  *   ipcRenderer.invoke('window:minimize')
  */
 
-import { ipcMain, app } from 'electron'
+import { app } from 'electron'
 import { logger } from '@main/utils/Logger'
 import { MainWindow } from '@main/core/Window'
+import { OverlayController } from '@main/core/overlay/OverlayController'
 import { AppState } from '@main/managers/AppState'
 import { ViewManager } from '@main/managers/ViewManager'
+import { IPC_CHANNELS } from '@shared/ipc/channels'
+import type { IpcRegistry } from './IpcRegistry'
 
 /**
  * 앱 제어 핸들러 등록
  */
-export function setupAppHandlers(): void {
+export function setupAppHandlers(registry: IpcRegistry): void {
   logger.info('[AppHandler] Setting up handlers...')
 
   // app:quit - 앱 종료
-  ipcMain.handle('app:quit', async () => {
+  registry.handle(IPC_CHANNELS.APP.QUIT, async () => {
     try {
       logger.info('[AppHandler] app:quit requested')
       app.quit()
@@ -36,7 +39,7 @@ export function setupAppHandlers(): void {
   })
 
   // app:restart - 앱 재시작
-  ipcMain.handle('app:restart', async () => {
+  registry.handle(IPC_CHANNELS.APP.RESTART, async () => {
     try {
       logger.info('[AppHandler] app:restart requested')
       app.relaunch()
@@ -49,7 +52,7 @@ export function setupAppHandlers(): void {
   })
 
   // window:minimize - 창 최소화
-  ipcMain.handle('window:minimize', async () => {
+  registry.handle(IPC_CHANNELS.WINDOW.MINIMIZE, async () => {
     try {
       logger.info('[AppHandler] window:minimize requested')
       const window = MainWindow.getWindow()
@@ -66,7 +69,7 @@ export function setupAppHandlers(): void {
   })
 
   // window:maximize - 창 최대화
-  ipcMain.handle('window:maximize', async () => {
+  registry.handle(IPC_CHANNELS.WINDOW.MAXIMIZE, async () => {
     try {
       logger.info('[AppHandler] window:maximize requested')
       const window = MainWindow.getWindow()
@@ -87,7 +90,7 @@ export function setupAppHandlers(): void {
   })
 
   // window:close - 창 닫기
-  ipcMain.handle('window:close', async () => {
+  registry.handle(IPC_CHANNELS.WINDOW.CLOSE, async () => {
     try {
       logger.info('[AppHandler] window:close requested')
       const window = MainWindow.getWindow()
@@ -103,7 +106,7 @@ export function setupAppHandlers(): void {
   })
 
   // app:state - 앱 상태 조회 (탭 정보 포함)
-  ipcMain.handle('app:state', async () => {
+  registry.handle(IPC_CHANNELS.APP.STATE, async () => {
     try {
       logger.info('[AppHandler] app:state requested')
       
@@ -126,9 +129,9 @@ export function setupAppHandlers(): void {
   })
 
   // ===== Overlay toggles (UI / Keyboard parity) =====
-  ipcMain.handle('overlay:toggle-header-latch', async () => {
+  registry.handle(IPC_CHANNELS.OVERLAY.TOGGLE_HEADER_LATCH, async () => {
     try {
-      const latched = MainWindow.toggleHeaderLatched()
+      const latched = OverlayController.toggleHeaderLatched()
       return { success: true, latched }
     } catch (error) {
       logger.error('[AppHandler] overlay:toggle-header-latch failed:', error)
@@ -136,9 +139,9 @@ export function setupAppHandlers(): void {
     }
   })
 
-  ipcMain.handle('overlay:toggle-sidebar-latch', async () => {
+  registry.handle(IPC_CHANNELS.OVERLAY.TOGGLE_SIDEBAR_LATCH, async () => {
     try {
-      const latched = MainWindow.toggleSidebarLatched()
+      const latched = OverlayController.toggleSidebarLatched()
       return { success: true, latched }
     } catch (error) {
       logger.error('[AppHandler] overlay:toggle-sidebar-latch failed:', error)

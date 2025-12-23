@@ -18,6 +18,7 @@ import { BrowserWindow, app, screen } from 'electron'
 import { join } from 'node:path'
 import { logger } from '@main/utils/Logger'
 import { Env } from '@main/config'
+import { OverlayController } from '@main/core/overlay/OverlayController'
 
 /**
  * MainWindow 싱글톤 관리
@@ -34,45 +35,6 @@ export class MainWindow {
   private static uiWindow: BrowserWindow | null = null
   private static contentWindow: BrowserWindow | null = null
   private static isCreating = false
-  private static overlayTimer: NodeJS.Timeout | null = null
-
-  // Overlay latch states (keyboard/UI toggles)
-  private static headerLatched = false
-  private static sidebarLatched = false
-
-  static getHeaderLatched(): boolean {
-    return this.headerLatched
-  }
-
-  static getSidebarLatched(): boolean {
-    return this.sidebarLatched
-  }
-
-  static toggleHeaderLatched(): boolean {
-    this.headerLatched = !this.headerLatched
-    try {
-      this.uiWindow?.webContents.send('header:latch-changed', {
-        latched: this.headerLatched,
-        timestamp: Date.now(),
-      })
-    } catch {
-      // ignore
-    }
-    return this.headerLatched
-  }
-
-  static toggleSidebarLatched(): boolean {
-    this.sidebarLatched = !this.sidebarLatched
-    try {
-      this.uiWindow?.webContents.send('sidebar:latch-changed', {
-        latched: this.sidebarLatched,
-        timestamp: Date.now(),
-      })
-    } catch {
-      // ignore
-    }
-    return this.sidebarLatched
-  }
 
   /**
    * MainWindow 생성
@@ -186,7 +148,7 @@ export class MainWindow {
 
           // 기본은 웹페이지 클릭이 통과하도록
           this.uiWindow.setIgnoreMouseEvents(true, { forward: true })
-          this.startOverlayMouseTracker()
+          OverlayController.attach({ uiWindow: this.uiWindow, contentWindow: this.contentWindow })
 
           didShow = true
           logger.info('[MainWindow] Content/UI windows shown')
@@ -257,10 +219,7 @@ export class MainWindow {
    * - 메모리 해제
    */
   static destroy(): void {
-    if (this.overlayTimer) {
-      clearInterval(this.overlayTimer)
-      this.overlayTimer = null
-    }
+    OverlayController.dispose()
 
     if (this.uiWindow) {
       this.uiWindow.removeAllListeners()
@@ -321,6 +280,7 @@ export class MainWindow {
     this.uiWindow.on('closed', () => {
       logger.info('[MainWindow] UI window closed')
       try {
+        OverlayController.dispose()
         this.uiWindow = null
         this.contentWindow?.close()
       } finally {
@@ -333,6 +293,7 @@ export class MainWindow {
     // Content가 먼저 닫히면 UI도 닫기
     this.contentWindow.on('closed', () => {
       logger.info('[MainWindow] Content window closed')
+      OverlayController.dispose()
       this.contentWindow = null
       this.uiWindow?.close()
     })
@@ -340,317 +301,4 @@ export class MainWindow {
     logger.info('[MainWindow] Event listeners attached (dual-window)')
   }
 
-  /**
-   * 마우스 위치 기반으로 오버레이(사이드바) 인터랙션 영역만 마우스를 받게 함.
-   * - 기본: UIWindow는 click-through (ignoreMouseEvents=true)
-   * - 커서가 좌측 핫존/사이드바 영역에 들어오면: ignoreMouseEvents=false + sidebar:open
-   * - 커서가 영역 밖으로 나가면: sidebar:close + ignoreMouseEvents=true
-   */
-  private static startOverlayMouseTracker(): void {
-    if (this.overlayTimer || !this.uiWindow) return
-
-    const HOTZONE_WIDTH = 6
-    const SIDEBAR_WIDTH = 256 // theme.css: 16rem
-    const CLOSE_DELAY_MS = 180
-
-    const HEADER_HOTZONE_HEIGHT = 40 // includes macOS titlebar
-    const HEADER_HEIGHT = 64
-
-    let isSidebarOpen = false
-    let isHeaderOpen = false
-    let closeArmedAt: number | null = null
-
-    let isOverlayOnTop = false
-    let isUIInteractive = false
-
-    const ensureOverlayOnTop = (onTop: boolean) => {
-      if (!this.uiWindow) return
-      if (isOverlayOnTop === onTop) return
-      isOverlayOnTop = onTop
-      try {
-        if (process.platform === 'darwin') {
-          this.uiWindow.setAlwaysOnTop(onTop, 'floating')
-        } else {
-          this.uiWindow.setAlwaysOnTop(onTop)
-        }
-
-        if (onTop) {
-          this.uiWindow.moveTop()
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    const setUIInteractivity = (interactive: boolean) => {
-      if (!this.uiWindow) return
-      if (isUIInteractive === interactive) return
-      isUIInteractive = interactive
-      if (interactive) {
-        this.uiWindow.setIgnoreMouseEvents(false)
-      } else {
-        this.uiWindow.setIgnoreMouseEvents(true, { forward: true })
-      }
-    }
-
-    const openSidebar = () => {
-      if (!this.uiWindow) return
-      if (!isSidebarOpen) {
-        try {
-          this.uiWindow.webContents.send('sidebar:open', { timestamp: Date.now() })
-        } catch {
-          // ignore
-        }
-      }
-      isSidebarOpen = true
-      closeArmedAt = null
-    }
-
-    const closeSidebar = () => {
-      if (!this.uiWindow) return
-      if (isSidebarOpen) {
-        try {
-          this.uiWindow.webContents.send('sidebar:close', { timestamp: Date.now() })
-        } catch {
-          // ignore
-        }
-      }
-      isSidebarOpen = false
-    }
-
-    const openHeader = () => {
-      if (!this.uiWindow) return
-      if (!isHeaderOpen) {
-        try {
-          this.uiWindow.webContents.send('header:open', { timestamp: Date.now() })
-        } catch {
-          // ignore
-        }
-      }
-      isHeaderOpen = true
-      closeArmedAt = null
-    }
-
-    const closeHeader = () => {
-      if (!this.uiWindow) return
-      if (isHeaderOpen) {
-        try {
-          this.uiWindow.webContents.send('header:close', { timestamp: Date.now() })
-        } catch {
-          // ignore
-        }
-      }
-      isHeaderOpen = false
-    }
-
-    const closeAll = () => {
-      if (!this.uiWindow) return
-      closeSidebar()
-      closeHeader()
-      closeArmedAt = null
-      ensureOverlayOnTop(false)
-      setUIInteractivity(false)
-    }
-
-    // 기본은 닫힘 상태
-    closeAll()
-
-    // Focus gating (event-driven)
-    // - 포커스를 잃으면: 오버레이를 닫고(click-through), latch는 유지
-    // - 포커스를 얻으면: 오버레이 로직 재개
-    // 기존처럼 매 tick마다 BrowserWindow.getFocusedWindow()를 호출하지 않고,
-    // focus/blur 이벤트로 상태만 갱신해 로직을 단순화한다.
-    let appFocused = true
-
-    const isOurAppFocused = () => {
-      try {
-        const focused = BrowserWindow.getFocusedWindow()
-        if (!focused) return false
-        if (focused === this.uiWindow || focused === this.contentWindow) return true
-        const parent = focused.getParentWindow?.()
-        return parent === this.uiWindow || parent === this.contentWindow
-      } catch {
-        return false
-      }
-    }
-
-    let focusRecalcTimer: NodeJS.Timeout | null = null
-    const scheduleFocusRecalc = () => {
-      if (focusRecalcTimer) clearTimeout(focusRecalcTimer)
-      focusRecalcTimer = setTimeout(() => {
-        focusRecalcTimer = null
-        appFocused = isOurAppFocused()
-        if (!appFocused) {
-          closeAll()
-        }
-      }, 60)
-    }
-
-    try {
-      this.uiWindow.on('focus', scheduleFocusRecalc)
-      this.uiWindow.on('blur', scheduleFocusRecalc)
-      this.contentWindow?.on('focus', scheduleFocusRecalc)
-      this.contentWindow?.on('blur', scheduleFocusRecalc)
-
-      // Some macOS + transparent + click-through combinations can miss per-window blur.
-      // App-level events are more reliable when the user switches to another app.
-      app.on('browser-window-focus', (_event, win) => {
-        if (win === this.uiWindow || win === this.contentWindow) scheduleFocusRecalc()
-      })
-
-      app.on('browser-window-blur', (_event, win) => {
-        if (win === this.uiWindow || win === this.contentWindow) scheduleFocusRecalc()
-      })
-    } catch {
-      // ignore
-    }
-
-    // 초기 상태 계산
-    scheduleFocusRecalc()
-
-    // Keyboard toggle: Cmd/Ctrl+L header latch, Cmd/Ctrl+B sidebar latch, Esc closes
-    try {
-      this.contentWindow?.webContents.on('before-input-event', (event, input) => {
-        if (!this.uiWindow) return
-        if (input.type !== 'keyDown') return
-
-        const key = (input.key || '').toLowerCase()
-        const mod = Boolean(input.control || input.meta)
-
-        if (mod && key === 'l') {
-          event.preventDefault()
-          this.toggleHeaderLatched()
-          closeArmedAt = null
-          if (this.headerLatched) {
-            openHeader()
-            ensureOverlayOnTop(true)
-          } else {
-            closeHeader()
-            // interactivity/top will be recomputed by the next tick
-          }
-        }
-
-        if (mod && key === 'b') {
-          event.preventDefault()
-          this.toggleSidebarLatched()
-          closeArmedAt = null
-
-          if (this.sidebarLatched) {
-            openSidebar()
-            ensureOverlayOnTop(true)
-          } else {
-            closeSidebar()
-          }
-        }
-
-        if (key === 'escape') {
-          if (this.headerLatched || this.sidebarLatched || isHeaderOpen || isSidebarOpen) {
-            event.preventDefault()
-            this.headerLatched = false
-            this.sidebarLatched = false
-            try {
-              this.uiWindow?.webContents.send('header:latch-changed', {
-                latched: this.headerLatched,
-                timestamp: Date.now(),
-              })
-              this.uiWindow?.webContents.send('sidebar:latch-changed', {
-                latched: this.sidebarLatched,
-                timestamp: Date.now(),
-              })
-            } catch {
-              // ignore
-            }
-            closeAll()
-          }
-        }
-      })
-    } catch {
-      // ignore
-    }
-
-    this.overlayTimer = setInterval(() => {
-      if (!this.uiWindow) return
-
-      // Do not react to global cursor movement when the app isn't focused.
-      // This prevents sidebar/addressbar from popping up while using other apps.
-      if (!appFocused) {
-        if (isSidebarOpen || isHeaderOpen || isOverlayOnTop || isUIInteractive) {
-          closeAll()
-        }
-        return
-      }
-
-      const bounds = this.uiWindow.getBounds()
-      const pt = screen.getCursorScreenPoint()
-
-      // 창 가장자리에서 1~2px 정도 판정이 튀는 케이스가 있어 완화
-      const EDGE_PAD = 2
-
-      // 상단은 HEADER_HOTZONE_HEIGHT만큼 더 허용하여 macOS 타이틀바 영역까지 커버
-      const insideWindow =
-        pt.x >= bounds.x - EDGE_PAD &&
-        pt.x <= bounds.x + bounds.width + EDGE_PAD &&
-        pt.y >= bounds.y - HEADER_HOTZONE_HEIGHT &&
-        pt.y <= bounds.y + bounds.height + EDGE_PAD
-
-      if (!insideWindow) {
-        // 앱 창 밖으로 나가도 latched면 '보이기'는 유지하고 클릭만 통과
-        if (this.headerLatched || this.sidebarLatched) {
-          ensureOverlayOnTop(true)
-          setUIInteractivity(false)
-          return
-        }
-
-        if (isSidebarOpen || isHeaderOpen) closeAll()
-        return
-      }
-
-      const relX = pt.x - bounds.x
-      const relY = pt.y - bounds.y
-
-      const sidebarWidth = isSidebarOpen ? SIDEBAR_WIDTH : HOTZONE_WIDTH
-      const headerHotzoneHeight = isHeaderOpen ? HEADER_HEIGHT : HEADER_HOTZONE_HEIGHT
-
-      const wantHeaderHover = relY <= headerHotzoneHeight
-      const wantHeaderVisible = this.headerLatched || wantHeaderHover
-      const wantSidebarVisible = this.sidebarLatched || (!wantHeaderVisible && relX <= sidebarWidth)
-
-      // Keep UIWindow visually above WebContentsView while any overlay is visible
-      ensureOverlayOnTop(wantHeaderVisible || wantSidebarVisible)
-
-      // Interactivity should only be enabled when cursor is inside the interactive region,
-      // so we don't block clicks on the underlying WebContentsView.
-      const wantHeaderInteractive = wantHeaderVisible && relY <= HEADER_HEIGHT
-      const wantSidebarInteractive = wantSidebarVisible && relX <= (isSidebarOpen ? SIDEBAR_WIDTH : HOTZONE_WIDTH)
-      setUIInteractivity(wantHeaderInteractive || wantSidebarInteractive)
-
-      if (wantHeaderVisible) {
-        if (isSidebarOpen && !this.sidebarLatched) closeSidebar()
-        openHeader()
-        return
-      }
-
-      if (wantSidebarVisible) {
-        // 헤더 영역(상단)에서 충돌할 수 있어, 상단은 header가 우선.
-        if (isHeaderOpen && !this.headerLatched) closeHeader()
-        openSidebar()
-        return
-      }
-
-      if (isSidebarOpen || isHeaderOpen) {
-        if (this.headerLatched || this.sidebarLatched) {
-          // latched header stays visible; interactivity is handled above
-          return
-        }
-        if (closeArmedAt === null) {
-          closeArmedAt = Date.now()
-          return
-        }
-
-        if (Date.now() - closeArmedAt >= CLOSE_DELAY_MS) {
-          closeAll()
-        }
-      }
-    }, 33)
-  }
 }

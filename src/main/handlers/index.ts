@@ -10,12 +10,14 @@
  *   setupIPCHandlers()
  */
 
-import { ipcMain } from 'electron'
 import { logger } from '@main/utils/Logger'
 import { setupAppHandlers } from './AppHandler'
 import { setupTabHandlers } from './TabHandler'
 import { setupSettingsHandlers } from './SettingsHandler'
 import { setupViewHandlers } from './ViewHandler'
+import { IpcRegistry } from './IpcRegistry'
+
+let registry: IpcRegistry | null = null
 
 /**
  * 모든 IPC 핸들러 등록
@@ -24,20 +26,26 @@ export function setupIPCHandlers(): void {
   logger.info('[IPC] Setting up all handlers...')
 
   try {
+    if (registry) {
+      logger.warn('[IPC] Registry already exists; disposing old handlers first')
+      registry.dispose()
+    }
+    registry = new IpcRegistry()
+
     // Step 1: 앱 핸들러 등록
-    setupAppHandlers()
+    setupAppHandlers(registry)
     logger.info('[IPC] App handlers registered')
 
     // Step 2: 탭 핸들러 등록
-    setupTabHandlers()
+    setupTabHandlers(registry)
     logger.info('[IPC] Tab handlers registered')
 
     // Step 3: 설정 핸들러 등록
-    setupSettingsHandlers()
+    setupSettingsHandlers(registry)
     logger.info('[IPC] Settings handlers registered')
 
     // Step 4: View(WebContentsView) 핸들러 등록
-    setupViewHandlers()
+    setupViewHandlers(registry)
     logger.info('[IPC] View handlers registered')
 
     logger.info('[IPC] All handlers setup completed')
@@ -54,8 +62,11 @@ export function removeAllIPCHandlers(): void {
   logger.info('[IPC] Removing all handlers...')
 
   try {
-    ipcMain.removeAllListeners()
-    logger.info('[IPC] All handlers removed')
+    if (registry) {
+      registry.dispose()
+      registry = null
+    }
+    logger.info('[IPC] All handlers removed (registry disposed)')
   } catch (error) {
     logger.error('[IPC] Handler removal failed:', error)
   }

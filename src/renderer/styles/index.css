@@ -79,12 +79,3 @@ input[type='number'] {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-border-primary);
 }
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-border-light);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-primary);
-}

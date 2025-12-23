@@ -15,8 +15,11 @@ import React, { useEffect } from 'react';
 import { Sidebar } from '../components/browser/Sidebar';
 import { AsideHeader } from '../components/browser/AsideHeader';
 import { cn, tokens } from '@renderer/styles';
+import { useWindowFocus } from '@renderer/hooks';
 
 export const ZenLayout: React.FC = () => {
+  const isFocused = useWindowFocus();
+
   useEffect(() => {
     document.documentElement.classList.add('aside-overlay-mode');
     return () => {
@@ -25,7 +28,13 @@ export const ZenLayout: React.FC = () => {
   }, []);
 
   return (
-    <div className={cn('aside-overlay', tokens.colors.text.primary)}>
+    <div
+      className={cn(
+        'aside-overlay',
+        isFocused ? 'aside-window-focused' : 'aside-window-blurred',
+        tokens.colors.text.primary,
+      )}
+    >
       <AsideHeader />
       <Sidebar />
     </div>

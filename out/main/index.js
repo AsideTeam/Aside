@@ -456,6 +456,7 @@ class MainWindow {
     let isSidebarOpen = false;
     let isHeaderOpen = false;
     let closeArmedAt = null;
+    let lastFocusPollAt = 0;
     let isOverlayOnTop = false;
     let isUIInteractive = false;
     const ensureOverlayOnTop = (onTop) => {
@@ -547,14 +548,30 @@ class MainWindow {
         return false;
       }
     };
+    const computeAppFocused = () => isOurAppFocused();
     let focusRecalcTimer = null;
+    let lastFocusSent = null;
+    const broadcastWindowFocus = (focused) => {
+      if (!this.uiWindow) return;
+      if (lastFocusSent === focused) return;
+      lastFocusSent = focused;
+      try {
+        this.uiWindow.webContents.send("window:focus-changed", {
+          focused,
+          timestamp: Date.now()
+        });
+      } catch {
+      }
+    };
     const scheduleFocusRecalc = () => {
       if (focusRecalcTimer) clearTimeout(focusRecalcTimer);
       focusRecalcTimer = setTimeout(() => {
         focusRecalcTimer = null;
-        appFocused = isOurAppFocused();
-        if (!appFocused) {
-          closeAll();
+        const nextFocused = computeAppFocused();
+        if (appFocused !== nextFocused) {
+          appFocused = nextFocused;
+          broadcastWindowFocus(appFocused);
+          if (!appFocused) closeAll();
         }
       }, 60);
     };
@@ -624,6 +641,17 @@ class MainWindow {
     }
     this.overlayTimer = setInterval(() => {
       if (!this.uiWindow) return;
+      const now = Date.now();
+      const FOCUS_POLL_MS = 250;
+      if (now - lastFocusPollAt >= FOCUS_POLL_MS) {
+        lastFocusPollAt = now;
+        const nextFocused = computeAppFocused();
+        if (appFocused !== nextFocused) {
+          appFocused = nextFocused;
+          broadcastWindowFocus(appFocused);
+          if (!appFocused) closeAll();
+        }
+      }
       if (!appFocused) {
         if (isSidebarOpen || isHeaderOpen || isOverlayOnTop || isUIInteractive) {
           closeAll();
@@ -1574,9 +1602,72 @@ class AppState {
     logger.info("[AppState] State reset");
   }
 }
-function setupAppHandlers() {
+const IPC_CHANNELS = {
+  // ===== APP 영역 =====
+  APP: {
+    /** 앱 종료 요청 */
+    QUIT: "app:quit",
+    /** 앱 재시작 요청 */
+    RESTART: "app:restart",
+    /** 앱 상태 조회 */
+    STATE: "app:state"
+  },
+  // ===== WINDOW 영역 (Renderer에서 Main으로 요청) =====
+  WINDOW: {
+    /** 윈도우 최소화 */
+    MINIMIZE: "window:minimize",
+    /** 윈도우 최대화/복원 토글 */
+    MAXIMIZE: "window:maximize",
+    /** 윈도우 닫기 */
+    CLOSE: "window:close"
+  },
+  // ===== TAB 영역 (탭 관리 - Request/Response) =====
+  TAB: {
+    /** 새 탭 생성 (Request: URL, Response: tabId) */
+    CREATE: "tab:create",
+    /** 탭 닫기 (Request: tabId) */
+    CLOSE: "tab:close",
+    /** 탭 전환 (Request: tabId) */
+    SWITCH: "tab:switch",
+    /** 탭 목록 조회 */
+    LIST: "tab:list",
+    /** 활성 탭 ID 조회 */
+    ACTIVE: "tab:active",
+    /** 현재 탭 네비게이션 */
+    NAVIGATE: "tab:navigate",
+    /** 뒤로 가기 */
+    BACK: "tab:back",
+    /** 앞으로 가기 */
+    FORWARD: "tab:forward",
+    /** 새로고침 */
+    RELOAD: "tab:reload"
+  },
+  // ===== VIEW 영역 (WebContentsView 관리 - Zen Layout) =====
+  VIEW: {
+    /** WebContentsView 크기/위치 조절 (Request: bounds) */
+    RESIZE: "view:resize",
+    /** WebContentsView로 네비게이션 (Request: url) */
+    NAVIGATE: "view:navigate",
+    /** Settings 페이지 열림/닫힘 토글 */
+    SETTINGS_TOGGLED: "view:settings-toggled"
+  },
+  // ===== SETTINGS 영역 =====
+  SETTINGS: {
+    GET_ALL: "settings:get-all",
+    GET: "settings:get",
+    UPDATE: "settings:update",
+    UPDATE_MULTIPLE: "settings:update-multiple",
+    RESET: "settings:reset"
+  },
+  // ===== OVERLAY 영역 (UI overlay latch/toggles) =====
+  OVERLAY: {
+    TOGGLE_HEADER_LATCH: "overlay:toggle-header-latch",
+    TOGGLE_SIDEBAR_LATCH: "overlay:toggle-sidebar-latch"
+  }
+};
+function setupAppHandlers(registry2) {
   logger.info("[AppHandler] Setting up handlers...");
-  ipcMain.handle("app:quit", async () => {
+  registry2.handle(IPC_CHANNELS.APP.QUIT, async () => {
     try {
       logger.info("[AppHandler] app:quit requested");
       app.quit();
@@ -1586,7 +1677,7 @@ function setupAppHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("app:restart", async () => {
+  registry2.handle(IPC_CHANNELS.APP.RESTART, async () => {
     try {
       logger.info("[AppHandler] app:restart requested");
       app.relaunch();
@@ -1597,7 +1688,7 @@ function setupAppHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("window:minimize", async () => {
+  registry2.handle(IPC_CHANNELS.WINDOW.MINIMIZE, async () => {
     try {
       logger.info("[AppHandler] window:minimize requested");
       const window = MainWindow.getWindow();
@@ -1612,7 +1703,7 @@ function setupAppHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("window:maximize", async () => {
+  registry2.handle(IPC_CHANNELS.WINDOW.MAXIMIZE, async () => {
     try {
       logger.info("[AppHandler] window:maximize requested");
       const window = MainWindow.getWindow();
@@ -1631,7 +1722,7 @@ function setupAppHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("window:close", async () => {
+  registry2.handle(IPC_CHANNELS.WINDOW.CLOSE, async () => {
     try {
       logger.info("[AppHandler] window:close requested");
       const window = MainWindow.getWindow();
@@ -1645,7 +1736,7 @@ function setupAppHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("app:state", async () => {
+  registry2.handle(IPC_CHANNELS.APP.STATE, async () => {
     try {
       logger.info("[AppHandler] app:state requested");
       const appState = AppState.getState();
@@ -1662,7 +1753,7 @@ function setupAppHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("overlay:toggle-header-latch", async () => {
+  registry2.handle(IPC_CHANNELS.OVERLAY.TOGGLE_HEADER_LATCH, async () => {
     try {
       const latched = MainWindow.toggleHeaderLatched();
       return { success: true, latched };
@@ -1671,7 +1762,7 @@ function setupAppHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("overlay:toggle-sidebar-latch", async () => {
+  registry2.handle(IPC_CHANNELS.OVERLAY.TOGGLE_SIDEBAR_LATCH, async () => {
     try {
       const latched = MainWindow.toggleSidebarLatched();
       return { success: true, latched };
@@ -1719,9 +1810,9 @@ function validateOrThrow(schema, data) {
   }
   return result.data;
 }
-function setupTabHandlers() {
+function setupTabHandlers(registry2) {
   logger.info("[TabHandler] Setting up handlers...");
-  ipcMain.handle("tab:create", async (_event, input) => {
+  registry2.handle(IPC_CHANNELS.TAB.CREATE, async (_event, input) => {
     try {
       const { url } = validateOrThrow(TabCreateSchema, input);
       logger.info("[TabHandler] tab:create requested", { url });
@@ -1734,7 +1825,7 @@ function setupTabHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("tab:close", async (_event, input) => {
+  registry2.handle(IPC_CHANNELS.TAB.CLOSE, async (_event, input) => {
     try {
       const { tabId } = validateOrThrow(TabCloseSchema, input);
       logger.info("[TabHandler] tab:close requested", { tabId });
@@ -1746,7 +1837,7 @@ function setupTabHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("tab:switch", async (_event, input) => {
+  registry2.handle(IPC_CHANNELS.TAB.SWITCH, async (_event, input) => {
     try {
       const { tabId } = validateOrThrow(TabSwitchSchema, input);
       logger.info("[TabHandler] tab:switch requested", { tabId });
@@ -1759,7 +1850,7 @@ function setupTabHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("tab:list", async () => {
+  registry2.handle(IPC_CHANNELS.TAB.LIST, async () => {
     try {
       logger.info("[TabHandler] tab:list requested");
       const tabs = ViewManager.getTabs();
@@ -1769,7 +1860,7 @@ function setupTabHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("tab:active", async () => {
+  registry2.handle(IPC_CHANNELS.TAB.ACTIVE, async () => {
     try {
       logger.info("[TabHandler] tab:active requested");
       const tabId = ViewManager.getActiveTabId();
@@ -1779,7 +1870,7 @@ function setupTabHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("tab:navigate", async (_event, input) => {
+  registry2.handle(IPC_CHANNELS.TAB.NAVIGATE, async (_event, input) => {
     try {
       const { url } = validateOrThrow(TabCreateSchema, input);
       logger.info("[TabHandler] tab:navigate requested", { url });
@@ -1791,7 +1882,7 @@ function setupTabHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("tab:back", async () => {
+  registry2.handle(IPC_CHANNELS.TAB.BACK, async () => {
     try {
       logger.info("[TabHandler] tab:back requested");
       ViewManager.goBack();
@@ -1801,7 +1892,7 @@ function setupTabHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("tab:forward", async () => {
+  registry2.handle(IPC_CHANNELS.TAB.FORWARD, async () => {
     try {
       logger.info("[TabHandler] tab:forward requested");
       ViewManager.goForward();
@@ -1811,7 +1902,7 @@ function setupTabHandlers() {
       return { success: false, error: String(error) };
     }
   });
-  ipcMain.handle("tab:reload", async () => {
+  registry2.handle(IPC_CHANNELS.TAB.RELOAD, async () => {
     try {
       logger.info("[TabHandler] tab:reload requested");
       ViewManager.reload();
@@ -2241,9 +2332,9 @@ class SettingsService {
   }
 }
 const settingsService = SettingsService.getInstance();
-function setupSettingsHandlers() {
+function setupSettingsHandlers(registry2) {
   logger.info("[SettingsHandler] Registering IPC handlers");
-  ipcMain.handle("view:settings-toggled", async (_event, input) => {
+  registry2.handle(IPC_CHANNELS.VIEW.SETTINGS_TOGGLED, async (_event, input) => {
     try {
       const { isOpen } = input;
       if (isOpen) {
@@ -2259,7 +2350,7 @@ function setupSettingsHandlers() {
       throw error;
     }
   });
-  ipcMain.handle("settings:get-all", async () => {
+  registry2.handle(IPC_CHANNELS.SETTINGS.GET_ALL, async () => {
     try {
       const settings = settingsService.getAllSettings();
       logger.info("[SettingsHandler] Settings retrieved");
@@ -2270,7 +2361,7 @@ function setupSettingsHandlers() {
       throw new Error(`Failed to get settings: ${errorMessage}`);
     }
   });
-  ipcMain.handle("settings:get", async (_event, key) => {
+  registry2.handle(IPC_CHANNELS.SETTINGS.GET, async (_event, key) => {
     try {
       if (!key) {
         throw new Error("Setting key is required");
@@ -2284,8 +2375,8 @@ function setupSettingsHandlers() {
       throw new Error(`Failed to get setting: ${errorMessage}`);
     }
   });
-  ipcMain.handle(
-    "settings:update",
+  registry2.handle(
+    IPC_CHANNELS.SETTINGS.UPDATE,
     async (_event, { key, value }) => {
       try {
         if (!key) {
@@ -2307,7 +2398,7 @@ function setupSettingsHandlers() {
       }
     }
   );
-  ipcMain.handle("settings:update-multiple", async (_event, updates) => {
+  registry2.handle(IPC_CHANNELS.SETTINGS.UPDATE_MULTIPLE, async (_event, updates) => {
     try {
       if (!updates || Object.keys(updates).length === 0) {
         throw new Error("Updates object is required");
@@ -2326,7 +2417,7 @@ function setupSettingsHandlers() {
       return { success: false, error: errorMessage };
     }
   });
-  ipcMain.handle("settings:reset", async () => {
+  registry2.handle(IPC_CHANNELS.SETTINGS.RESET, async () => {
     try {
       const result = settingsService.resetAllSettings();
       if (!result.success) {
@@ -2342,16 +2433,16 @@ function setupSettingsHandlers() {
   });
   logger.info("[SettingsHandler] IPC handlers registered successfully");
 }
-function setupViewHandlers() {
+function setupViewHandlers(registry2) {
   logger.info("[ViewHandler] Setting up handlers...");
-  ipcMain.on("view:resize", (_event, bounds) => {
+  registry2.on(IPC_CHANNELS.VIEW.RESIZE, (_event, bounds) => {
     try {
       ViewManager.setActiveViewBounds(bounds);
     } catch (error) {
       logger.error("[ViewHandler] view:resize failed:", error);
     }
   });
-  ipcMain.handle("view:navigate", async (_event, input) => {
+  registry2.handle(IPC_CHANNELS.VIEW.NAVIGATE, async (_event, input) => {
     try {
       const payload = input;
       const url = payload?.url;
@@ -2367,16 +2458,54 @@ function setupViewHandlers() {
   });
   logger.info("[ViewHandler] Handlers setup completed");
 }
+class IpcRegistry {
+  handledChannels = /* @__PURE__ */ new Set();
+  onListeners = /* @__PURE__ */ new Map();
+  handle(channel, handler) {
+    ipcMain.handle(channel, handler);
+    this.handledChannels.add(channel);
+  }
+  on(channel, listener) {
+    ipcMain.on(channel, listener);
+    const set = this.onListeners.get(channel) ?? /* @__PURE__ */ new Set();
+    set.add(listener);
+    this.onListeners.set(channel, set);
+  }
+  dispose() {
+    for (const channel of this.handledChannels) {
+      try {
+        ipcMain.removeHandler(channel);
+      } catch {
+      }
+    }
+    this.handledChannels.clear();
+    for (const [channel, listeners] of this.onListeners.entries()) {
+      for (const listener of listeners) {
+        try {
+          ipcMain.removeListener(channel, listener);
+        } catch {
+        }
+      }
+    }
+    this.onListeners.clear();
+  }
+}
+let registry = null;
 function setupIPCHandlers() {
   logger.info("[IPC] Setting up all handlers...");
   try {
-    setupAppHandlers();
+    if (registry) {
+      logger.warn("[IPC] Registry already exists; disposing old handlers first");
+      registry.dispose();
+    }
+    registry = new IpcRegistry();
+    setupAppHandlers(registry);
     logger.info("[IPC] App handlers registered");
-    setupTabHandlers();
+    setupTabHandlers(registry);
     logger.info("[IPC] Tab handlers registered");
-    setupSettingsHandlers();
+    setupSettingsHandlers(registry);
     logger.info("[IPC] Settings handlers registered");
-    setupViewHandlers();
+    setupViewHandlers(registry);
     logger.info("[IPC] View handlers registered");
     logger.info("[IPC] All handlers setup completed");
   } catch (error) {
@@ -2387,8 +2516,11 @@ function setupIPCHandlers() {
 function removeAllIPCHandlers() {
   logger.info("[IPC] Removing all handlers...");
   try {
-    ipcMain.removeAllListeners();
-    logger.info("[IPC] All handlers removed");
+    if (registry) {
+      registry.dispose();
+      registry = null;
+    }
+    logger.info("[IPC] All handlers removed (registry disposed)");
   } catch (error) {
     logger.error("[IPC] Handler removal failed:", error);
   }

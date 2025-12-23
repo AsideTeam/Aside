@@ -2,6 +2,16 @@ import React, { useEffect, useState } from 'react'
 import { AddressBar } from './AddressBar'
 import { Pin, PanelLeft } from 'lucide-react'
 
+type LatchChangedPayload = {
+  latched?: boolean
+}
+
+const getLatched = (payload: unknown): boolean => {
+  if (!payload || typeof payload !== 'object') return false
+  const maybe = payload as LatchChangedPayload
+  return Boolean(maybe.latched)
+}
+
 export const AsideHeader: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false)
   const [isHeaderLatched, setIsHeaderLatched] = useState(false)
@@ -10,8 +20,8 @@ export const AsideHeader: React.FC = () => {
   useEffect(() => {
     const open = () => setIsOpen(true)
     const close = () => setIsOpen(false)
-    const headerLatch = (data: any) => setIsHeaderLatched(Boolean(data?.latched))
-    const sidebarLatch = (data: any) => setIsSidebarLatched(Boolean(data?.latched))
+    const headerLatch = (data: unknown) => setIsHeaderLatched(getLatched(data))
+    const sidebarLatch = (data: unknown) => setIsSidebarLatched(getLatched(data))
 
     try {
       window.electronAPI?.on('header:open', open)
@@ -36,8 +46,11 @@ export const AsideHeader: React.FC = () => {
 
   const toggleHeaderLatch = async () => {
     try {
-      const result: any = await window.electronAPI.invoke('overlay:toggle-header-latch')
-      if (result?.success) setIsHeaderLatched(Boolean(result.latched))
+      const result: unknown = await window.electronAPI.invoke('overlay:toggle-header-latch')
+      if (result && typeof result === 'object') {
+        const r = result as { success?: boolean; latched?: boolean }
+        if (r.success) setIsHeaderLatched(Boolean(r.latched))
+      }
     } catch {
       // ignore
     }
@@ -45,8 +58,11 @@ export const AsideHeader: React.FC = () => {
 
   const toggleSidebarLatch = async () => {
     try {
-      const result: any = await window.electronAPI.invoke('overlay:toggle-sidebar-latch')
-      if (result?.success) setIsSidebarLatched(Boolean(result.latched))
+      const result: unknown = await window.electronAPI.invoke('overlay:toggle-sidebar-latch')
+      if (result && typeof result === 'object') {
+        const r = result as { success?: boolean; latched?: boolean }
+        if (r.success) setIsSidebarLatched(Boolean(r.latched))
+      }
     } catch {
       // ignore
     }

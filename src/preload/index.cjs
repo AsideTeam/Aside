@@ -15,6 +15,25 @@
 
 const { contextBridge, ipcRenderer } = require('electron')
 
+// Keep track of wrapped IPC listeners so `off(channel, originalListener)` works.
+// Map<channel, WeakMap<originalListenerFn, wrappedListenerFn>>
+const __listenerWrappers = new Map()
+
+const getWrappedListener = (channel, listener) => {
+  let channelMap = __listenerWrappers.get(channel)
+  if (!channelMap) {
+    channelMap = new WeakMap()
+    __listenerWrappers.set(channel, channelMap)
+  }
+
+  const existing = channelMap.get(listener)
+  if (existing) return existing
+
+  const wrapped = (_event, data) => listener(data)
+  channelMap.set(listener, wrapped)
+  return wrapped
+}
+
 const allowedEventChannels = [
   // Main -> Renderer broadcast channels (to be implemented in Main)
   'tabs:updated',
@@ -29,6 +48,9 @@ const allowedEventChannels = [
   'header:close',
   'header:latch-changed',
   'sidebar:latch-changed',
+
+  // Window focus state (Main -> Renderer)
+  'window:focus-changed',
 ]
 
 /**
@@ -91,19 +113,22 @@ const electronAPI = {
     if (!allowedEventChannels.includes(channel)) {
       throw new Error(`Event channel '${channel}' is not allowed`)
     }
-    ipcRenderer.on(channel, (_event, data) => listener(data))
+    ipcRenderer.on(channel, getWrappedListener(channel, listener))
   },
   once: (channel, listener) => {
     if (!allowedEventChannels.includes(channel)) {
       throw new Error(`Event channel '${channel}' is not allowed`)
     }
-    ipcRenderer.once(channel, (_event, data) => listener(data))
+    ipcRenderer.once(channel, getWrappedListener(channel, listener))
   },
   off: (channel, listener) => {
     if (!allowedEventChannels.includes(channel)) {
       throw new Error(`Event channel '${channel}' is not allowed`)
     }
-    ipcRenderer.removeListener(channel, listener)
+    const wrapped = __listenerWrappers.get(channel)?.get(listener)
+    if (wrapped) {
+      ipcRenderer.removeListener(channel, wrapped)
+    }
   },
 
   // ===== Utility Functions =====

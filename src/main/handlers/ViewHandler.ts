@@ -6,15 +6,16 @@
  * - view:navigate: 활성 WebContentsView URL 이동
  */
 
-import { ipcMain } from 'electron'
 import { logger } from '@main/utils/Logger'
 import { ViewManager } from '@main/managers/ViewManager'
 import type { ViewBounds } from '@shared/types/view'
+import { IPC_CHANNELS } from '@shared/ipc/channels'
+import type { IpcRegistry } from './IpcRegistry'
 
-export function setupViewHandlers(): void {
+export function setupViewHandlers(registry: IpcRegistry): void {
   logger.info('[ViewHandler] Setting up handlers...')
 
-  ipcMain.on('view:resize', (_event, bounds: ViewBounds) => {
+  registry.on(IPC_CHANNELS.VIEW.RESIZE, (_event, bounds: ViewBounds) => {
     try {
       ViewManager.setActiveViewBounds(bounds)
     } catch (error) {
@@ -22,7 +23,7 @@ export function setupViewHandlers(): void {
     }
   })
 
-  ipcMain.handle('view:navigate', async (_event, input: unknown) => {
+  registry.handle(IPC_CHANNELS.VIEW.NAVIGATE, async (_event, input: unknown) => {
     try {
       const payload = input as { url?: string }
       const url = payload?.url

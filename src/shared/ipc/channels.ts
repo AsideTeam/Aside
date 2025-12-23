@@ -38,6 +38,10 @@ export const IPC_CHANNELS = {
     READY: 'app:ready',
     /** 앱 종료 요청 */
     QUIT: 'app:quit',
+    /** 앱 재시작 요청 */
+    RESTART: 'app:restart',
+    /** 앱 상태 조회 */
+    STATE: 'app:state',
   },
 
   // ===== WINDOW 영역 (Renderer에서 Main으로 요청) =====
@@ -60,6 +64,18 @@ export const IPC_CHANNELS = {
     SWITCH: 'tab:switch',
     /** 탭 URL 변경 (Request: tabId, url) */
     UPDATE_URL: 'tab:update-url',
+    /** 탭 목록 조회 */
+    LIST: 'tab:list',
+    /** 활성 탭 ID 조회 */
+    ACTIVE: 'tab:active',
+    /** 현재 탭 네비게이션 */
+    NAVIGATE: 'tab:navigate',
+    /** 뒤로 가기 */
+    BACK: 'tab:back',
+    /** 앞으로 가기 */
+    FORWARD: 'tab:forward',
+    /** 새로고침 */
+    RELOAD: 'tab:reload',
     /** [Event] 탭 목록 업데이트 (Main → Renderer) */
     UPDATED: 'tabs:updated',
   },
@@ -90,10 +106,27 @@ export const IPC_CHANNELS = {
     RESIZE: 'view:resize',
     /** WebContentsView로 네비게이션 (Request: url) */
     NAVIGATE: 'view:navigate',
+    /** Settings 페이지 열림/닫힘 토글 */
+    SETTINGS_TOGGLED: 'view:settings-toggled',
     /** [Event] WebContentsView 로드 완료 */
     LOADED: 'view:loaded',
     /** [Event] WebContentsView 네비게이션 완료 */
     NAVIGATED: 'view:navigated',
+  },
+
+  // ===== SETTINGS 영역 =====
+  SETTINGS: {
+    GET_ALL: 'settings:get-all',
+    GET: 'settings:get',
+    UPDATE: 'settings:update',
+    UPDATE_MULTIPLE: 'settings:update-multiple',
+    RESET: 'settings:reset',
+  },
+
+  // ===== OVERLAY 영역 (UI overlay latch/toggles) =====
+  OVERLAY: {
+    TOGGLE_HEADER_LATCH: 'overlay:toggle-header-latch',
+    TOGGLE_SIDEBAR_LATCH: 'overlay:toggle-sidebar-latch',
   },
 } as const
 
@@ -110,3 +143,5 @@ export type IPCChannelType =
   | typeof IPC_CHANNELS.NAV[keyof typeof IPC_CHANNELS.NAV]
   | typeof IPC_CHANNELS.SIDEBAR[keyof typeof IPC_CHANNELS.SIDEBAR]
   | typeof IPC_CHANNELS.VIEW[keyof typeof IPC_CHANNELS.VIEW]
+  | typeof IPC_CHANNELS.SETTINGS[keyof typeof IPC_CHANNELS.SETTINGS]
+  | typeof IPC_CHANNELS.OVERLAY[keyof typeof IPC_CHANNELS.OVERLAY]

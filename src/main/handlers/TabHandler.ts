@@ -13,10 +13,11 @@
  *   ipcRenderer.invoke('tab:close', { tabId: 'tab-123' })
  */
 
-import { ipcMain } from 'electron'
 import { logger } from '@main/utils/Logger'
 import { ViewManager } from '@main/managers/ViewManager'
 import { AppState } from '@main/managers/AppState'
+import { IPC_CHANNELS } from '@shared/ipc/channels'
+import type { IpcRegistry } from './IpcRegistry'
 import {
   TabCreateSchema,
   TabCloseSchema,
@@ -27,11 +28,11 @@ import {
 /**
  * 탭 제어 핸들러 등록
  */
-export function setupTabHandlers(): void {
+export function setupTabHandlers(registry: IpcRegistry): void {
   logger.info('[TabHandler] Setting up handlers...')
 
   // tab:create - 새 탭 생성
-  ipcMain.handle('tab:create', async (_event, input: unknown) => {
+  registry.handle(IPC_CHANNELS.TAB.CREATE, async (_event, input: unknown) => {
     try {
       // ✅ Step 1: 런타임 검증 (악성 데이터 차단)
       const { url } = validateOrThrow(TabCreateSchema, input)
@@ -51,7 +52,7 @@ export function setupTabHandlers(): void {
   })
 
   // tab:close - 탭 닫기
-  ipcMain.handle('tab:close', async (_event, input: unknown) => {
+  registry.handle(IPC_CHANNELS.TAB.CLOSE, async (_event, input: unknown) => {
     try {
       // ✅ 런타임 검증
       const { tabId } = validateOrThrow(TabCloseSchema, input)
@@ -68,7 +69,7 @@ export function setupTabHandlers(): void {
   })
 
   // tab:switch - 탭 전환
-  ipcMain.handle('tab:switch', async (_event, input: unknown) => {
+  registry.handle(IPC_CHANNELS.TAB.SWITCH, async (_event, input: unknown) => {
     try {
       // ✅ 런타임 검증
       const { tabId } = validateOrThrow(TabSwitchSchema, input)
@@ -86,7 +87,7 @@ export function setupTabHandlers(): void {
   })
 
   // tab:list - 탭 리스트 조회
-  ipcMain.handle('tab:list', async () => {
+  registry.handle(IPC_CHANNELS.TAB.LIST, async () => {
     try {
       logger.info('[TabHandler] tab:list requested')
       const tabs = ViewManager.getTabs()
@@ -98,7 +99,7 @@ export function setupTabHandlers(): void {
   })
 
   // tab:active - 활성 탭 ID 조회
-  ipcMain.handle('tab:active', async () => {
+  registry.handle(IPC_CHANNELS.TAB.ACTIVE, async () => {
     try {
       logger.info('[TabHandler] tab:active requested')
       const tabId = ViewManager.getActiveTabId()
@@ -110,7 +111,7 @@ export function setupTabHandlers(): void {
   })
 
   // tab:navigate - 현재 탭에서 URL 이동
-  ipcMain.handle('tab:navigate', async (_event, input: unknown) => {
+  registry.handle(IPC_CHANNELS.TAB.NAVIGATE, async (_event, input: unknown) => {
     try {
       const { url } = validateOrThrow(TabCreateSchema, input)
       logger.info('[TabHandler] tab:navigate requested', { url })
@@ -126,7 +127,7 @@ export function setupTabHandlers(): void {
   })
 
   // tab:back - 뒤로 가기
-  ipcMain.handle('tab:back', async () => {
+  registry.handle(IPC_CHANNELS.TAB.BACK, async () => {
     try {
       logger.info('[TabHandler] tab:back requested')
       ViewManager.goBack()
@@ -138,7 +139,7 @@ export function setupTabHandlers(): void {
   })
 
   // tab:forward - 앞으로 가기
-  ipcMain.handle('tab:forward', async () => {
+  registry.handle(IPC_CHANNELS.TAB.FORWARD, async () => {
     try {
       logger.info('[TabHandler] tab:forward requested')
       ViewManager.goForward()
@@ -150,7 +151,7 @@ export function setupTabHandlers(): void {
   })
 
   // tab:reload - 새로고침
-  ipcMain.handle('tab:reload', async () => {
+  registry.handle(IPC_CHANNELS.TAB.RELOAD, async () => {
     try {
       logger.info('[TabHandler] tab:reload requested')
       ViewManager.reload()

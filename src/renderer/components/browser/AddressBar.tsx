@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, RotateCw } from 'lucide-react'
 import { useWebContents } from '@renderer/hooks'
-import { cn } from '@renderer/lib/utils'
+import { cn } from '@renderer/styles'
+import { formatUrl } from '@renderer/lib/utils'
 
 interface AddressBarProps {
   wrapperClassName?: string
@@ -50,10 +51,7 @@ export function AddressBar({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const url = inputValue.startsWith('http')
-      ? inputValue
-      : `https://${inputValue}`
-    navigate(url)
+    navigate(formatUrl(inputValue.trim()))
   }
 
   return (
