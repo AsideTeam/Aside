@@ -10,6 +10,7 @@ import { logger } from '@main/utils/Logger'
 import { ViewManager } from '@main/managers/ViewManager'
 import type { ViewBounds } from '@shared/types/view'
 import { IPC_CHANNELS } from '@shared/ipc/channels'
+import { ViewNavigateSchema, ViewResizeSchema } from '@shared/validation/schemas'
 import type { IpcRegistry } from './IpcRegistry'
 
 export function setupViewHandlers(registry: IpcRegistry): void {
@@ -17,6 +18,8 @@ export function setupViewHandlers(registry: IpcRegistry): void {
 
   registry.on(IPC_CHANNELS.VIEW.RESIZE, (_event, bounds: ViewBounds) => {
     try {
+      const parsed = ViewResizeSchema.safeParse(bounds)
+      if (!parsed.success) return
       ViewManager.setActiveViewBounds(bounds)
     } catch (error) {
       logger.error('[ViewHandler] view:resize failed:', error)
@@ -25,11 +28,9 @@ export function setupViewHandlers(registry: IpcRegistry): void {
 
   registry.handle(IPC_CHANNELS.VIEW.NAVIGATE, async (_event, input: unknown) => {
     try {
-      const payload = input as { url?: string }
-      const url = payload?.url
-      if (!url || typeof url !== 'string') {
-        return { success: false, error: 'Invalid url' }
-      }
+      const parsed = ViewNavigateSchema.safeParse(input)
+      if (!parsed.success) return { success: false, error: 'Invalid url' }
+      const { url } = parsed.data
 
       await ViewManager.navigate(url)
       return { success: true, url }

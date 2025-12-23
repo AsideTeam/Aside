@@ -7,7 +7,7 @@
  * - 하단: 액션 버튼
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Plus,
   X,
@@ -16,6 +16,7 @@ import {
   Globe,
   Settings,
 } from 'lucide-react';
+import { useOverlayStore } from '@renderer/lib/overlayStore'
 
 interface Tab {
   id: string;
@@ -50,28 +51,7 @@ const INITIAL_TABS: Tab[] = [
 
 export const Sidebar: React.FC = () => {
   const [tabs, setTabs] = useState<Tab[]>(INITIAL_TABS);
-  const [isOpen, setIsOpen] = useState(false);
-
-  useEffect(() => {
-    const open = () => setIsOpen(true);
-    const close = () => setIsOpen(false);
-
-    try {
-      window.electronAPI?.on('sidebar:open', open);
-      window.electronAPI?.on('sidebar:close', close);
-    } catch {
-      // ignore
-    }
-
-    return () => {
-      try {
-        window.electronAPI?.off('sidebar:open', open);
-        window.electronAPI?.off('sidebar:close', close);
-      } catch {
-        // ignore
-      }
-    };
-  }, []);
+  const isOpen = useOverlayStore((s) => s.sidebarOpen)
 
   const handleAddTab = () => {
     const newTab: Tab = {

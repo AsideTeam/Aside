@@ -1,4 +1,10 @@
 import { BrowserWindow, app, screen } from 'electron'
+import { overlayStore } from '@main/state/overlayStore'
+import {
+  OverlayFocusChangedEventSchema,
+  OverlayLatchChangedEventSchema,
+  OverlayOpenCloseEventSchema,
+} from '@shared/validation/schemas'
 
 type AttachArgs = {
   uiWindow: BrowserWindow
@@ -9,37 +15,35 @@ export class OverlayController {
   private static uiWindow: BrowserWindow | null = null
   private static contentWindow: BrowserWindow | null = null
 
-  private static headerLatched = false
-  private static sidebarLatched = false
-
   private static overlayTimer: NodeJS.Timeout | null = null
 
   // listeners for cleanup
   private static cleanupFns: Array<() => void> = []
 
   static getHeaderLatched(): boolean {
-    return this.headerLatched
+    return overlayStore.getState().headerLatched
   }
 
   static getSidebarLatched(): boolean {
-    return this.sidebarLatched
+    return overlayStore.getState().sidebarLatched
   }
 
   static toggleHeaderLatched(): boolean {
-    this.headerLatched = !this.headerLatched
-    this.broadcastLatch('header:latch-changed', this.headerLatched)
-    return this.headerLatched
+    const latched = overlayStore.getState().toggleHeaderLatched()
+    this.broadcastLatch('header:latch-changed', latched)
+    return latched
   }
 
   static toggleSidebarLatched(): boolean {
-    this.sidebarLatched = !this.sidebarLatched
-    this.broadcastLatch('sidebar:latch-changed', this.sidebarLatched)
-    return this.sidebarLatched
+    const latched = overlayStore.getState().toggleSidebarLatched()
+    this.broadcastLatch('sidebar:latch-changed', latched)
+    return latched
   }
 
   private static broadcastLatch(channel: 'header:latch-changed' | 'sidebar:latch-changed', latched: boolean) {
     try {
-      this.uiWindow?.webContents.send(channel, { latched, timestamp: Date.now() })
+      const payload = OverlayLatchChangedEventSchema.parse({ latched, timestamp: Date.now() })
+      this.uiWindow?.webContents.send(channel, payload)
     } catch {
       // ignore
     }
@@ -96,10 +100,8 @@ export class OverlayController {
     let isOverlayOnTop = false
     let isUIInteractive = false
 
-    // focus state (event-driven + low-frequency poll)
+    // focus state (event-driven)
     let appFocused = true
-    let lastFocusPollAt = 0
-    const FOCUS_POLL_MS = 250
 
     const ensureOverlayOnTop = (onTop: boolean) => {
       if (isOverlayOnTop === onTop) return
@@ -136,47 +138,55 @@ export class OverlayController {
     const openSidebar = () => {
       if (!isSidebarOpen) {
         try {
-          uiWindow.webContents.send('sidebar:open', { timestamp: Date.now() })
+          const payload = OverlayOpenCloseEventSchema.parse({ timestamp: Date.now() })
+          uiWindow.webContents.send('sidebar:open', payload)
         } catch {
           // ignore
         }
       }
       isSidebarOpen = true
+      overlayStore.getState().setSidebarOpen(true)
       closeArmedAt = null
     }
 
     const closeSidebar = () => {
       if (isSidebarOpen) {
         try {
-          uiWindow.webContents.send('sidebar:close', { timestamp: Date.now() })
+          const payload = OverlayOpenCloseEventSchema.parse({ timestamp: Date.now() })
+          uiWindow.webContents.send('sidebar:close', payload)
         } catch {
           // ignore
         }
       }
       isSidebarOpen = false
+      overlayStore.getState().setSidebarOpen(false)
     }
 
     const openHeader = () => {
       if (!isHeaderOpen) {
         try {
-          uiWindow.webContents.send('header:open', { timestamp: Date.now() })
+          const payload = OverlayOpenCloseEventSchema.parse({ timestamp: Date.now() })
+          uiWindow.webContents.send('header:open', payload)
         } catch {
           // ignore
         }
       }
       isHeaderOpen = true
+      overlayStore.getState().setHeaderOpen(true)
       closeArmedAt = null
     }
 
     const closeHeader = () => {
       if (isHeaderOpen) {
         try {
-          uiWindow.webContents.send('header:close', { timestamp: Date.now() })
+          const payload = OverlayOpenCloseEventSchema.parse({ timestamp: Date.now() })
+          uiWindow.webContents.send('header:close', payload)
         } catch {
           // ignore
         }
       }
       isHeaderOpen = false
+      overlayStore.getState().setHeaderOpen(false)
     }
 
     const closeAll = () => {
@@ -199,33 +209,29 @@ export class OverlayController {
       }
     }
 
-    let focusRecalcTimer: NodeJS.Timeout | null = null
+    const computeAppFocused = () => {
+      try {
+        const maybe = app as unknown as { isFocused?: () => boolean }
+        if (typeof maybe.isFocused === 'function') {
+          if (!maybe.isFocused()) return false
+        }
+      } catch {
+        // ignore
+      }
+      return isOurAppFocused()
+    }
+
     let lastFocusSent: boolean | null = null
 
     const broadcastWindowFocus = (focused: boolean) => {
       if (lastFocusSent === focused) return
       lastFocusSent = focused
       try {
-        uiWindow.webContents.send('window:focus-changed', {
-          focused,
-          timestamp: Date.now(),
-        })
+        const payload = OverlayFocusChangedEventSchema.parse(focused)
+        uiWindow.webContents.send('window:focus-changed', payload)
       } catch {
         // ignore
       }
-    }
-
-    const scheduleFocusRecalc = () => {
-      if (focusRecalcTimer) clearTimeout(focusRecalcTimer)
-      focusRecalcTimer = setTimeout(() => {
-        focusRecalcTimer = null
-        const nextFocused = isOurAppFocused()
-        if (appFocused !== nextFocused) {
-          appFocused = nextFocused
-          broadcastWindowFocus(appFocused)
-          if (!appFocused) closeAll()
-        }
-      }, 60)
     }
 
     const addCleanup = (fn: () => void) => {
@@ -234,14 +240,32 @@ export class OverlayController {
 
     // Initial state
     closeAll()
-    scheduleFocusRecalc()
+    // Send initial focus state immediately so renderer doesn't rely on any polling.
+    try {
+      appFocused = computeAppFocused()
+      overlayStore.getState().setFocused(appFocused)
+      broadcastWindowFocus(appFocused)
+      if (!appFocused) closeAll()
+    } catch {
+      // ignore
+    }
 
     // Focus events (best-effort)
     try {
-      const onUiFocus = () => scheduleFocusRecalc()
-      const onUiBlur = () => scheduleFocusRecalc()
-      const onContentFocus = () => scheduleFocusRecalc()
-      const onContentBlur = () => scheduleFocusRecalc()
+      const emitNow = () => {
+        const nextFocused = computeAppFocused()
+        if (appFocused !== nextFocused) {
+          appFocused = nextFocused
+          overlayStore.getState().setFocused(appFocused)
+          broadcastWindowFocus(appFocused)
+          if (!appFocused) closeAll()
+        }
+      }
+
+      const onUiFocus = () => emitNow()
+      const onUiBlur = () => emitNow()
+      const onContentFocus = () => emitNow()
+      const onContentBlur = () => emitNow()
 
       uiWindow.on('focus', onUiFocus)
       uiWindow.on('blur', onUiBlur)
@@ -256,10 +280,10 @@ export class OverlayController {
       })
 
       const onAppWinFocus = (_event: Electron.Event, win: BrowserWindow) => {
-        if (win === uiWindow || win === contentWindow) scheduleFocusRecalc()
+        if (win === uiWindow || win === contentWindow) emitNow()
       }
       const onAppWinBlur = (_event: Electron.Event, win: BrowserWindow) => {
-        if (win === uiWindow || win === contentWindow) scheduleFocusRecalc()
+        if (win === uiWindow || win === contentWindow) emitNow()
       }
 
       app.on('browser-window-focus', onAppWinFocus)
@@ -284,7 +308,7 @@ export class OverlayController {
           event.preventDefault()
           this.toggleHeaderLatched()
           closeArmedAt = null
-          if (this.headerLatched) {
+          if (overlayStore.getState().headerLatched) {
             openHeader()
             ensureOverlayOnTop(true)
           } else {
@@ -297,7 +321,7 @@ export class OverlayController {
           this.toggleSidebarLatched()
           closeArmedAt = null
 
-          if (this.sidebarLatched) {
+          if (overlayStore.getState().sidebarLatched) {
             openSidebar()
             ensureOverlayOnTop(true)
           } else {
@@ -306,12 +330,13 @@ export class OverlayController {
         }
 
         if (key === 'escape') {
-          if (this.headerLatched || this.sidebarLatched || isHeaderOpen || isSidebarOpen) {
+          const { headerLatched, sidebarLatched } = overlayStore.getState()
+          if (headerLatched || sidebarLatched || isHeaderOpen || isSidebarOpen) {
             event.preventDefault()
-            this.headerLatched = false
-            this.sidebarLatched = false
-            this.broadcastLatch('header:latch-changed', this.headerLatched)
-            this.broadcastLatch('sidebar:latch-changed', this.sidebarLatched)
+            overlayStore.getState().setHeaderLatched(false)
+            overlayStore.getState().setSidebarLatched(false)
+            this.broadcastLatch('header:latch-changed', false)
+            this.broadcastLatch('sidebar:latch-changed', false)
             closeAll()
           }
         }
@@ -330,16 +355,22 @@ export class OverlayController {
     }
 
     this.overlayTimer = setInterval(() => {
-      // low-frequency focus poll to guard against missed blur
-      const now = Date.now()
-      if (now - lastFocusPollAt >= FOCUS_POLL_MS) {
-        lastFocusPollAt = now
-        const nextFocused = isOurAppFocused()
-        if (appFocused !== nextFocused) {
-          appFocused = nextFocused
-          broadcastWindowFocus(appFocused)
-          if (!appFocused) closeAll()
+      if (uiWindow.isDestroyed() || contentWindow.isDestroyed()) {
+        try {
+          this.dispose()
+        } catch {
+          // ignore
         }
+        return
+      }
+
+      // Hard gate: even if blur events are missed, do not allow overlay while another app is focused.
+      const nextFocused = computeAppFocused()
+      if (appFocused !== nextFocused) {
+        appFocused = nextFocused
+        overlayStore.getState().setFocused(appFocused)
+        broadcastWindowFocus(appFocused)
+        if (!appFocused) closeAll()
       }
 
       if (!appFocused) {
@@ -361,7 +392,8 @@ export class OverlayController {
         pt.y <= bounds.y + bounds.height + EDGE_PAD
 
       if (!insideWindow) {
-        if (this.headerLatched || this.sidebarLatched) {
+        const { headerLatched, sidebarLatched } = overlayStore.getState()
+        if (headerLatched || sidebarLatched) {
           ensureOverlayOnTop(true)
           setUIInteractivity(false)
           return
@@ -378,8 +410,9 @@ export class OverlayController {
       const headerHotzoneHeight = isHeaderOpen ? HEADER_HEIGHT : HEADER_HOTZONE_HEIGHT
 
       const wantHeaderHover = relY <= headerHotzoneHeight
-      const wantHeaderVisible = this.headerLatched || wantHeaderHover
-      const wantSidebarVisible = this.sidebarLatched || (!wantHeaderVisible && relX <= sidebarWidth)
+      const { headerLatched, sidebarLatched } = overlayStore.getState()
+      const wantHeaderVisible = headerLatched || wantHeaderHover
+      const wantSidebarVisible = sidebarLatched || (!wantHeaderVisible && relX <= sidebarWidth)
 
       ensureOverlayOnTop(wantHeaderVisible || wantSidebarVisible)
 
@@ -388,19 +421,20 @@ export class OverlayController {
       setUIInteractivity(wantHeaderInteractive || wantSidebarInteractive)
 
       if (wantHeaderVisible) {
-        if (isSidebarOpen && !this.sidebarLatched) closeSidebar()
+        if (isSidebarOpen && !overlayStore.getState().sidebarLatched) closeSidebar()
         openHeader()
         return
       }
 
       if (wantSidebarVisible) {
-        if (isHeaderOpen && !this.headerLatched) closeHeader()
+        if (isHeaderOpen && !overlayStore.getState().headerLatched) closeHeader()
         openSidebar()
         return
       }
 
       if (isSidebarOpen || isHeaderOpen) {
-        if (this.headerLatched || this.sidebarLatched) {
+        const { headerLatched: hl, sidebarLatched: sl } = overlayStore.getState()
+        if (hl || sl) {
           return
         }
         if (closeArmedAt === null) {
@@ -413,9 +447,5 @@ export class OverlayController {
         }
       }
     }, 33)
-
-    addCleanup(() => {
-      if (focusRecalcTimer) clearTimeout(focusRecalcTimer)
-    })
   }
 }

@@ -18,7 +18,7 @@ import { BrowserWindow, app, screen } from 'electron'
 import { join } from 'node:path'
 import { logger } from '@main/utils/Logger'
 import { Env } from '@main/config'
-import { OverlayController } from '@main/core/overlay/OverlayController'
+import { OverlayController } from '@main/core/OverlayController'
 
 /**
  * MainWindow 싱글톤 관리

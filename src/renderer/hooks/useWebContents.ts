@@ -10,7 +10,8 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { logger } from '../lib/logger';
-import type { ViewNavigatedEvent, ViewLoadedEvent } from '@shared/types/view';
+import { IPC_CHANNELS } from '@shared/ipc/channels'
+import { ViewLoadedEventSchema, ViewNavigatedEventSchema } from '@shared/validation/schemas'
 
 interface UseWebContentsState {
   currentUrl: string;
@@ -107,7 +108,9 @@ export const useWebContents = (initialUrl: string = 'https://www.google.com') =>
 
     // 뷰 로드 완료
     const handleViewLoaded = (data: unknown) => {
-      const event = data as ViewLoadedEvent;
+      const parsed = ViewLoadedEventSchema.safeParse(data)
+      if (!parsed.success) return
+      const event = parsed.data
       logger.info('useWebContents - View loaded', { url: event.url });
       setState((prev) => ({
         ...prev,
@@ -118,7 +121,9 @@ export const useWebContents = (initialUrl: string = 'https://www.google.com') =>
 
     // 뷰 네비게이션 완료
     const handleViewNavigated = (data: unknown) => {
-      const event = data as ViewNavigatedEvent;
+      const parsed = ViewNavigatedEventSchema.safeParse(data)
+      if (!parsed.success) return
+      const event = parsed.data
       logger.info('useWebContents - View navigated', {
         url: event.url,
         canGoBack: event.canGoBack,
@@ -133,12 +138,12 @@ export const useWebContents = (initialUrl: string = 'https://www.google.com') =>
       }));
     };
 
-    window.electronAPI.on('view:loaded', handleViewLoaded);
-    window.electronAPI.on('view:navigated', handleViewNavigated);
+    window.electronAPI.on(IPC_CHANNELS.VIEW.LOADED, handleViewLoaded);
+    window.electronAPI.on(IPC_CHANNELS.VIEW.NAVIGATED, handleViewNavigated);
 
     return () => {
-      window.electronAPI.off('view:loaded', handleViewLoaded);
-      window.electronAPI.off('view:navigated', handleViewNavigated);
+      window.electronAPI.off(IPC_CHANNELS.VIEW.LOADED, handleViewLoaded);
+      window.electronAPI.off(IPC_CHANNELS.VIEW.NAVIGATED, handleViewNavigated);
     };
   }, []);
 

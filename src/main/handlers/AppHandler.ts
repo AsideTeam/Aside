@@ -14,7 +14,7 @@
 import { app } from 'electron'
 import { logger } from '@main/utils/Logger'
 import { MainWindow } from '@main/core/Window'
-import { OverlayController } from '@main/core/overlay/OverlayController'
+import { OverlayController } from '@main/core/OverlayController'
 import { AppState } from '@main/managers/AppState'
 import { ViewManager } from '@main/managers/ViewManager'
 import { IPC_CHANNELS } from '@shared/ipc/channels'

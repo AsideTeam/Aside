@@ -34,6 +34,72 @@ export const WindowMaximizeSchema = z.object({})
 export const WindowCloseSchema = z.object({})
 
 /**
+ * Overlay Events (Main  Renderer)
+ *
+ * Note: these are outbound payload shapes too (for contract stability).
+ */
+
+export const OverlayFocusChangedEventSchema = z.boolean()
+
+export const OverlayOpenCloseEventSchema = z.object({
+  timestamp: z.number(),
+})
+
+export const OverlayLatchChangedEventSchema = z.object({
+  latched: z.boolean(),
+  timestamp: z.number(),
+})
+
+/**
+ * View Events (Main → Renderer)
+ */
+
+export const ViewLoadedEventSchema = z.object({
+  url: z.string().min(1),
+  timestamp: z.number(),
+})
+
+export const ViewNavigatedEventSchema = z.object({
+  url: z.string().min(1),
+  canGoBack: z.boolean(),
+  canGoForward: z.boolean(),
+  timestamp: z.number(),
+})
+
+/**
+ * View IPC (Renderer → Main)
+ */
+
+export const ViewResizeSchema = z.object({
+  x: z.number().int(),
+  y: z.number().int(),
+  width: z.number().int().nonnegative(),
+  height: z.number().int().nonnegative(),
+  margin: z.number().int().nonnegative().optional(),
+})
+
+export const ViewNavigateSchema = z.object({
+  url: z
+    .string()
+    .min(1, 'URL cannot be empty')
+    .max(2048, 'URL exceeds maximum length')
+    .refine(
+      (url) => {
+        try {
+          const parsed = new URL(url)
+          const allowedProtocols = ['http:', 'https:', 'about:']
+          return allowedProtocols.includes(parsed.protocol)
+        } catch {
+          return false
+        }
+      },
+      {
+        message: 'Invalid URL format or unsupported protocol',
+      }
+    ),
+})
+
+/**
  * Tab IPC 검증 (가장 중요 - 외부 입력)
  */
 

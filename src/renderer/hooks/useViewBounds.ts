@@ -16,6 +16,7 @@
 import { useCallback, useRef } from 'react';
 import { logger } from '../lib/logger';
 import type { ViewBounds } from '@shared/types/view';
+import { ViewResizeSchema } from '@shared/validation/schemas'
 
 type Margins = {
   top: number;
@@ -62,8 +63,13 @@ export const useViewBounds = (
 
       // 이전과 다를 때만 업데이트 (성능 최적화)
       if (!lastBoundsRef.current || !areBoundsEqual(lastBoundsRef.current, newBounds)) {
+        const parsed = ViewResizeSchema.safeParse(newBounds)
+        if (!parsed.success) {
+          logger.warn('useViewBounds - Invalid bounds; skip resize')
+          return
+        }
         logger.info('useViewBounds - Updating view bounds', { bounds: newBounds });
-        window.electronAPI.view.resize(newBounds);
+        window.electronAPI.view.resize(parsed.data);
         lastBoundsRef.current = newBounds;
       }
     } catch (error) {
