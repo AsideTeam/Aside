@@ -1,18 +1,14 @@
 /**
- * Sidebar Component
+ * Sidebar Component (Zen Browser Style)
  *
- * Zen Layout의 좌측 사이드바
- * - 탭 목록
- * - 빠른 접근 (북마크, 방문 기록)
- * - 설정 버튼
- *
- * CSS 변수 기반 스타일 사용
- * - 테마 변경 시 자동 반영
- * - 언어/레이아웃 선택 용이
+ * Zen Browser 스타일 사이드바
+ * - 깔끔하고 미니멀한 디자인
+ * - 탭 관리
+ * - 빠른 접근 (북마크, 히스토리)
+ * - 설정
  */
 
 import React, { useState } from 'react';
-import { Button } from '../ui/Button';
 import { logger } from '@renderer/lib/logger';
 import { tokens, cn } from '@renderer/styles';
 import { Icons } from '@renderer/lib/icons';
@@ -45,7 +41,7 @@ export const Sidebar: React.FC = () => {
       title: 'New Tab',
       url: 'https://www.google.com',
       isActive: true,
-      iconName: Icons.Plus,
+      iconName: Icons.Home,
     };
     setTabs((prev) => [
       ...prev.map((t) => ({ ...t, isActive: false })),
@@ -78,6 +74,7 @@ export const Sidebar: React.FC = () => {
         >
           {Icons.Menu}
         </button>
+        <div className="flex-1" />
         <button
           onClick={handleAddTab}
           className={cn(tokens.colors.button.ghost, 'p-2 rounded transition-colors')}
@@ -92,8 +89,8 @@ export const Sidebar: React.FC = () => {
   return (
     <div className={tokens.layout.sidebar.wrapper}>
       {/* Header */}
-      <div className={tokens.layout.sidebar.header}>
-        <h1 className={tokens.layout.sidebar.title}>Zen</h1>
+      <div className={cn(tokens.layout.sidebar.header, 'drag-region')}>
+        <h1 className={tokens.layout.sidebar.title}>Aside</h1>
         <button
           onClick={() => setIsCollapsed(true)}
           className={cn(tokens.colors.button.ghost, 'p-1 rounded transition-colors no-drag')}
@@ -103,54 +100,97 @@ export const Sidebar: React.FC = () => {
         </button>
       </div>
 
-      {/* Tabs List */}
-      <div className={tokens.layout.sidebar.content}>
-        <div className="p-2 space-y-2">
-          {tabs.map((tab) => (
-            <div
-              key={tab.id}
-              className={cn(
-                tokens.layout.tab.wrapper,
-                tab.isActive ? tokens.layout.tab.active : tokens.layout.tab.inactive
-              )}
-              onClick={() => handleSwitchTab(tab.id)}
-            >
-              <span className="text-sm shrink-0">{tab.iconName || '📄'}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{tab.title}</p>
-                <p className="text-xs opacity-75 truncate">{tab.url}</p>
+      {/* Main Content */}
+      <div className={cn('flex-1 overflow-y-auto', 'flex flex-col')}>
+        {/* Tabs Section */}
+        <div className="px-3 py-4">
+          <div className="space-y-2">
+            {tabs.length > 0 ? (
+              tabs.map((tab) => (
+                <div
+                  key={tab.id}
+                  className={cn(
+                    'tab-wrapper',
+                    tab.isActive ? tokens.layout.tab.active : tokens.layout.tab.inactive
+                  )}
+                  onClick={() => handleSwitchTab(tab.id)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{tab.title}</p>
+                    <p className="text-xs opacity-70 truncate">{tab.url}</p>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCloseTab(tab.id);
+                    }}
+                    className={tokens.layout.tab.closeBtn}
+                    title="Close tab"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div className={cn('text-center py-6', tokens.colors.text.secondary)}>
+                <p className="text-xs">No tabs open</p>
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCloseTab(tab.id);
-                }}
-                className={tokens.layout.tab.closeBtn}
-                title="Close tab"
-              >
-                ×
-              </button>
-            </div>
-          ))}
+            )}
+          </div>
+        </div>
+
+        {/* Separator */}
+        <div className="border-t border-(--color-border-primary)" />
+
+        {/* Quick Access Section */}
+        <div className="px-3 py-4">
+          <p className={cn('text-xs font-semibold mb-3 uppercase tracking-wide', tokens.colors.text.secondary)}>
+            Quick Access
+          </p>
+          <div className="space-y-2">
+            <button
+              onClick={handleAddTab}
+              className={cn(
+                'w-full text-left px-3 py-2 rounded transition-colors',
+                tokens.colors.button.secondary,
+                'hover:bg-(--color-bg-hover) text-sm'
+              )}
+            >
+              {Icons.Plus} New Tab
+            </button>
+            <button
+              className={cn(
+                'w-full text-left px-3 py-2 rounded transition-colors',
+                tokens.colors.button.secondary,
+                'hover:bg-(--color-bg-hover) text-sm'
+              )}
+            >
+              {Icons.Bookmark} Bookmarks
+            </button>
+            <button
+              className={cn(
+                'w-full text-left px-3 py-2 rounded transition-colors',
+                tokens.colors.button.secondary,
+                'hover:bg-(--color-bg-hover) text-sm'
+              )}
+            >
+              {Icons.History} History
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className={tokens.layout.sidebar.actions}>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={handleAddTab}
-          className="w-full"
+      {/* Footer - Settings */}
+      <div className={cn('border-t border-(--color-border-primary)', 'p-3')}>
+        <button
+          className={cn(
+            'w-full text-left px-3 py-2 rounded transition-colors',
+            tokens.colors.button.secondary,
+            'hover:bg-(--color-bg-hover) text-sm'
+          )}
         >
-          {Icons.Plus} New Tab
-        </Button>
-        <Button variant="secondary" size="sm" className="w-full">
-          {Icons.Bookmark} Bookmarks
-        </Button>
-        <Button variant="secondary" size="sm" className="w-full">
           {Icons.Settings} Settings
-        </Button>
+        </button>
       </div>
     </div>
   );

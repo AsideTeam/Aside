@@ -44,11 +44,12 @@
 
 /* ===== Sidebar Components ===== */
 .sidebar-wrapper {
-  @apply bg-linear-to-b from-(--color-bg-secondary)/80 to-(--color-bg-primary)/80 backdrop-blur-md border-r border-(--color-border-primary) flex flex-col z-(--z-sidebar);
+  @apply bg-(--color-bg-secondary) border-r border-(--color-border-primary) flex flex-col h-screen w-64 relative;
 }
 
 .sidebar-header {
-  @apply flex items-center justify-between p-4 border-b border-(--color-border-primary);
+  @apply flex items-center justify-between p-4 border-b border-(--color-border-primary) bg-(--color-bg-primary);
+  -webkit-app-region: drag;
 }
 
 .sidebar-header.drag-region {
@@ -57,7 +58,7 @@
 }
 
 .sidebar-title {
-  @apply text-lg font-bold text-(--color-text-primary);
+  @apply text-lg font-bold text-(--color-text-primary) tracking-wide;
 }
 
 .sidebar-content {
@@ -69,12 +70,17 @@
 }
 
 .sidebar-collapsed {
-  @apply w-16 flex flex-col items-center justify-between py-4 bg-linear-to-b from-(--color-bg-secondary) to-(--color-bg-primary) border-r border-(--color-border-primary);
+  @apply w-20 h-screen flex flex-col items-center justify-between py-4 bg-(--color-bg-secondary) border-r border-(--color-border-primary);
 }
 
 /* ===== Tab Styles ===== */
 .tab-wrapper {
-  @apply flex items-center gap-2 p-2 rounded cursor-pointer transition-colors;
+  @apply flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200;
+  -webkit-app-region: no-drag;
+}
+
+.tab-wrapper:hover {
+  @apply bg-(--color-bg-hover);
 }
 
 .tab-wrapper:hover .tab-close-btn {
@@ -82,17 +88,18 @@
 }
 
 .tab-active {
-  @apply bg-(--color-accent) text-white;
+  @apply bg-(--color-accent) text-white shadow-md;
 }
 
 .tab-inactive {
-  @apply text-(--color-text-secondary) hover:bg-(--color-bg-hover) hover:text-(--color-text-primary);
+  @apply text-(--color-text-secondary);
 }
 
 .tab-close-btn {
   opacity: 0;
-  @apply p-1 hover:bg-(--color-danger)/20 rounded transition-all;
+  @apply w-6 h-6 flex items-center justify-center ml-auto rounded-full hover:bg-(--color-danger)/30 text-lg transition-all duration-200;
   -webkit-app-region: no-drag;
+  font-weight: 600;
 }
 
 /* ===== AddressBar ===== */
