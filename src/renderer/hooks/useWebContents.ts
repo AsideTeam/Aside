@@ -60,6 +60,47 @@ export const useWebContents = (initialUrl: string = 'https://www.google.com') =>
     }
   }, []);
 
+  const goBack = useCallback(async () => {
+    if (!window.electronAPI?.tab) {
+      logger.error('useWebContents - electronAPI.tab not available');
+      return;
+    }
+
+    try {
+      await window.electronAPI.tab.back();
+    } catch (error) {
+      logger.error('useWebContents - Go back error', { error });
+    }
+  }, []);
+
+  const goForward = useCallback(async () => {
+    if (!window.electronAPI?.tab) {
+      logger.error('useWebContents - electronAPI.tab not available');
+      return;
+    }
+
+    try {
+      await window.electronAPI.tab.forward();
+    } catch (error) {
+      logger.error('useWebContents - Go forward error', { error });
+    }
+  }, []);
+
+  const reload = useCallback(async () => {
+    if (!window.electronAPI?.tab) {
+      logger.error('useWebContents - electronAPI.tab not available');
+      return;
+    }
+
+    try {
+      setState((prev) => ({ ...prev, isLoading: true }));
+      await window.electronAPI.tab.reload();
+    } catch (error) {
+      logger.error('useWebContents - Reload error', { error });
+      setState((prev) => ({ ...prev, isLoading: false }));
+    }
+  }, []);
+
   // Main → Renderer 이벤트 리스너
   useEffect(() => {
     if (!window.electronAPI) return;
@@ -104,5 +145,8 @@ export const useWebContents = (initialUrl: string = 'https://www.google.com') =>
   return {
     ...state,
     navigate,
+    goBack,
+    goForward,
+    reload,
   };
 };

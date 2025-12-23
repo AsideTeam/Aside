@@ -418,56 +418,95 @@ class MainWindow {
     const HOTZONE_WIDTH = 6;
     const SIDEBAR_WIDTH = 256;
     const CLOSE_DELAY_MS = 180;
-    let isOpen = false;
+    const HEADER_HOTZONE_HEIGHT = 6;
+    const HEADER_HEIGHT = 64;
+    let isSidebarOpen = false;
+    let isHeaderOpen = false;
     let closeArmedAt = null;
-    const open = () => {
+    const openSidebar = () => {
       if (!this.uiWindow) return;
-      if (!isOpen) {
+      if (!isSidebarOpen) {
         try {
           this.uiWindow.webContents.send("sidebar:open", { timestamp: Date.now() });
         } catch {
         }
       }
-      isOpen = true;
+      isSidebarOpen = true;
       closeArmedAt = null;
       this.uiWindow.setIgnoreMouseEvents(false);
     };
-    const close = () => {
+    const closeSidebar = () => {
       if (!this.uiWindow) return;
-      if (isOpen) {
+      if (isSidebarOpen) {
         try {
           this.uiWindow.webContents.send("sidebar:close", { timestamp: Date.now() });
         } catch {
         }
       }
-      isOpen = false;
+      isSidebarOpen = false;
+    };
+    const openHeader = () => {
+      if (!this.uiWindow) return;
+      if (!isHeaderOpen) {
+        try {
+          this.uiWindow.webContents.send("header:open", { timestamp: Date.now() });
+        } catch {
+        }
+      }
+      isHeaderOpen = true;
+      closeArmedAt = null;
+      this.uiWindow.setIgnoreMouseEvents(false);
+    };
+    const closeHeader = () => {
+      if (!this.uiWindow) return;
+      if (isHeaderOpen) {
+        try {
+          this.uiWindow.webContents.send("header:close", { timestamp: Date.now() });
+        } catch {
+        }
+      }
+      isHeaderOpen = false;
+    };
+    const closeAll = () => {
+      if (!this.uiWindow) return;
+      closeSidebar();
+      closeHeader();
       closeArmedAt = null;
       this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
     };
-    close();
+    closeAll();
     this.overlayTimer = setInterval(() => {
       if (!this.uiWindow) return;
       const bounds = this.uiWindow.getBounds();
       const pt = screen.getCursorScreenPoint();
       const insideWindow = pt.x >= bounds.x && pt.x <= bounds.x + bounds.width && pt.y >= bounds.y && pt.y <= bounds.y + bounds.height;
       if (!insideWindow) {
-        if (isOpen) close();
+        if (isSidebarOpen || isHeaderOpen) closeAll();
         return;
       }
       const relX = pt.x - bounds.x;
-      const interactiveWidth = isOpen ? SIDEBAR_WIDTH : HOTZONE_WIDTH;
-      const insideSidebarZone = relX <= interactiveWidth;
-      if (insideSidebarZone) {
-        open();
+      const relY = pt.y - bounds.y;
+      const sidebarWidth = isSidebarOpen ? SIDEBAR_WIDTH : HOTZONE_WIDTH;
+      const headerHeight = isHeaderOpen ? HEADER_HEIGHT : HEADER_HOTZONE_HEIGHT;
+      const wantSidebar = relX <= sidebarWidth;
+      const wantHeader = relY <= headerHeight;
+      if (wantSidebar) {
+        if (isHeaderOpen) closeHeader();
+        openSidebar();
         return;
       }
-      if (isOpen) {
+      if (wantHeader) {
+        if (isSidebarOpen) closeSidebar();
+        openHeader();
+        return;
+      }
+      if (isSidebarOpen || isHeaderOpen) {
         if (closeArmedAt === null) {
           closeArmedAt = Date.now();
           return;
         }
         if (Date.now() - closeArmedAt >= CLOSE_DELAY_MS) {
-          close();
+          closeAll();
         }
       } else {
         this.uiWindow.setIgnoreMouseEvents(true, { forward: true });

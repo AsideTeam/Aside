@@ -13,6 +13,7 @@
 
 import React, { useEffect } from 'react';
 import { Sidebar } from '../components/browser/Sidebar';
+import { ZenHeader } from '../components/browser/ZenHeader';
 import { cn, tokens } from '@renderer/styles';
 
 export const ZenLayout: React.FC = () => {
@@ -25,6 +26,7 @@ export const ZenLayout: React.FC = () => {
 
   return (
     <div className={cn('aside-overlay', tokens.colors.text.primary)}>
+      <ZenHeader />
       <Sidebar />
     </div>
   );

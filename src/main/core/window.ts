@@ -310,39 +310,75 @@ export class MainWindow {
     const SIDEBAR_WIDTH = 256 // theme.css: 16rem
     const CLOSE_DELAY_MS = 180
 
-    let isOpen = false
+    const HEADER_HOTZONE_HEIGHT = 6
+    const HEADER_HEIGHT = 64
+
+    let isSidebarOpen = false
+    let isHeaderOpen = false
     let closeArmedAt: number | null = null
 
-    const open = () => {
+    const openSidebar = () => {
       if (!this.uiWindow) return
-      if (!isOpen) {
+      if (!isSidebarOpen) {
         try {
           this.uiWindow.webContents.send('sidebar:open', { timestamp: Date.now() })
         } catch {
           // ignore
         }
       }
-      isOpen = true
+      isSidebarOpen = true
       closeArmedAt = null
       this.uiWindow.setIgnoreMouseEvents(false)
     }
 
-    const close = () => {
+    const closeSidebar = () => {
       if (!this.uiWindow) return
-      if (isOpen) {
+      if (isSidebarOpen) {
         try {
           this.uiWindow.webContents.send('sidebar:close', { timestamp: Date.now() })
         } catch {
           // ignore
         }
       }
-      isOpen = false
+      isSidebarOpen = false
+    }
+
+    const openHeader = () => {
+      if (!this.uiWindow) return
+      if (!isHeaderOpen) {
+        try {
+          this.uiWindow.webContents.send('header:open', { timestamp: Date.now() })
+        } catch {
+          // ignore
+        }
+      }
+      isHeaderOpen = true
+      closeArmedAt = null
+      this.uiWindow.setIgnoreMouseEvents(false)
+    }
+
+    const closeHeader = () => {
+      if (!this.uiWindow) return
+      if (isHeaderOpen) {
+        try {
+          this.uiWindow.webContents.send('header:close', { timestamp: Date.now() })
+        } catch {
+          // ignore
+        }
+      }
+      isHeaderOpen = false
+    }
+
+    const closeAll = () => {
+      if (!this.uiWindow) return
+      closeSidebar()
+      closeHeader()
       closeArmedAt = null
       this.uiWindow.setIgnoreMouseEvents(true, { forward: true })
     }
 
     // 기본은 닫힘 상태
-    close()
+    closeAll()
 
     this.overlayTimer = setInterval(() => {
       if (!this.uiWindow) return
@@ -357,27 +393,40 @@ export class MainWindow {
         pt.y <= bounds.y + bounds.height
 
       if (!insideWindow) {
-        if (isOpen) close()
+        if (isSidebarOpen || isHeaderOpen) closeAll()
         return
       }
 
       const relX = pt.x - bounds.x
-      const interactiveWidth = isOpen ? SIDEBAR_WIDTH : HOTZONE_WIDTH
-      const insideSidebarZone = relX <= interactiveWidth
+      const relY = pt.y - bounds.y
 
-      if (insideSidebarZone) {
-        open()
+      const sidebarWidth = isSidebarOpen ? SIDEBAR_WIDTH : HOTZONE_WIDTH
+      const headerHeight = isHeaderOpen ? HEADER_HEIGHT : HEADER_HOTZONE_HEIGHT
+
+      const wantSidebar = relX <= sidebarWidth
+      const wantHeader = relY <= headerHeight
+
+      if (wantSidebar) {
+        // 사이드바 우선. 동시에 헤더가 열려있으면 닫아줌.
+        if (isHeaderOpen) closeHeader()
+        openSidebar()
         return
       }
 
-      if (isOpen) {
+      if (wantHeader) {
+        if (isSidebarOpen) closeSidebar()
+        openHeader()
+        return
+      }
+
+      if (isSidebarOpen || isHeaderOpen) {
         if (closeArmedAt === null) {
           closeArmedAt = Date.now()
           return
         }
 
         if (Date.now() - closeArmedAt >= CLOSE_DELAY_MS) {
-          close()
+          closeAll()
         }
       } else {
         // 닫힌 상태에서 영역 밖이면 항상 click-through

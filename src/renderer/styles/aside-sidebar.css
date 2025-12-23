@@ -291,6 +291,54 @@
   background: transparent;
 }
 
+/* ===== Header (AddressBar Overlay) ===== */
+.aside-header {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translate(-50%, -12px);
+  opacity: 0;
+  pointer-events: none;
+  z-index: calc(var(--z-sidebar) + 1);
+  transition:
+    transform var(--duration-slow) ease,
+    opacity var(--duration-fast) ease;
+  -webkit-app-region: no-drag;
+}
+
+.aside-header--open {
+  transform: translate(-50%, 0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.aside-header-surface {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  width: min(820px, calc(100vw - 24px));
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-primary);
+  background-color: color-mix(in srgb, var(--color-bg-secondary) 80%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.aside-header-input {
+  flex: 1;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-light);
+  background-color: color-mix(in srgb, var(--color-bg-primary) 72%, transparent);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.aside-header-input:focus {
+  border-color: var(--color-accent);
+}
+
 /* ===== Frame + Placeholder (WebContentsView 자리) ===== */
 .aside-frame {
   display: flex;

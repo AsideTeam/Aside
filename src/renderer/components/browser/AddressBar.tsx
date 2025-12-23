@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { logger } from '../../lib/logger';
 import { tokens } from '@renderer/styles';
+import { ArrowLeft, ArrowRight, RotateCw, ArrowRightCircle } from 'lucide-react';
 
 interface AddressBarProps {
   currentUrl: string;
@@ -12,6 +13,8 @@ interface AddressBarProps {
   canGoBack?: boolean;
   canGoForward?: boolean;
   isLoading?: boolean;
+  wrapperClassName?: string;
+  inputClassName?: string;
 }
 
 export const AddressBar: React.FC<AddressBarProps> = ({
@@ -23,8 +26,14 @@ export const AddressBar: React.FC<AddressBarProps> = ({
   canGoBack = false,
   canGoForward = false,
   isLoading = false,
+  wrapperClassName,
+  inputClassName,
 }) => {
   const [inputValue, setInputValue] = useState(currentUrl);
+
+  useEffect(() => {
+    setInputValue(currentUrl);
+  }, [currentUrl]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
@@ -43,39 +52,39 @@ export const AddressBar: React.FC<AddressBarProps> = ({
   };
 
   return (
-    <div className={tokens.layout.addressBar.wrapper}>
+    <div className={wrapperClassName ?? tokens.layout.addressBar.wrapper}>
       {/* Navigation Buttons */}
       <Button
-        variant="secondary"
+        variant="ghost"
         size="sm"
         onClick={onGoBack}
         disabled={!canGoBack}
         className="disabled:opacity-50"
         title="Go back"
       >
-        ←
+        <ArrowLeft size={16} />
       </Button>
       <Button
-        variant="secondary"
+        variant="ghost"
         size="sm"
         onClick={onGoForward}
         disabled={!canGoForward}
         className="disabled:opacity-50"
         title="Go forward"
       >
-        →
+        <ArrowRight size={16} />
       </Button>
 
       {/* Reload Button */}
       <Button
-        variant="secondary"
+        variant="ghost"
         size="sm"
         onClick={onReload}
         disabled={isLoading}
         className="disabled:opacity-50"
         title="Reload page"
       >
-        {isLoading ? '⟳' : '🔄'}
+        <RotateCw size={16} />
       </Button>
 
       {/* Address Input */}
@@ -85,12 +94,12 @@ export const AddressBar: React.FC<AddressBarProps> = ({
         onChange={handleInputChange}
         onKeyPress={handleKeyPress}
         placeholder="Enter URL..."
-        className={tokens.layout.addressBar.input}
+        className={inputClassName ?? tokens.layout.addressBar.input}
       />
 
       {/* Navigate Button */}
       <Button variant="primary" size="sm" onClick={handleNavigateClick}>
-        Go
+        <ArrowRightCircle size={16} />
       </Button>
     </div>
   );

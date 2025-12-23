@@ -25,6 +25,8 @@ const allowedEventChannels = [
   'view:navigated', // WebContentsView 네비게이션 완료
   'sidebar:open',
   'sidebar:close',
+  'header:open',
+  'header:close',
 ]
 
 /**
