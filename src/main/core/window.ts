@@ -77,7 +77,8 @@ export class MainWindow {
         webPreferences: {
           preload: join(__dirname, '../preload/index.cjs'),
           contextIsolation: true, // 보안: 메인 ↔ 렌더러 격리
-          sandbox: true, // 렌더러 프로세스 샌드박스
+          // NOTE: Dev에서는 Vite/HMR/CSS 주입 이슈를 피하기 위해 sandbox를 끔
+          sandbox: Env.isDev ? false : true,
         },
 
         // 창 로드 전 숨김 (깜빡임 방지)

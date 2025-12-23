@@ -1,0 +1,297 @@
+@import "tailwindcss";
+
+/* ===== Chrome Browser 스타일 정확한 복제 ===== */
+
+:root {
+  /* 배경색 */
+  --bg-main: #202124;
+  --bg-toolbar: #35363a;
+  --bg-input: #292a2d;
+  --bg-input-hover: #303134;
+  --bg-settings: #f8f9fa;
+  --bg-card: #ffffff;
+  
+  /* 텍스트 */
+  --text-primary: #e8eaed;
+  --text-secondary: #9aa0a6;
+  --text-disabled: #5f6368;
+  --text-dark: #202124;
+  --text-dark-secondary: #5f6368;
+  
+  /* 아이콘/버튼 */
+  --icon-default: #9aa0a6;
+  --icon-hover: #e8eaed;
+  --icon-disabled: #5f6368;
+  
+  /* 액센트 */
+  --accent-primary: #1967d2;
+  --accent-bg: #e8f0fe;
+  
+  /* Border */
+  --border-light: #dadce0;
+  --border-lighter: #e8eaed;
+  
+  /* 간격 표준 */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  
+  /* 높이 표준 */
+  --height-tab: 40px;
+  --height-tab-item: 32px;
+  --height-addressbar: 48px;
+  --height-nav-button: 36px;
+  --height-url-input: 36px;
+  
+  /* 폰트 크기 */
+  --font-xs: 12px;
+  --font-sm: 13px;
+  --font-md: 14px;
+  --font-lg: 15px;
+  --font-xl: 18px;
+  --font-2xl: 22px;
+  
+  /* 둥근 모서리 */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+  
+  /* transition */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+}
+
+/* ===== Reset & Base ===== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+  font-size: var(--font-md);
+  line-height: 1.5;
+  background: var(--bg-main);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+/* ===== Electron 드래그 영역 ===== */
+.-webkit-app-region-drag {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.-webkit-app-region-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* ===== 스크롤바 ===== */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ===== 버튼 기본 스타일 ===== */
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  transition: all var(--transition-fast);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ===== Input 기본 스타일 ===== */
+input {
+  border: none;
+  outline: none;
+  font-family: inherit;
+}
+
+input::placeholder {
+  color: var(--text-secondary);
+}
+
+/* ===== Chrome 버튼 스타일 ===== */
+.chrome-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-md);
+  font-weight: 500;
+  border-radius: var(--radius-full);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.chrome-button-primary {
+  background: var(--accent-bg);
+  color: var(--accent-primary);
+  border: 1px solid var(--accent-primary);
+}
+
+.chrome-button-primary:hover {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.chrome-button-secondary {
+  background: transparent;
+  color: var(--text-dark-secondary);
+  border: 1px solid var(--border-light);
+}
+
+.chrome-button-secondary:hover {
+  background: #f1f3f4;
+}
+
+/* ===== 아이콘 버튼 ===== */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--height-nav-button);
+  height: var(--height-nav-button);
+  border-radius: 50%;
+  color: var(--icon-default);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.icon-button:hover:not(:disabled) {
+  color: var(--icon-hover);
+  background: rgba(95, 99, 104, 0.2);
+}
+
+.icon-button:disabled {
+  color: var(--icon-disabled);
+  cursor: not-allowed;
+}
+
+/* ===== Settings 스타일 ===== */
+.settings-container {
+  background: var(--bg-settings);
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.settings-header {
+  padding: var(--space-xl);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.settings-content {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+.settings-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: var(--space-xl);
+  margin-bottom: var(--space-lg);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.settings-section-title {
+  font-size: var(--font-xl);
+  font-weight: 500;
+  color: var(--text-dark);
+  margin-bottom: var(--space-lg);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg) 0;
+  border-bottom: 1px solid var(--border-lighter);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-row-info {
+  flex: 1;
+}
+
+.settings-row-title {
+  font-size: var(--font-lg);
+  font-weight: 500;
+  color: var(--text-dark);
+  margin-bottom: var(--space-xs);
+}
+
+.settings-row-description {
+  font-size: var(--font-sm);
+  color: var(--text-dark-secondary);
+}
+
+/* ===== Toggle Switch ===== */
+.toggle-switch {
+  position: relative;
+  width: 48px;
+  height: 24px;
+  border-radius: 12px;
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.toggle-switch[data-checked="true"] {
+  background: var(--accent-primary);
+}
+
+.toggle-switch[data-checked="false"] {
+  background: #dadce0;
+}
+
+.toggle-switch-thumb {
+  position: absolute;
+  top: 4px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform var(--transition-fast);
+}
+
+.toggle-switch[data-checked="true"] .toggle-switch-thumb {
+  transform: translateX(24px);
+}
+
+.toggle-switch[data-checked="false"] .toggle-switch-thumb {
+  transform: translateX(4px);
+}
+

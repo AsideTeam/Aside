@@ -278,6 +278,12 @@ export class ViewManager {
             // about: 페이지는 React에서 처리하므로 URL만 업데이트
             tabData.url = url
             tabData.title = 'Settings'
+            
+            // ⭐ 핵심: Main의 WebView를 숨기기
+            // Renderer에서 Settings를 렌더링할 때, Main의 WebView가 가려지지 않도록
+            // WebView의 bounds를 0으로 설정하여 화면에서 제거
+            tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+            
             logger.info('[ViewManager] Navigating to settings page', { tabId: this.activeTabId })
             this.syncToRenderer()
             return
@@ -404,12 +410,19 @@ export class ViewManager {
 
     for (const [, tabData] of this.tabs) {
       if (tabData.isActive) {
-        tabData.view.setBounds({ 
-          x: 0, 
-          y: contentY, 
-          width, 
-          height: Math.max(0, contentHeight) 
-        })
+        // ⭐ about: 페이지는 WebView를 숨김 (React에서 렌더링됨)
+        if (tabData.url.startsWith('about:')) {
+          tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+          logger.debug('[ViewManager] Layout: hiding WebView for about page', { url: tabData.url })
+        } else {
+          // 일반 웹페이지: 보이기
+          tabData.view.setBounds({ 
+            x: 0, 
+            y: contentY, 
+            width, 
+            height: Math.max(0, contentHeight) 
+          })
+        }
       } else {
         tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
       }

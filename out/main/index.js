@@ -1,10 +1,10 @@
-import { app, screen, BrowserWindow, WebContentsView, session, ipcMain } from "electron";
+import { app, screen, BrowserWindow, WebContentsView, session, ipcMain, protocol } from "electron";
+import Store from "electron-store";
 import { existsSync, mkdirSync, appendFileSync, promises } from "node:fs";
 import { join, dirname } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { z } from "zod";
-import Store from "electron-store";
 import __cjs_mod__ from "node:module";
 const __filename = import.meta.filename;
 const __dirname = import.meta.dirname;
@@ -240,8 +240,8 @@ class MainWindow {
           preload: join(__dirname, "../preload/index.cjs"),
           contextIsolation: true,
           // 보안: 메인 ↔ 렌더러 격리
-          sandbox: true
-          // 렌더러 프로세스 샌드박스
+          // NOTE: Dev에서는 Vite/HMR/CSS 주입 이슈를 피하기 위해 sandbox를 끔
+          sandbox: Env.isDev ? false : true
         },
         // 창 로드 전 숨김 (깜빡임 방지)
         show: false,
@@ -517,6 +517,7 @@ class ViewManager {
           case "settings":
             tabData.url = url;
             tabData.title = "Settings";
+            tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
             logger.info("[ViewManager] Navigating to settings page", { tabId: this.activeTabId });
             this.syncToRenderer();
             return;
@@ -621,12 +622,17 @@ class ViewManager {
     const contentHeight = height - toolbarHeight;
     for (const [, tabData] of this.tabs) {
       if (tabData.isActive) {
-        tabData.view.setBounds({
-          x: 0,
-          y: contentY,
-          width,
-          height: Math.max(0, contentHeight)
-        });
+        if (tabData.url.startsWith("about:")) {
+          tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+          logger.debug("[ViewManager] Layout: hiding WebView for about page", { url: tabData.url });
+        } else {
+          tabData.view.setBounds({
+            x: 0,
+            y: contentY,
+            width,
+            height: Math.max(0, contentHeight)
+          });
+        }
       } else {
         tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
       }
@@ -1058,6 +1064,21 @@ class SessionManager {
       }
       defaultSession.setUserAgent(CHROME_USER_AGENT);
       logger.info("[SessionManager] User-Agent set to Chrome");
+      if (Env.isDev) {
+        defaultSession.webRequest.onHeadersReceived((details, callback) => {
+          const isViteDev = details.url.startsWith("http://localhost:5173/");
+          if (!isViteDev) {
+            callback({});
+            return;
+          }
+          const responseHeaders = details.responseHeaders ?? {};
+          responseHeaders["Cache-Control"] = ["no-store"];
+          delete responseHeaders["ETag"];
+          delete responseHeaders["etag"];
+          callback({ responseHeaders });
+        });
+        logger.info("[SessionManager] Dev cache disabled for Vite (localhost:5173)");
+      }
       defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
         logger.info("[SessionManager] Permission request", { permission });
         const allowedPermissions = [
@@ -1384,93 +1405,492 @@ function setupTabHandlers() {
   });
   logger.info("[TabHandler] Handlers setup completed");
 }
-const store = new Store({
-  defaults: {
-    theme: "dark",
-    searchEngine: "google",
-    homepage: "https://www.google.com",
-    showHomeButton: true,
-    showBookmarksBar: false,
-    fontSize: "medium",
-    pageZoom: "100",
-    blockThirdPartyCookies: true,
-    continueSession: true
+const DEFAULT_SETTINGS = {
+  theme: "dark",
+  searchEngine: "google",
+  homepage: "https://www.google.com",
+  showHomeButton: true,
+  showBookmarksBar: false,
+  fontSize: "medium",
+  pageZoom: "100",
+  blockThirdPartyCookies: true,
+  continueSession: true,
+  language: "ko"
+};
+class SettingsStore {
+  static instance = null;
+  store;
+  constructor() {
+    this.store = new Store({
+      name: "settings",
+      defaults: DEFAULT_SETTINGS,
+      // Schema validation
+      schema: {
+        theme: {
+          type: "string",
+          enum: ["light", "dark", "system"],
+          default: "dark"
+        },
+        searchEngine: {
+          type: "string",
+          enum: ["google", "bing", "duckduckgo", "naver"],
+          default: "google"
+        },
+        homepage: {
+          type: "string",
+          format: "uri",
+          default: "https://www.google.com"
+        },
+        showHomeButton: {
+          type: "boolean",
+          default: true
+        },
+        showBookmarksBar: {
+          type: "boolean",
+          default: false
+        },
+        fontSize: {
+          type: "string",
+          enum: ["small", "medium", "large"],
+          default: "medium"
+        },
+        pageZoom: {
+          type: "string",
+          default: "100"
+        },
+        blockThirdPartyCookies: {
+          type: "boolean",
+          default: true
+        },
+        continueSession: {
+          type: "boolean",
+          default: true
+        },
+        language: {
+          type: "string",
+          enum: ["ko", "en", "ja"],
+          default: "ko"
+        }
+      },
+      // Migrations for version upgrades
+      migrations: {
+        ">=0.1.0": (store) => {
+          if (!store.has("language")) {
+            store.set("language", "ko");
+          }
+        }
+      },
+      // Migration 로그
+      beforeEachMigration: (_store, context) => {
+        logger.info(
+          `[SettingsStore] Migrating from ${context.fromVersion} → ${context.toVersion}`
+        );
+      }
+    });
+    logger.info("[SettingsStore] Initialized", {
+      path: this.store.path
+    });
   }
-});
+  /**
+   * Singleton 인스턴스 반환
+   */
+  static getInstance() {
+    if (!this.instance) {
+      this.instance = new SettingsStore();
+    }
+    return this.instance;
+  }
+  /**
+   * 모든 설정값 조회
+   */
+  getAll() {
+    try {
+      return this.store.store;
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to get all settings:", error);
+      return DEFAULT_SETTINGS;
+    }
+  }
+  /**
+   * 특정 설정값 조회
+   */
+  get(key) {
+    try {
+      return this.store.get(key);
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to get setting:", error, { key });
+      return DEFAULT_SETTINGS[key];
+    }
+  }
+  /**
+   * 설정값 업데이트
+   */
+  set(key, value) {
+    try {
+      this.store.set(key, value);
+      logger.info("[SettingsStore] Setting updated", { key, value });
+      return true;
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to set setting:", error, { key, value });
+      return false;
+    }
+  }
+  /**
+   * 여러 설정값 한 번에 업데이트
+   */
+  setMultiple(updates) {
+    try {
+      Object.entries(updates).forEach(([key, value]) => {
+        this.store.set(key, value);
+      });
+      logger.info("[SettingsStore] Multiple settings updated", {
+        count: Object.keys(updates).length
+      });
+      return true;
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to set multiple settings:", error);
+      return false;
+    }
+  }
+  /**
+   * 설정값 삭제
+   */
+  delete(key) {
+    try {
+      this.store.delete(key);
+      logger.info("[SettingsStore] Setting deleted", { key });
+      return true;
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to delete setting:", error, { key });
+      return false;
+    }
+  }
+  /**
+   * 모든 설정값 초기화
+   */
+  reset() {
+    try {
+      this.store.clear();
+      logger.info("[SettingsStore] All settings reset to defaults");
+      return true;
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to reset settings:", error);
+      return false;
+    }
+  }
+  /**
+   * 설정 파일 경로 반환
+   */
+  getPath() {
+    return this.store.path;
+  }
+  /**
+   * 설정값 변경 감지
+   */
+  onChange(key, callback) {
+    return this.store.onDidChange(key, callback);
+  }
+  /**
+   * 모든 설정값 변경 감지
+   */
+  onAnyChange(callback) {
+    return this.store.onDidAnyChange(callback);
+  }
+}
+class SettingsService {
+  static instance = null;
+  store;
+  constructor() {
+    this.store = SettingsStore.getInstance();
+    this.setupChangeListeners();
+  }
+  /**
+   * Singleton 인스턴스 반환
+   */
+  static getInstance() {
+    if (!this.instance) {
+      this.instance = new SettingsService();
+    }
+    return this.instance;
+  }
+  /**
+   * 모든 설정값 조회
+   */
+  getAllSettings() {
+    logger.info("[SettingsService] Getting all settings");
+    return this.store.getAll();
+  }
+  /**
+   * 특정 설정값 조회
+   */
+  getSetting(key) {
+    logger.info("[SettingsService] Getting setting", { key });
+    return this.store.get(key);
+  }
+  /**
+   * 설정값 업데이트 (검증 포함)
+   */
+  updateSetting(key, value) {
+    try {
+      const validationError = this.validateSetting(key, value);
+      if (validationError) {
+        logger.warn("[SettingsService] Validation failed", { key, error: validationError });
+        return { success: false, error: validationError };
+      }
+      const success = this.store.set(key, value);
+      if (!success) {
+        return { success: false, error: "Failed to save setting" };
+      }
+      logger.info("[SettingsService] Setting updated successfully", { key });
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("[SettingsService] Failed to update setting:", error, { key });
+      return { success: false, error: errorMessage };
+    }
+  }
+  /**
+   * 여러 설정값 한 번에 업데이트
+   */
+  updateMultipleSettings(updates) {
+    try {
+      for (const [key, value] of Object.entries(updates)) {
+        const validationError = this.validateSetting(
+          key,
+          value
+        );
+        if (validationError) {
+          return { success: false, error: `${key}: ${validationError}` };
+        }
+      }
+      const success = this.store.setMultiple(updates);
+      if (!success) {
+        return { success: false, error: "Failed to save settings" };
+      }
+      logger.info("[SettingsService] Multiple settings updated successfully");
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("[SettingsService] Failed to update multiple settings:", error);
+      return { success: false, error: errorMessage };
+    }
+  }
+  /**
+   * 설정값 삭제
+   */
+  deleteSetting(key) {
+    try {
+      const success = this.store.delete(key);
+      if (!success) {
+        return { success: false, error: "Failed to delete setting" };
+      }
+      logger.info("[SettingsService] Setting deleted", { key });
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("[SettingsService] Failed to delete setting:", error, { key });
+      return { success: false, error: errorMessage };
+    }
+  }
+  /**
+   * 모든 설정값 초기화
+   */
+  resetAllSettings() {
+    try {
+      const success = this.store.reset();
+      if (!success) {
+        return { success: false, error: "Failed to reset settings" };
+      }
+      logger.info("[SettingsService] All settings reset");
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("[SettingsService] Failed to reset settings:", error);
+      return { success: false, error: errorMessage };
+    }
+  }
+  /**
+   * 설정 파일 경로 반환
+   */
+  getSettingsPath() {
+    return this.store.getPath();
+  }
+  /**
+   * 설정값 유효성 검증
+   */
+  validateSetting(key, value) {
+    if (value === void 0 || value === null) {
+      return "Value cannot be undefined or null";
+    }
+    switch (key) {
+      case "homepage":
+        if (typeof value === "string") {
+          try {
+            new URL(value);
+          } catch {
+            return "Invalid URL format";
+          }
+        }
+        break;
+      case "pageZoom":
+        if (typeof value === "string") {
+          const zoom = parseInt(value, 10);
+          if (isNaN(zoom) || zoom < 25 || zoom > 500) {
+            return "Page zoom must be between 25% and 500%";
+          }
+        }
+        break;
+      case "theme":
+        if (!["light", "dark", "system"].includes(value)) {
+          return "Invalid theme value";
+        }
+        break;
+      case "searchEngine":
+        if (!["google", "bing", "duckduckgo", "naver"].includes(value)) {
+          return "Invalid search engine";
+        }
+        break;
+      case "fontSize":
+        if (!["small", "medium", "large"].includes(value)) {
+          return "Invalid font size";
+        }
+        break;
+      case "language":
+        if (!["ko", "en", "ja"].includes(value)) {
+          return "Invalid language";
+        }
+        break;
+    }
+    return null;
+  }
+  /**
+   * 설정 변경 리스너 설정
+   */
+  setupChangeListeners() {
+    this.store.onAnyChange((newValue, oldValue) => {
+      if (!newValue || !oldValue) return;
+      logger.info("[SettingsService] Settings changed", {
+        changes: this.getChangedKeys(oldValue, newValue)
+      });
+    });
+    this.store.onChange("theme", (newTheme) => {
+      logger.info("[SettingsService] Theme changed", { theme: newTheme });
+    });
+  }
+  /**
+   * 변경된 키 목록 반환
+   */
+  getChangedKeys(oldValue, newValue) {
+    const changed = [];
+    for (const key in newValue) {
+      if (oldValue[key] !== newValue[key]) {
+        changed.push(key);
+      }
+    }
+    return changed;
+  }
+}
+const settingsService = SettingsService.getInstance();
 function setupSettingsHandlers() {
-  logger.info("[IPC] Registering settings handlers...");
+  logger.info("[SettingsHandler] Registering IPC handlers");
   ipcMain.handle("view:settings-toggled", async (_event, input) => {
     try {
       const { isOpen } = input;
       if (isOpen) {
         ViewManager.hideActiveView();
-        logger.info("[IPC] Settings page opened - view hidden");
+        logger.info("[SettingsHandler] Settings page opened - view hidden");
       } else {
         ViewManager.showActiveView();
-        logger.info("[IPC] Settings page closed - view shown");
+        logger.info("[SettingsHandler] Settings page closed - view shown");
       }
       return true;
     } catch (error) {
-      logger.error("[IPC] Failed to toggle settings:", error);
+      logger.error("[SettingsHandler] Failed to toggle settings:", error);
       throw error;
     }
   });
   ipcMain.handle("settings:get-all", async () => {
     try {
-      const settings = store.store;
-      logger.info("[IPC] Settings retrieved", { keys: Object.keys(settings) });
+      const settings = settingsService.getAllSettings();
+      logger.info("[SettingsHandler] Settings retrieved");
       return settings;
     } catch (error) {
-      logger.error("[IPC] Failed to get settings:", error);
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("[SettingsHandler] Failed to get settings:", { error: errorMessage });
+      throw new Error(`Failed to get settings: ${errorMessage}`);
     }
   });
-  ipcMain.handle("settings:get", async (_event, input) => {
+  ipcMain.handle("settings:get", async (_event, key) => {
     try {
-      const key = input;
-      const value = store.get(key);
-      logger.info("[IPC] Setting retrieved", { key, value });
+      if (!key) {
+        throw new Error("Setting key is required");
+      }
+      const value = settingsService.getSetting(key);
+      logger.info("[SettingsHandler] Setting retrieved", { key });
       return value;
     } catch (error) {
-      logger.error("[IPC] Failed to get setting:", error);
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("[SettingsHandler] Failed to get setting:", { key, error: errorMessage });
+      throw new Error(`Failed to get setting: ${errorMessage}`);
     }
   });
-  ipcMain.handle("settings:update", async (_event, input) => {
+  ipcMain.handle(
+    "settings:update",
+    async (_event, { key, value }) => {
+      try {
+        if (!key) {
+          throw new Error("Setting key is required");
+        }
+        if (value === void 0) {
+          throw new Error("Setting value is required");
+        }
+        const result = settingsService.updateSetting(key, value);
+        if (!result.success) {
+          throw new Error(result.error || "Failed to update setting");
+        }
+        logger.info("[SettingsHandler] Setting updated", { key });
+        return result;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        logger.error("[SettingsHandler] Failed to update setting:", { key, error: errorMessage });
+        return { success: false, error: errorMessage };
+      }
+    }
+  );
+  ipcMain.handle("settings:update-multiple", async (_event, updates) => {
     try {
-      const { key, value } = input;
-      store.set(key, value);
-      logger.info("[IPC] Setting updated", { key });
-      return true;
+      if (!updates || Object.keys(updates).length === 0) {
+        throw new Error("Updates object is required");
+      }
+      const result = settingsService.updateMultipleSettings(updates);
+      if (!result.success) {
+        throw new Error(result.error || "Failed to update settings");
+      }
+      logger.info("[SettingsHandler] Multiple settings updated");
+      return result;
     } catch (error) {
-      logger.error("[IPC] Failed to update setting:", error);
-      throw error;
-    }
-  });
-  ipcMain.handle("settings:update-multiple", async (_event, input) => {
-    try {
-      const updates = input;
-      Object.entries(updates).forEach(([key, value]) => {
-        store.set(key, value);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("[SettingsHandler] Failed to update multiple settings:", {
+        error: errorMessage
       });
-      logger.info("[IPC] Multiple settings updated", { count: Object.keys(updates).length });
-      return true;
-    } catch (error) {
-      logger.error("[IPC] Failed to update multiple settings:", error);
-      throw error;
+      return { success: false, error: errorMessage };
     }
   });
   ipcMain.handle("settings:reset", async () => {
     try {
-      store.clear();
-      logger.info("[IPC] Settings reset to defaults");
-      return true;
+      const result = settingsService.resetAllSettings();
+      if (!result.success) {
+        throw new Error(result.error || "Failed to reset settings");
+      }
+      logger.info("[SettingsHandler] Settings reset to defaults");
+      return result;
     } catch (error) {
-      logger.error("[IPC] Failed to reset settings:", error);
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("[SettingsHandler] Failed to reset settings:", { error: errorMessage });
+      return { success: false, error: errorMessage };
     }
   });
-  logger.info("[IPC] Settings handlers registered");
+  logger.info("[SettingsHandler] IPC handlers registered successfully");
 }
 function setupIPCHandlers() {
   logger.info("[IPC] Setting up all handlers...");
@@ -1496,7 +1916,56 @@ function removeAllIPCHandlers() {
     logger.error("[IPC] Handler removal failed:", error);
   }
 }
+function setupProtocolHandlers() {
+  logger.info("[ProtocolHandler] Setting up protocol handlers...");
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: "app",
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: true
+      }
+    }
+  ]);
+  logger.info("[ProtocolHandler] Protocol handlers setup completed");
+}
+function setupNavigationInterceptors() {
+  logger.info("[ProtocolHandler] Setting up navigation interceptors...");
+  app.on("web-contents-created", (_event, contents) => {
+    contents.on("will-navigate", (event, url) => {
+      logger.debug("[ProtocolHandler] will-navigate:", { url });
+      if (url.startsWith("about:settings") || url.startsWith("chrome://settings")) {
+        event.preventDefault();
+        logger.info("[ProtocolHandler] Blocked about:settings, redirecting to app:settings");
+        contents.send("navigate-to-settings");
+        return;
+      }
+      if (url.startsWith("chrome://") || url.startsWith("about:")) {
+        if (url === "about:blank") {
+          return;
+        }
+        event.preventDefault();
+        logger.warn("[ProtocolHandler] Blocked Chrome internal page:", { url });
+        return;
+      }
+    });
+    contents.setWindowOpenHandler((details) => {
+      const { url } = details;
+      if (url.startsWith("about:") || url.startsWith("chrome://")) {
+        if (url !== "about:blank") {
+          logger.warn("[ProtocolHandler] Blocked window.open to:", { url });
+          return { action: "deny" };
+        }
+      }
+      return { action: "allow" };
+    });
+  });
+  logger.info("[ProtocolHandler] Navigation interceptors setup completed");
+}
 app.name = "aside";
+setupProtocolHandlers();
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   logger.warn("[Main] App already running. Exiting.");
@@ -1505,13 +1974,17 @@ if (!gotTheLock) {
   app.on("ready", async () => {
     logger.info("[Main] App ready event triggered");
     try {
-      logger.info("[Main] Step 1/4: Setting up session...");
+      logger.info("[Main] Step 1/5: Initializing electron-store...");
+      Store.initRenderer();
+      logger.info("[Main] Step 2/5: Setting up session...");
       SessionManager.setup();
-      logger.info("[Main] Step 2/4: Setting up IPC handlers...");
+      logger.info("[Main] Step 2.5/5: Setting up navigation interceptors...");
+      setupNavigationInterceptors();
+      logger.info("[Main] Step 3/5: Setting up IPC handlers...");
       setupIPCHandlers();
-      logger.info("[Main] Step 3/4: Initializing services...");
+      logger.info("[Main] Step 4/5: Initializing services...");
       UpdateService.initialize();
-      logger.info("[Main] Step 4/4: Bootstrapping application...");
+      logger.info("[Main] Step 5/5: Bootstrapping application...");
       await AppLifecycle.bootstrap();
       logger.info("[Main] App ready. All systems online.");
     } catch (error) {

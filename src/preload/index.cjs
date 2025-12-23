@@ -20,6 +20,7 @@ const allowedEventChannels = [
   'tabs:updated',
   'nav:state-changed',
   'app:ready',
+  'navigate-to-settings', // Protocol handler: about:settings interception
 ]
 
 /**
@@ -91,12 +92,17 @@ const electronAPI = {
   invoke: (channel, ...args) => {
     // 허용된 채널만 invoke 가능 (보안)
     const allowedChannels = [
+      // App
       'app:quit',
       'app:restart',
       'app:state',
+      
+      // Window
       'window:minimize',
       'window:maximize',
       'window:close',
+      
+      // Tab
       'tab:create',
       'tab:close',
       'tab:switch',
@@ -106,12 +112,12 @@ const electronAPI = {
       'tab:back',
       'tab:forward',
       'tab:reload',
+      
+      // Settings
       'settings:get-all',
       'settings:get',
       'settings:update',
-      'settings:update-multiple',
       'settings:reset',
-      'view:settings-toggled',
     ]
 
     if (!allowedChannels.includes(channel)) {

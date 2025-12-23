@@ -19,9 +19,13 @@ import { AppLifecycle } from '@main/core/Lifecycle'
 import { SessionManager } from '@main/core/Session'
 import { UpdateService } from '@main/services/Update'
 import { setupIPCHandlers, removeAllIPCHandlers } from '@main/handlers'
+import { setupProtocolHandlers, setupNavigationInterceptors } from '@main/handlers/ProtocolHandler'
 
 // 앱 이름 설정 (userData 경로에 영향을 줌)
 app.name = 'aside'
+
+// 프로토콜 핸들러 등록 (app.ready 전에 호출 필요)
+setupProtocolHandlers()
 
 // 싱글 인스턴스 잠금 (두 번 실행 방지)
 const gotTheLock = app.requestSingleInstanceLock()
@@ -47,6 +51,10 @@ if (!gotTheLock) {
       // Step 2: Session 설정 (CSP, 권한 등)
       logger.info('[Main] Step 2/5: Setting up session...')
       SessionManager.setup()
+
+      // Step 2.5: Navigation interceptors 설정
+      logger.info('[Main] Step 2.5/5: Setting up navigation interceptors...')
+      setupNavigationInterceptors()
 
       // Step 3: IPC 핸들러 등록
       logger.info('[Main] Step 3/5: Setting up IPC handlers...')
