@@ -1,44 +1,42 @@
-/**
- * SettingsSidebar - 설정 사이드바
- * 
- * CSS 클래스 기반의 깔끔한 네이티브 스타일
- */
+import React from 'react';
 
-import type { SettingsMenuItem } from '../../constants/settingsMenu'
+interface SettingsCategory {
+  id: string;
+  label: string;
+  icon?: string;
+}
 
 interface SettingsSidebarProps {
-  items: SettingsMenuItem[]
-  activeMenuId: string
-  onMenuChange?: (menuId: string) => void
+  categories: SettingsCategory[];
+  activeCategory: string;
+  onSelectCategory: (categoryId: string) => void;
 }
 
-export function SettingsSidebar({
-  items,
-  activeMenuId,
-  onMenuChange,
-}: SettingsSidebarProps) {
+export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
+  categories,
+  activeCategory,
+  onSelectCategory,
+}) => {
   return (
-    <aside className="settings-sidebar">
-      <div className="settings-sidebar-title">설정</div>
-      
-      <nav className="settings-sidebar-nav">
-        {items.map((item) => {
-          const Icon = item.icon
-          const isActive = activeMenuId === item.id
-          
-          return (
-            <button
-              key={item.id}
-              onClick={() => onMenuChange?.(item.id)}
-              className={`settings-sidebar-item ${isActive ? 'active' : ''}`}
-            >
-              <Icon className="settings-sidebar-item-icon" size={18} />
-              <span className="settings-sidebar-item-label">{item.label}</span>
-            </button>
-          )
-        })}
+    <aside className="w-48 bg-gray-100 border-r border-gray-200 px-0 py-4 h-full overflow-y-auto">
+      <nav className="space-y-1">
+        {categories.map((category) => (
+          <button
+            key={category.id}
+            onClick={() => onSelectCategory(category.id)}
+            className={`w-full text-left px-4 py-3 transition-colors duration-200 ${
+              activeCategory === category.id
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              {category.icon && <span>{category.icon}</span>}
+              {category.label}
+            </span>
+          </button>
+        ))}
       </nav>
     </aside>
-  )
-}
-
+  );
+};

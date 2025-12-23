@@ -1,1 +1,2 @@
-export { SettingsPage } from './SettingsPage'
+export { BrowserPage } from './BrowserPage';
+export { SettingsPage } from './SettingsPage';

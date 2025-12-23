@@ -1,217 +1,140 @@
-import { useEffect, useMemo, useState } from 'react'
-import {
-  SettingsSidebar,
-  SettingsSearch,
-  AppearanceSection,
-  LanguageSection,
-  AutofillSection,
-  PrivacySection,
-} from '../components/Settings'
-import { getActiveMenuItems } from '../constants/settingsMenu'
-import type { SettingsMenuId } from '../constants/settingsMenu'
-import type { SettingsSchema } from '@shared/types'
+import React, { useState, useEffect } from 'react';
+import { SettingsLayout } from '../layouts/SettingsLayout';
+import { SettingRow } from '../components/settings/SettingRow';
+import { useSetting } from '../hooks/useSetting';
+import { logger } from '../lib/logger';
 
-/**
- * SettingsPage - 설정 페이지
- *
- * 책임:
- * - 상태 관리 (settings, activeMenuId)
- * - IPC 통신 (settings load/update)
- * - 섹션 라우팅
- *
- * 각 섹션은 별도 컴포넌트에서 관리:
- * - AppearanceSection
- * - LanguageSection
- */
+interface SettingsCategory {
+  id: string;
+  label: string;
+  icon: string;
+}
 
-export function SettingsPage() {
-  const [activeMenuId, setActiveMenuId] = useState<SettingsMenuId>('appearance')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [settings, setSettings] = useState<SettingsSchema | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+const SETTINGS_CATEGORIES: SettingsCategory[] = [
+  { id: 'general', label: 'General', icon: '⚙️' },
+  { id: 'appearance', label: 'Appearance', icon: '🎨' },
+  { id: 'privacy', label: 'Privacy & Security', icon: '🔒' },
+  { id: 'advanced', label: 'Advanced', icon: '⚡' },
+];
 
-  const activeMenuItems = useMemo(() => getActiveMenuItems(4), [])
+export const SettingsPage: React.FC = () => {
+  const [activeCategory, setActiveCategory] = useState('general');
+  const { settings, updateSetting } = useSetting({
+    homepage: 'https://www.google.com',
+    theme: 'light',
+    searchEngine: 'google',
+    blockAds: true,
+    blockTrackers: true,
+  });
 
-  // Main에서 설정 로드
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const saved = await window.electronAPI?.settings?.getSettings?.()
-        if (saved) {
-          const settings = saved as SettingsSchema
-          setSettings(settings)
-          
-          // 모든 설정 초기 적용
-          applyTheme(settings.theme)
-          applyFontSize(settings.fontSize)
-          applyPageZoom(settings.pageZoom)
-          applyShowBookmarksBar(settings.showBookmarksBar)
-          applyShowHomeButton(settings.showHomeButton)
-        }
-      } catch (error) {
-        console.error('[SettingsPage] Failed to load settings:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
+    logger.info('SettingsPage - category changed', { activeCategory, settings });
+  }, [activeCategory, settings]);
 
-    void loadSettings()
-  }, [])
+  const renderCategoryContent = () => {
+    switch (activeCategory) {
+      case 'general':
+        return (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">General Settings</h2>
+            <SettingRow
+              label="Homepage"
+              description="Set your browser's homepage"
+            >
+              <input
+                type="text"
+                value={typeof settings.homepage === 'string' ? settings.homepage : ''}
+                onChange={(e) => updateSetting('homepage', e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </SettingRow>
+            <SettingRow
+              label="Search Engine"
+              description="Choose your default search engine"
+            >
+              <select
+                value={typeof settings.searchEngine === 'string' ? settings.searchEngine : 'google'}
+                onChange={(e) => updateSetting('searchEngine', e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="google">Google</option>
+                <option value="bing">Bing</option>
+                <option value="duckduckgo">DuckDuckGo</option>
+              </select>
+            </SettingRow>
+          </div>
+        );
 
-  // 테마 적용
-  const applyTheme = (theme: SettingsSchema['theme']) => {
-    const root = document.documentElement
-    if (theme === 'system') {
-      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      root.setAttribute('data-theme', isDark ? 'dark' : 'light')
-    } else {
-      root.setAttribute('data-theme', theme)
-    }
-  }
+      case 'appearance':
+        return (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Appearance Settings</h2>
+            <SettingRow
+              label="Theme"
+              description="Choose your preferred theme"
+            >
+              <select
+                value={typeof settings.theme === 'string' ? settings.theme : 'light'}
+                onChange={(e) => updateSetting('theme', e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="auto">Auto</option>
+              </select>
+            </SettingRow>
+          </div>
+        );
 
-  // 텍스트 크기 적용
-  const applyFontSize = (sizeValue: string) => {
-    const sizes: Record<string, string> = {
-      small: '12px',
-      normal: '14px',
-      large: '16px',
-      'x-large': '18px',
-    }
-    const fontSize = sizes[sizeValue] || '14px'
-    document.documentElement.style.fontSize = fontSize
-  }
+      case 'privacy':
+        return (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Privacy & Security</h2>
+            <SettingRow
+              label="Block Ads"
+              description="Enable ad blocking"
+            >
+              <input
+                type="checkbox"
+                checked={typeof settings.blockAds === 'boolean' ? settings.blockAds : false}
+                onChange={(e) => updateSetting('blockAds', e.target.checked)}
+                className="w-5 h-5 rounded"
+              />
+            </SettingRow>
+            <SettingRow
+              label="Block Trackers"
+              description="Prevent tracking scripts"
+            >
+              <input
+                type="checkbox"
+                checked={typeof settings.blockTrackers === 'boolean' ? settings.blockTrackers : false}
+                onChange={(e) => updateSetting('blockTrackers', e.target.checked)}
+                className="w-5 h-5 rounded"
+              />
+            </SettingRow>
+          </div>
+        );
 
-  // 페이지 줌 적용
-  const applyPageZoom = (zoomValue: string) => {
-    const zooms: Record<string, number> = {
-      '75': 0.75,
-      '90': 0.9,
-      '100': 1,
-      '125': 1.25,
-      '150': 1.5,
-    }
-    const zoom = zooms[zoomValue] || 1
-    document.body.style.zoom = `${zoom * 100}%`
-  }
+      case 'advanced':
+        return (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Advanced Settings</h2>
+            <p className="text-gray-600">No advanced settings available yet.</p>
+          </div>
+        );
 
-  // 북마크 바 표시 제어
-  const applyShowBookmarksBar = (show: boolean) => {
-    const bookmarksBar = document.querySelector('[data-element="bookmarks-bar"]')
-    if (bookmarksBar) {
-      ;(bookmarksBar as HTMLElement).style.display = show ? 'block' : 'none'
+      default:
+        return null;
     }
-  }
-
-  // 홈 버튼 표시 제어
-  const applyShowHomeButton = (show: boolean) => {
-    const homeButton = document.querySelector('[data-element="home-button"]')
-    if (homeButton) {
-      ;(homeButton as HTMLElement).style.display = show ? 'block' : 'none'
-    }
-  }
-
-  // 설정값 업데이트
-  const updateSetting = async <K extends keyof SettingsSchema>(
-    key: K,
-    value: SettingsSchema[K]
-  ) => {
-    setSettings((prev) => (prev ? { ...prev, [key]: value } : prev))
-    
-    // 즉시 UI에 적용
-    if (key === 'theme') {
-      applyTheme(value as SettingsSchema['theme'])
-    } else if (key === 'fontSize') {
-      applyFontSize(value as string)
-    } else if (key === 'pageZoom') {
-      applyPageZoom(value as string)
-    } else if (key === 'showBookmarksBar') {
-      applyShowBookmarksBar(value as boolean)
-    } else if (key === 'showHomeButton') {
-      applyShowHomeButton(value as boolean)
-    }
-    
-    try {
-      await window.electronAPI?.settings?.updateSetting?.(key as string, value)
-      console.log('[SettingsPage] Setting saved:', { key, value })
-    } catch (error) {
-      console.error('[SettingsPage] Failed to save setting:', { key, error })
-    }
-  }
-
-  if (isLoading || !settings) {
-    return (
-      <div style={{ padding: '24px', color: 'var(--text-secondary)' }}>
-        설정을 불러오는 중…
-      </div>
-    )
-  }
+  };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        width: '100%',
-        height: '100%',
-        background: 'var(--bg-main)',
-      }}
+    <SettingsLayout
+      categories={SETTINGS_CATEGORIES}
+      activeCategory={activeCategory}
+      onSelectCategory={setActiveCategory}
     >
-      {/* 왼쪽 사이드바 */}
-      <SettingsSidebar
-        items={activeMenuItems}
-        activeMenuId={activeMenuId}
-        onMenuChange={(menuId) => setActiveMenuId(menuId as SettingsMenuId)}
-      />
-
-      {/* 메인 콘텐츠 */}
-      <main
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '40px 64px',
-          maxWidth: '1100px',
-        }}
-      >
-        {/* 검색 바 */}
-        <div style={{ marginBottom: '48px' }}>
-          <SettingsSearch
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="설정 검색"
-          />
-        </div>
-
-        {/* Appearance 섹션 */}
-        {activeMenuId === 'appearance' && (
-          <AppearanceSection
-            settings={settings}
-            onUpdateSetting={updateSetting}
-          />
-        )}
-
-        {/* Language 섹션 */}
-        {activeMenuId === 'language' && (
-          <LanguageSection
-            settings={settings}
-            onUpdateSetting={updateSetting}
-          />
-        )}
-
-        {/* Autofill 섹션 */}
-        {activeMenuId === 'autofill' && (
-          <AutofillSection
-            settings={settings}
-            onUpdateSetting={updateSetting}
-          />
-        )}
-
-        {/* Privacy 섹션 */}
-        {activeMenuId === 'privacy' && (
-          <PrivacySection
-            settings={settings}
-            onUpdateSetting={updateSetting}
-          />
-        )}
-      </main>
-    </div>
-  )
-}
+      {renderCategoryContent()}
+    </SettingsLayout>
+  );
+};

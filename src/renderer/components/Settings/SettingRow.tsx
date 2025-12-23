@@ -1,28 +1,19 @@
-/**
- * SettingRow - 설정 항목 행
- */
-
-import React from 'react'
+import React from 'react';
 
 interface SettingRowProps {
-  label: string | React.ReactNode
-  description?: string
-  children?: React.ReactNode
+  label: string;
+  description?: string;
+  children: React.ReactNode;
 }
 
-export function SettingRow({ label, description, children }: SettingRowProps) {
+export const SettingRow: React.FC<SettingRowProps> = ({ label, description, children }) => {
   return (
-    <div className="setting-row">
-      <div className="setting-row-info">
-        <div className="setting-row-label">{label}</div>
-        {description && (
-          <div className="setting-row-description">{description}</div>
-        )}
+    <div className="flex items-center justify-between py-4 border-b border-gray-200 last:border-b-0">
+      <div className="flex-1">
+        <h3 className="font-medium text-gray-900">{label}</h3>
+        {description && <p className="text-sm text-gray-600 mt-1">{description}</p>}
       </div>
-      {children && (
-        <div className="setting-row-control">{children}</div>
-      )}
+      <div className="ml-4">{children}</div>
     </div>
-  )
-}
-
+  );
+};

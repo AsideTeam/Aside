@@ -24,6 +24,11 @@ const DEFAULT_SETTINGS: SettingsSchema = {
   blockThirdPartyCookies: true,
   continueSession: true,
   language: 'ko',
+  savePasswords: false,
+  savePaymentInfo: false,
+  saveAddresses: false,
+  doNotTrack: true,
+  blockAds: false,
 }
 
 /**
@@ -89,6 +94,26 @@ export class SettingsStore {
           type: 'string',
           enum: ['ko', 'en', 'ja'],
           default: 'ko',
+        },
+        savePasswords: {
+          type: 'boolean',
+          default: false,
+        },
+        savePaymentInfo: {
+          type: 'boolean',
+          default: false,
+        },
+        saveAddresses: {
+          type: 'boolean',
+          default: false,
+        },
+        doNotTrack: {
+          type: 'boolean',
+          default: true,
+        },
+        blockAds: {
+          type: 'boolean',
+          default: false,
         },
       },
       // Migrations for version upgrades
