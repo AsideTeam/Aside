@@ -174,6 +174,8 @@ const electronAPI = {
       // Overlay toggles
       'overlay:toggle-header-latch',
       'overlay:toggle-sidebar-latch',
+      'overlay:set-interactive',
+      'overlay:debug',
     ]
 
     if (!allowedChannels.includes(channel)) {

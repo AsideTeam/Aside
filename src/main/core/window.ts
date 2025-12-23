@@ -150,6 +150,9 @@ export class MainWindow {
           this.uiWindow.setIgnoreMouseEvents(true, { forward: true })
           OverlayController.attach({ uiWindow: this.uiWindow, contentWindow: this.contentWindow })
 
+          // 실제 사용자 포커스는 contentWindow에 있어야 함 (uiWindow는 click-through)
+          this.contentWindow.focus()
+
           didShow = true
           logger.info('[MainWindow] Content/UI windows shown')
         } catch (error) {

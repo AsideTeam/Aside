@@ -184,7 +184,7 @@
 }
 
 .aside-tab-close:hover {
-  opacity: 1 !important;
+  opacity: 1;
   background-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -300,7 +300,40 @@
   width: 100vw;
   height: 100vh;
   background: transparent;
-  /* Electron의 setIgnoreMouseEvents(true, { forward: true })와 협력 */
+  /* Ghost/Solid은 Electron setIgnoreMouseEvents가 담당.
+     여기서 pointer-events를 꺼버리면 hit-test zone이 elementFromPoint에 잡히지 않는다. */
+  pointer-events: auto;
+}
+
+/* ===== Hit-Test Zones (Ghost & Solid) ===== */
+/*
+  - 시각적 요소 아님 (투명)
+  - Ghost 모드에서 elementFromPoint로 zone 판별용
+  - UI가 열렸을 때는 클릭 방해하지 않게 pointer-events를 끈다
+*/
+.aside-hit-zone {
+  position: fixed;
+  background: transparent;
+  z-index: calc(var(--z-sidebar) + 2);
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}
+
+.aside-hit-zone--header {
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 18px;
+}
+
+.aside-hit-zone--sidebar {
+  top: 0;
+  left: 0;
+  width: 14px;
+  height: 100vh;
+}
+
+.aside-overlay--sidebar-open .aside-hit-zone--sidebar {
   pointer-events: none;
 }
 
@@ -370,27 +403,46 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* ===== Header Action Buttons ===== */
+.aside-header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem;
+  border-radius: 0.375rem;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.aside-header-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.aside-header-btn--active {
+  color: rgb(255, 255, 255);
+}
+
 /* ===== Focus Gate (Renderer-side) ===== */
 /* Electron은 창 blur 상태에서도 :hover가 동작할 수 있어,
    포커스가 없을 때는 오버레이 UI를 CSS에서 강제로 비활성화/숨김 처리한다. */
-.aside-window-blurred .aside-header,
+.aside-window-blurred .aside-header {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%) translateY(-100%);
+}
+
 .aside-window-blurred .aside-sidebar {
-  pointer-events: none !important;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(calc(-1 * var(--size-sidebar-width) - 8px));
 }
 
 .aside-window-blurred .aside-header *,
 .aside-window-blurred .aside-sidebar * {
-  pointer-events: none !important;
-}
-
-.aside-window-blurred .aside-header--open {
-  opacity: 0 !important;
-  transform: translateX(-50%) translateY(-100%) !important;
-}
-
-.aside-window-blurred .aside-sidebar--open {
-  opacity: 0 !important;
-  transform: translateX(calc(-1 * var(--size-sidebar-width) - 8px)) !important;
+  pointer-events: none;
 }
 
 /* ===== Frame + Placeholder (WebContentsView 자리) ===== */

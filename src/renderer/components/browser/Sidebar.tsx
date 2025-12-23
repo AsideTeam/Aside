@@ -78,9 +78,10 @@ export const Sidebar: React.FC = () => {
     setTabs((prev) => prev.filter((t) => t.id !== tabId));
   };
 
-  return (
-    <aside className={isOpen ? 'aside-sidebar aside-sidebar--open' : 'aside-sidebar'}>
+  const sidebarClass = isOpen ? 'aside-sidebar aside-sidebar--open' : 'aside-sidebar'
 
+  return (
+    <aside className={sidebarClass} data-overlay-zone="sidebar">
       {/* Pinned Tabs */}
       <div className="aside-pinned-area">
         <div className="aside-pinned-grid">
@@ -89,6 +90,7 @@ export const Sidebar: React.FC = () => {
               key={tab.id}
               className="aside-pinned-tab"
               title={tab.title}
+              type="button"
             >
               <Globe size={20} />
             </button>
@@ -103,27 +105,34 @@ export const Sidebar: React.FC = () => {
 
       {/* Tabs List */}
       <div className="aside-tabs-area">
-        {tabs.map((tab) => (
-          <div
-            key={tab.id}
-            className={`aside-tab ${tab.isActive ? 'aside-tab-active' : ''}`}
-            onClick={() => handleSelectTab(tab.id)}
-          >
-            <div className="aside-tab-icon">
-              <Globe size={16} />
-            </div>
-            <span className="aside-tab-title">{tab.title}</span>
-            <button
-              className="aside-tab-close"
-              onClick={(e) => handleCloseTab(tab.id, e)}
+        {tabs.map((tab) => {
+          const tabClass = tab.isActive ? 'aside-tab aside-tab-active' : 'aside-tab'
+          return (
+            <div
+              key={tab.id}
+              className={tabClass}
+              onClick={() => handleSelectTab(tab.id)}
+              role="tab"
+              aria-selected={tab.isActive}
             >
-              <X size={14} />
-            </button>
-          </div>
-        ))}
+              <div className="aside-tab-icon">
+                <Globe size={16} />
+              </div>
+              <span className="aside-tab-title">{tab.title}</span>
+              <button
+                type="button"
+                className="aside-tab-close"
+                onClick={(e) => handleCloseTab(tab.id, e)}
+                aria-label="닫기"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )
+        })}
 
         {/* Folder */}
-        <div className="aside-folder">
+        <div className="aside-folder" role="button" tabIndex={0}>
           <div className="aside-folder-icon">
             <FolderClosed size={16} />
           </div>
@@ -137,18 +146,18 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* New Tab Button */}
-      <button className="aside-new-tab" onClick={handleAddTab}>
+      <button type="button" className="aside-new-tab" onClick={handleAddTab}>
         <Plus size={16} />
         <span className="aside-label">새 탭</span>
       </button>
 
       {/* Bottom Actions */}
       <div className="aside-bottom-actions">
-        <button className="aside-action-btn" title="Downloads">
+        <button type="button" className="aside-action-btn" title="Downloads">
           <Download size={18} />
         </button>
         <div className="flex-1" />
-        <button className="aside-action-btn" title="Settings">
+        <button type="button" className="aside-action-btn" title="Settings">
           <Settings size={18} />
         </button>
       </div>

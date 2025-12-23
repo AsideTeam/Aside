@@ -3,3 +3,5 @@ export { useSetting } from './useSetting';
 export { useViewBounds } from './useViewBounds';
 export { useWebContents } from './useWebContents';
 export { useWindowFocus } from './useWindowFocus';
+export { useOverlayHover } from './useOverlayHover';
+export { useOverlayInteraction } from './useOverlayInteraction';

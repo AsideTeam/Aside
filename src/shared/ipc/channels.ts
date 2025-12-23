@@ -127,6 +127,8 @@ export const IPC_CHANNELS = {
   OVERLAY: {
     TOGGLE_HEADER_LATCH: 'overlay:toggle-header-latch',
     TOGGLE_SIDEBAR_LATCH: 'overlay:toggle-sidebar-latch',
+    SET_INTERACTIVE: 'overlay:set-interactive',
+    DEBUG: 'overlay:debug',
   },
 } as const
 

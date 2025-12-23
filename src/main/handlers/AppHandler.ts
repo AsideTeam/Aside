@@ -13,6 +13,7 @@
 
 import { app } from 'electron'
 import { logger } from '@main/utils/Logger'
+import { z } from 'zod'
 import { MainWindow } from '@main/core/Window'
 import { OverlayController } from '@main/core/OverlayController'
 import { AppState } from '@main/managers/AppState'
@@ -145,6 +146,30 @@ export function setupAppHandlers(registry: IpcRegistry): void {
       return { success: true, latched }
     } catch (error) {
       logger.error('[AppHandler] overlay:toggle-sidebar-latch failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  registry.handle(IPC_CHANNELS.OVERLAY.SET_INTERACTIVE, async (_event, interactive: unknown) => {
+    try {
+      const parsed = z.boolean().safeParse(interactive)
+      const isInteractive = parsed.success ? parsed.data : false
+
+      logger.debug('[AppHandler] overlay:set-interactive', { isInteractive })
+      OverlayController.setInteractive(isInteractive)
+      return { success: true }
+    } catch (error) {
+      logger.error('[AppHandler] overlay:set-interactive failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  registry.handle(IPC_CHANNELS.OVERLAY.DEBUG, async (_event, payload: unknown) => {
+    try {
+      logger.debug('[OverlayDebug]', { payload })
+      return { success: true }
+    } catch (error) {
+      logger.error('[AppHandler] overlay:debug failed:', error)
       return { success: false, error: String(error) }
     }
   })
