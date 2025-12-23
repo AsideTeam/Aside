@@ -5,31 +5,44 @@
  * 특징: 순수 렌더링 컴포넌트 (상태 없음, 콜백만 전달)
  */
 
-import React from 'react'
+import React, { useState } from 'react'
 
 interface SettingRowProps {
-  label: string
+  label: string | React.ReactNode
   description?: string
   children?: React.ReactNode
 }
 
 export function SettingRow({ label, description, children }: SettingRowProps) {
+  const [isHovered, setIsHovered] = useState(false)
+
   return (
     <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'space-between',
-        padding: '12px 0',
+        padding: '18px 12px',
         borderBottom: '1px solid var(--border-color)',
+        backgroundColor: isHovered ? 'var(--bg-hover, rgba(0,0,0,0.02))' : 'transparent',
+        transition: 'background-color 0.2s ease',
+        borderRadius: '4px',
+        gap: '24px',
       }}
     >
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
             fontSize: 'var(--font-md)',
             fontWeight: '500',
             color: 'var(--text-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            wordBreak: 'break-word',
+            lineHeight: '1.4',
           }}
         >
           {label}
@@ -39,7 +52,10 @@ export function SettingRow({ label, description, children }: SettingRowProps) {
             style={{
               fontSize: 'var(--font-sm)',
               color: 'var(--text-secondary)',
-              marginTop: '4px',
+              marginTop: '6px',
+              lineHeight: '1.5',
+              wordBreak: 'break-word',
+              whiteSpace: 'pre-wrap',
             }}
           >
             {description}
@@ -47,8 +63,19 @@ export function SettingRow({ label, description, children }: SettingRowProps) {
         )}
       </div>
       {children && (
-        <div style={{ marginLeft: '16px', flexShrink: 0 }}>{children}</div>
+        <div 
+          style={{ 
+            marginLeft: 'auto', 
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          {children}
+        </div>
       )}
     </div>
   )
 }
+

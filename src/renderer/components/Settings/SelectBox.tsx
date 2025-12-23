@@ -5,7 +5,7 @@
  * 특징: 기본 HTML select를 스타일링한 컴포넌트
  */
 
-import React from 'react'
+import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 
 interface SelectBoxProps {
@@ -21,11 +21,15 @@ export function SelectBox({
   options,
   disabled = false,
 }: SelectBoxProps) {
+  const [isFocused, setIsFocused] = useState(false)
+
   return (
     <div style={{ position: 'relative', width: '160px' }}>
       <select
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         disabled={disabled}
         style={{
           width: '100%',
@@ -33,13 +37,20 @@ export function SelectBox({
           padding: '0 12px',
           paddingRight: '32px',
           background: 'var(--bg-input)',
-          border: '1px solid var(--border-color)',
+          border: isFocused 
+            ? '1px solid var(--accent)' 
+            : '1px solid var(--border-color)',
           borderRadius: 'var(--radius-md)',
           fontSize: 'var(--font-sm)',
           color: 'var(--text-primary)',
           cursor: disabled ? 'not-allowed' : 'pointer',
           appearance: 'none',
           opacity: disabled ? 0.5 : 1,
+          transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+          boxShadow: isFocused 
+            ? '0 0 0 2px rgba(var(--accent-rgb), 0.1)' 
+            : 'none',
+          fontWeight: '500',
         }}
       >
         {options.map((option) => (

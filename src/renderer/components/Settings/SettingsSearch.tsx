@@ -5,7 +5,7 @@
  * 특징: 순수 UI, 검색 로직은 부모에서 처리
  */
 
-import React from 'react'
+import { useState } from 'react'
 import { Search } from 'lucide-react'
 
 interface SettingsSearchProps {
@@ -19,6 +19,7 @@ export function SettingsSearch({
   onChange,
   placeholder = 'Search settings',
 }: SettingsSearchProps) {
+  const [isFocused, setIsFocused] = useState(false)
   return (
     <div
       style={{
@@ -42,27 +43,21 @@ export function SettingsSearch({
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
         placeholder={placeholder}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         style={{
           width: '100%',
           height: '40px',
           paddingLeft: '40px',
           paddingRight: '12px',
           background: 'var(--bg-input)',
-          border: '1px solid var(--border-color)',
+          border: isFocused ? '1px solid var(--accent)' : '1px solid var(--border-color)',
           borderRadius: 'var(--radius-full)',
           fontSize: 'var(--font-md)',
           color: 'var(--text-primary)',
           outline: 'none',
           transition: 'all 0.2s',
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.borderColor = 'var(--color-primary)'
-          e.currentTarget.style.boxShadow =
-            '0 0 0 3px rgba(59, 130, 246, 0.1)'
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.borderColor = 'var(--border-color)'
-          e.currentTarget.style.boxShadow = 'none'
+          boxShadow: isFocused ? '0 0 0 2px rgba(var(--accent-rgb, 37, 99, 235), 0.1)' : 'none',
         }}
       />
     </div>

@@ -1412,6 +1412,7 @@ const DEFAULT_SETTINGS = {
   showHomeButton: true,
   showBookmarksBar: false,
   fontSize: "medium",
+  customFontSize: 14,
   pageZoom: "100",
   blockThirdPartyCookies: true,
   continueSession: true,
@@ -1451,8 +1452,14 @@ class SettingsStore {
         },
         fontSize: {
           type: "string",
-          enum: ["small", "medium", "large"],
+          enum: ["small", "medium", "large", "xlarge"],
           default: "medium"
+        },
+        customFontSize: {
+          type: "number",
+          minimum: 8,
+          maximum: 24,
+          default: 14
         },
         pageZoom: {
           type: "string",

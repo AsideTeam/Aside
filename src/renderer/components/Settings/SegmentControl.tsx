@@ -5,7 +5,7 @@
  * 특징: 토글 스위치보다 직관적, 3개 이상 옵션에 적합
  */
 
-import React from 'react'
+import React, { useState } from 'react'
 
 interface SegmentControlProps {
   value: string
@@ -20,11 +20,13 @@ export function SegmentControl({
   options,
   disabled = false,
 }: SegmentControlProps) {
+  const [hoveredValue, setHoveredValue] = useState<string | null>(null)
+
   return (
     <div
       style={{
         display: 'flex',
-        gap: '4px',
+        gap: '2px',
         padding: '4px',
         background: 'var(--bg-input)',
         borderRadius: 'var(--radius-md)',
@@ -36,30 +38,37 @@ export function SegmentControl({
         <button
           key={option.value}
           onClick={() => !disabled && onChange?.(option.value)}
+          onMouseEnter={() => setHoveredValue(option.value)}
+          onMouseLeave={() => setHoveredValue(null)}
           disabled={disabled}
           style={{
             flex: 1,
-            padding: '8px 12px',
-            background: value === option.value ? 'white' : 'transparent',
-            border:
-              value === option.value
-                ? '1px solid var(--border-color)'
-                : 'none',
+            padding: '10px 12px',
+            background: value === option.value 
+              ? 'var(--accent, #2563eb)' 
+              : hoveredValue === option.value
+              ? 'rgba(0,0,0,0.04)'
+              : 'transparent',
+            border: 'none',
             borderRadius: 'var(--radius-sm)',
             fontSize: 'var(--font-sm)',
-            fontWeight: '500',
+            fontWeight: '600',
             color:
               value === option.value
+                ? 'white'
+                : hoveredValue === option.value
                 ? 'var(--text-primary)'
                 : 'var(--text-secondary)',
             cursor: disabled ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s',
+            transition: 'all 0.2s ease',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
             boxShadow:
-              value === option.value ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              value === option.value 
+                ? '0 2px 8px rgba(var(--accent-rgb, 37, 99, 235), 0.3)' 
+                : 'none',
           }}
         >
           {option.icon}

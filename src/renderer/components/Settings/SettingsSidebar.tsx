@@ -5,15 +5,16 @@
  * 특징: 메뉴만 관리, 내용은 부모(SettingsPage)에서 처리
  */
 
-import React from 'react'
-import { SETTINGS_MENU_ITEMS } from '@shared/constants/settings'
+import type { SettingsMenuItem } from '@shared/constants/settings'
 
 interface SettingsSidebarProps {
+  items: SettingsMenuItem[]
   activeMenuId: string
   onMenuChange?: (menuId: string) => void
 }
 
 export function SettingsSidebar({
+  items,
   activeMenuId,
   onMenuChange,
 }: SettingsSidebarProps) {
@@ -40,29 +41,21 @@ export function SettingsSidebar({
           paddingLeft: '8px',
         }}
       >
-        <div
-          style={{
-            fontSize: '20px',
-            fontWeight: '700',
-            color: 'var(--color-primary)',
-          }}
-        >
-          ⚙️
-        </div>
         <span
           style={{
             fontSize: 'var(--font-lg)',
-            fontWeight: '600',
+            fontWeight: '700',
             color: 'var(--text-primary)',
+            letterSpacing: '-0.5px',
           }}
         >
-          Settings
+          설정
         </span>
       </div>
 
       {/* 메뉴 항목 */}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-        {SETTINGS_MENU_ITEMS.map((item) => (
+        {items.map((item) => (
           <button
             key={item.id}
             onClick={() => onMenuChange?.(item.id)}
@@ -74,13 +67,13 @@ export function SettingsSidebar({
               padding: '12px 12px',
               background:
                 activeMenuId === item.id
-                  ? 'rgba(59, 130, 246, 0.1)'
+                  ? 'rgba(var(--accent-rgb, 37, 99, 235), 0.1)'
                   : 'transparent',
               border: 'none',
               borderRadius: 'var(--radius-md)',
               borderLeft:
                 activeMenuId === item.id
-                  ? '4px solid var(--color-primary)'
+                  ? '4px solid var(--accent)'
                   : '4px solid transparent',
               paddingLeft: 'calc(12px - 4px)',
               cursor: 'pointer',
@@ -103,34 +96,21 @@ export function SettingsSidebar({
               style={{
                 color:
                   activeMenuId === item.id
-                    ? 'var(--color-primary)'
+                    ? 'var(--accent)'
                     : 'var(--text-secondary)',
               }}
             />
-            <div>
-              <div
-                style={{
-                  fontSize: 'var(--font-sm)',
-                  fontWeight: '500',
-                  color:
-                    activeMenuId === item.id
-                      ? 'var(--color-primary)'
-                      : 'var(--text-primary)',
-                }}
-              >
-                {item.label}
-              </div>
-              {item.description && (
-                <div
-                  style={{
-                    fontSize: '11px',
-                    color: 'var(--text-secondary)',
-                    marginTop: '2px',
-                  }}
-                >
-                  {item.description}
-                </div>
-              )}
+            <div
+              style={{
+                fontSize: 'var(--font-sm)',
+                fontWeight: '500',
+                color:
+                  activeMenuId === item.id
+                    ? 'var(--accent)'
+                    : 'var(--text-primary)',
+              }}
+            >
+              {item.label}
             </div>
           </button>
         ))}
@@ -138,3 +118,4 @@ export function SettingsSidebar({
     </aside>
   )
 }
+

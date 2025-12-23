@@ -5,7 +5,7 @@
  * 특징: 순수 UI 컴포넌트, 상태는 부모가 관리
  */
 
-import React from 'react'
+import { useState } from 'react'
 
 interface ToggleSwitchProps {
   checked: boolean
@@ -18,6 +18,8 @@ export function ToggleSwitch({
   onChange,
   disabled = false,
 }: ToggleSwitchProps) {
+  const [isHovered, setIsHovered] = useState(false)
+
   const handleClick = () => {
     if (!disabled && onChange) {
       onChange(!checked)
@@ -27,17 +29,24 @@ export function ToggleSwitch({
   return (
     <button
       onClick={handleClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       disabled={disabled}
       style={{
-        width: '44px',
-        height: '24px',
-        borderRadius: '12px',
+        width: '48px',
+        height: '26px',
+        borderRadius: '13px',
         border: 'none',
-        background: checked ? 'var(--color-primary)' : 'var(--bg-input)',
+        background: checked 
+          ? 'var(--accent, #2563eb)' 
+          : 'var(--bg-input)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         position: 'relative',
-        transition: 'background-color 0.2s',
+        transition: 'background-color 0.3s ease, box-shadow 0.2s ease',
         opacity: disabled ? 0.5 : 1,
+        boxShadow: isHovered && !disabled
+          ? `0 0 0 2px rgba(var(--accent-rgb, 37, 99, 235), 0.1)`
+          : 'none',
       }}
       aria-label="Toggle"
     >
@@ -45,13 +54,13 @@ export function ToggleSwitch({
         style={{
           position: 'absolute',
           top: '2px',
-          left: checked ? '22px' : '2px',
-          width: '20px',
-          height: '20px',
-          borderRadius: '10px',
+          left: checked ? '24px' : '2px',
+          width: '22px',
+          height: '22px',
+          borderRadius: '11px',
           background: 'white',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          transition: 'left 0.2s',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+          transition: 'left 0.3s ease',
         }}
       />
     </button>

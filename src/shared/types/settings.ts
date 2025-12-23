@@ -13,7 +13,8 @@ export interface SettingsSchema {
   homepage: string
   showHomeButton: boolean
   showBookmarksBar: boolean
-  fontSize: 'small' | 'medium' | 'large'
+  fontSize: 'small' | 'medium' | 'large' | 'xlarge'
+  customFontSize: number
   pageZoom: string
   blockThirdPartyCookies: boolean
   continueSession: boolean
