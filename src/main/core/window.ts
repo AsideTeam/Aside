@@ -63,12 +63,16 @@ export class MainWindow {
     try {
       logger.info('[MainWindow] Creating main window...')
 
-      // Step 1: 디스플레이 정보 가져오기 (dock/메뉴바 제외 영역)
-      const { width, height } = screen.getPrimaryDisplay().workAreaSize
+      // Step 1: 디스플레이 정보 가져오기
+      // NOTE: workAreaSize를 쓰면 macOS 메뉴바 높이만큼 상단이 비어 보일 수 있다.
+      // UI/AddressBar를 화면 최상단까지 “꽉 채우기” 위해 display bounds를 사용한다.
+      const { x, y, width, height } = screen.getPrimaryDisplay().bounds
       const isMacOS = process.platform === 'darwin'
 
       // Step 2: ContentWindow(바닥) 옵션 구성 - WebContentsView만 호스팅
       const contentWindowOptions: Electron.BrowserWindowConstructorOptions = {
+        x,
+        y,
         width,
         height,
         minWidth: 800,
@@ -76,6 +80,16 @@ export class MainWindow {
 
         // 바닥창은 웹페이지만 보여주므로 프레임리스
         frame: false,
+
+        // macOS: Hidden Titlebar (Arc/Zen 스타일)
+        // - 콘텐츠가 창의 (0,0)부터 그려지도록 함
+        // - traffic lights는 오버레이되므로 위치를 명시
+        ...(isMacOS
+          ? {
+              titleBarStyle: 'hidden',
+              trafficLightPosition: { x: 12, y: 12 },
+            }
+          : {}),
 
         webPreferences: {
           // WebContentsView가 별도로 contextIsolation을 사용
@@ -97,12 +111,22 @@ export class MainWindow {
 
       // Step 4: UIWindow(천장) 옵션 구성 - React UI를 투명 오버레이로 렌더
       const uiWindowOptions: Electron.BrowserWindowConstructorOptions = {
+        x,
+        y,
         width,
         height,
         minWidth: 800,
         minHeight: 600,
 
         frame: false,
+
+        // macOS: UI 오버레이도 동일하게 hidden titlebar로 맞춰 좌표계를 일관되게 유지
+        ...(isMacOS
+          ? {
+              titleBarStyle: 'hidden',
+              trafficLightPosition: { x: 12, y: 12 },
+            }
+          : {}),
         transparent: isMacOS,
         hasShadow: false,
         backgroundColor: isMacOS ? '#00000000' : '#1a1a1a',
@@ -136,6 +160,21 @@ export class MainWindow {
         try {
           if (didShow) return
           if (!this.contentWindow || !this.uiWindow) return
+
+          // macOS: traffic lights는 기본 숨김 (header hover/open에서만 표시)
+          if (isMacOS) {
+            try {
+              this.contentWindow.setWindowButtonVisibility(false)
+            } catch {
+              // ignore
+            }
+            try {
+              // UI window는 포커스가 갈 수 있으므로 항상 숨김 유지
+              this.uiWindow.setWindowButtonVisibility(false)
+            } catch {
+              // ignore
+            }
+          }
 
           // 초기 bounds 동기화
           this.contentWindow.setBounds(this.uiWindow.getBounds())

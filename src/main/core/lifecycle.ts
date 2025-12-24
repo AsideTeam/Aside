@@ -17,7 +17,7 @@
 
 import { Paths, validateEnv } from '@main/config'
 import { logger } from '@main/utils/Logger'
-import { MainWindow } from '@main/core/Window'
+import { MainWindow } from '@main/core/window'
 import { ViewManager } from '@main/managers/ViewManager'
 import { UpdateService } from '@main/services/Update'
 import { connectWithRetry, disconnectWithCleanup } from '@main/database/connection'

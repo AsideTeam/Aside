@@ -357,9 +357,9 @@
 /* ===== Header (AddressBar Overlay) ===== */
 .aside-header {
   position: fixed;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%) translateY(-100%);
+  top: 0;
+  left: 0;
+  transform: translateY(-100%);
   opacity: 0;
   /* 기본 상태: 마우스 이벤트 투과 */
   pointer-events: none;
@@ -368,7 +368,7 @@
     transform 0.2s ease,
     opacity 0.2s ease;
   -webkit-app-region: no-drag;
-  width: calc(100% - 32px);
+  width: 100%;
   max-width: none;
 }
 
@@ -378,7 +378,7 @@
   left: 0;
   transform: none;
   width: 100%;
-  padding: 8px 12px;
+  padding: 0 12px;
 }
 
 /* L-Shape: 사이드바 pinned면 헤더는 옆에서 시작 (겹침 방지) */
@@ -392,16 +392,8 @@
   opacity: 1;
 }
 
-.aside-header--pinned .aside-header-surface {
-  border-radius: var(--radius-lg);
-}
-
-.aside-header--pinned .aside-header-input {
-  border-radius: var(--radius-md);
-}
-
 .aside-header--open {
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
   opacity: 1;
   /* Electron의 setUIInteractivity(true)와 함께 작동 */
   pointer-events: auto;
@@ -410,16 +402,41 @@
 .aside-header-surface {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 6px 16px;
   height: 44px;
-  border-radius: 24px;
+  /* border-radius 제거 - 직사각형 */
   border: 1px solid rgba(255, 255, 255, 0.1);
-  /* 완전 불투명 (비침 없음) */
   background: rgb(3, 7, 18);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* 1. 좌측 네비게이션 (macOS Traffic Light 공간 확보) */
+.aside-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px; 
+  flex: 0 0 auto;
+  margin-left: 80px; /* macOS 버튼 공간 */
+}
+
+/* 2. URLBar (중앙 정렬, 적절한 너비) */
+.aside-header-addressbar {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0 12px;
+}
+
+/* 3. 우측 액션 버튼 */
+.aside-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 /* overlay-mode에서도 배경 유지 */
@@ -430,14 +447,16 @@
 .aside-header-input {
   flex: 1;
   min-width: 0;
+  width: 100%;
   height: 32px;
   padding: 0 12px;
-  border-radius: 999px;
+  /* border-radius 제거 - 직사각형 */
   border: none;
   background: transparent;
   color: var(--color-text-primary);
   font-size: 14px;
   outline: none;
+  text-align: center;
 }
 
 .aside-header-input::placeholder {
@@ -453,8 +472,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.375rem;
-  border-radius: 0.375rem;
+  width: 32px; /* 버튼 크기 살짝 줄임 */
+  height: 32px;
+  border-radius: 0.5rem;
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.7);
@@ -468,6 +488,7 @@
 
 .aside-header-btn--active {
   color: rgb(255, 255, 255);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* ===== Focus Gate (Renderer-side) ===== */
@@ -498,6 +519,7 @@
   width: 100%;
   height: 100vh;
   overflow: hidden;
+  /* Ensure z-index is correct if needed, but usually 0 is fine */
 }
 
 .aside-view-container {
@@ -520,21 +542,13 @@
   pointer-events: none;
 }
 
+/* WebContentsView 자리 - 직사각형으로 꽉 채움 (border-radius 없음) */
 .aside-view-placeholder {
   width: 100%;
   height: 100%;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border-primary);
   background: transparent;
   pointer-events: none !important;
-}
- 
-/* Sidebar pinned: 좌측 코너를 직각으로 만들어 실제 gap(라운드 인덴트)을 줄인다.
-   또한 seam(border-left)은 사이드바가 소유하도록 중복 border를 제거한다. */
-.aside-overlay--sidebar-pinned .aside-view-placeholder {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-left: 0;
+  /* border, border-radius 제거 - 네이티브 뷰와 정확히 일치 */
 }
 
 .aside-url-hint {

@@ -332,6 +332,20 @@ class OverlayController {
   static MAX_METRICS_AGE_MS = 3e3;
   static lastMetricsLogAt = 0;
   static lastStaleLogAt = 0;
+  static lastWindowButtonsVisible = null;
+  static setMacWindowButtonsVisible(visible) {
+    if (process.platform !== "darwin") return;
+    if (this.lastWindowButtonsVisible === visible) return;
+    try {
+      this.contentWindow?.setWindowButtonVisibility(visible);
+    } catch {
+    }
+    try {
+      this.uiWindow?.setWindowButtonVisibility(visible);
+    } catch {
+    }
+    this.lastWindowButtonsVisible = visible;
+  }
   static updateHoverMetrics(metrics) {
     if (!Number.isFinite(metrics.sidebarRightPx)) return;
     if (!Number.isFinite(metrics.headerBottomPx)) return;
@@ -514,6 +528,7 @@ class OverlayController {
     if (this.currentState.headerOpen !== wantHeaderOpen || this.currentState.sidebarOpen !== wantSidebarOpen) {
       this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen };
       this.broadcastOverlayState(this.currentState);
+      this.setMacWindowButtonsVisible(wantHeaderOpen);
       const shouldBeSolid = wantHeaderOpen || wantSidebarOpen;
       logger.debug("[OverlayController] State changed", {
         mouse: { x: relativeX, y: relativeY },
@@ -549,6 +564,7 @@ class OverlayController {
     if (this.currentState.headerOpen !== newState.headerOpen || this.currentState.sidebarOpen !== newState.sidebarOpen) {
       this.currentState = newState;
       this.broadcastOverlayState(newState);
+      this.setMacWindowButtonsVisible(newState.headerOpen);
     }
   }
   /**
@@ -660,15 +676,24 @@ class MainWindow {
     this.isCreating = true;
     try {
       logger.info("[MainWindow] Creating main window...");
-      const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+      const { x, y, width, height } = screen.getPrimaryDisplay().bounds;
       const isMacOS = process.platform === "darwin";
       const contentWindowOptions = {
+        x,
+        y,
         width,
         height,
         minWidth: 800,
         minHeight: 600,
         // 바닥창은 웹페이지만 보여주므로 프레임리스
         frame: false,
+        // macOS: Hidden Titlebar (Arc/Zen 스타일)
+        // - 콘텐츠가 창의 (0,0)부터 그려지도록 함
+        // - traffic lights는 오버레이되므로 위치를 명시
+        ...isMacOS ? {
+          titleBarStyle: "hidden",
+          trafficLightPosition: { x: 12, y: 12 }
+        } : {},
         webPreferences: {
           // WebContentsView가 별도로 contextIsolation을 사용
           contextIsolation: true,
@@ -683,11 +708,18 @@ class MainWindow {
       };
       this.contentWindow = new BrowserWindow(contentWindowOptions);
       const uiWindowOptions = {
+        x,
+        y,
         width,
         height,
         minWidth: 800,
         minHeight: 600,
         frame: false,
+        // macOS: UI 오버레이도 동일하게 hidden titlebar로 맞춰 좌표계를 일관되게 유지
+        ...isMacOS ? {
+          titleBarStyle: "hidden",
+          trafficLightPosition: { x: 12, y: 12 }
+        } : {},
         transparent: isMacOS,
         hasShadow: false,
         backgroundColor: isMacOS ? "#00000000" : "#1a1a1a",
@@ -712,6 +744,16 @@ class MainWindow {
         try {
           if (didShow) return;
           if (!this.contentWindow || !this.uiWindow) return;
+          if (isMacOS) {
+            try {
+              this.contentWindow.setWindowButtonVisibility(false);
+            } catch {
+            }
+            try {
+              this.uiWindow.setWindowButtonVisibility(false);
+            } catch {
+            }
+          }
           this.contentWindow.setBounds(this.uiWindow.getBounds());
           this.contentWindow.show();
           this.contentWindow.moveTop();
@@ -1011,6 +1053,7 @@ class ViewManager {
           sandbox: true
         }
       });
+      view.setBackgroundColor("#00000000");
       const tabId = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
       const tabData = {
         id: tabId,
@@ -1063,16 +1106,25 @@ class ViewManager {
       logger.warn("[ViewManager] contentWindow not available; ignoring safe-area");
       return;
     }
-    const { width, height } = this.contentWindow.getBounds();
+    const contentBounds = this.contentWindow.getBounds();
+    const { width, height } = contentBounds;
+    logger.info("[📐 MAIN] Content Window actual bounds:", {
+      x: contentBounds.x,
+      y: contentBounds.y,
+      width: contentBounds.width,
+      height: contentBounds.height
+    });
+    const bleed = 0;
     this.externalActiveBounds = {
       x: safeArea.left,
       y: safeArea.top,
-      width: Math.max(0, width - safeArea.left),
-      height: Math.max(0, height - safeArea.top)
+      width: Math.max(0, width - safeArea.left + bleed),
+      height: Math.max(0, height - safeArea.top + bleed)
     };
-    logger.debug("[📐 MAIN] Calculated bounds from safe-area:", {
+    logger.debug("[📐 MAIN] Calculated bounds from safe-area (with bleed):", {
       contentWindow: { w: width, h: height },
       safeArea,
+      bleed,
       calculatedBounds: this.externalActiveBounds
     });
     this.layout();
@@ -2620,8 +2672,13 @@ function setupViewHandlers(registry2) {
   logger.info("[ViewHandler] Setting up handlers...");
   registry2.on(IPC_CHANNELS.VIEW.RESIZE, (_event, bounds) => {
     try {
+      logger.info("[ViewHandler] 📥 Received VIEW.RESIZE from renderer:", { ...bounds });
       const parsed = ViewResizeSchema.safeParse(bounds);
-      if (!parsed.success) return;
+      if (!parsed.success) {
+        logger.warn("[ViewHandler] VIEW.RESIZE validation failed:", { error: parsed.error });
+        return;
+      }
+      logger.info("[ViewHandler] Calling ViewManager.setActiveViewBounds");
       ViewManager.setActiveViewBounds(bounds);
     } catch (error) {
       logger.error("[ViewHandler] view:resize failed:", error);

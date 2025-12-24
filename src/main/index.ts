@@ -15,7 +15,7 @@
 import { app } from 'electron'
 import Store from 'electron-store'
 import { logger } from '@main/utils/Logger'
-import { AppLifecycle } from '@main/core/Lifecycle'
+import { AppLifecycle } from '@main/core/lifecycle'
 import { SessionManager } from '@main/core/Session'
 import { UpdateService } from '@main/services/Update'
 import { setupIPCHandlers, removeAllIPCHandlers } from '@main/handlers'

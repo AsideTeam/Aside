@@ -20,6 +20,9 @@ import { useOverlayStore } from '@renderer/lib/overlayStore';
 import { logger } from '@renderer/lib';
 
 export const ZenLayout: React.FC = () => {
+  // ⭐ 디버깅: ZenLayout 렌더링 확인
+  logger.info('[ZenLayout] Rendering component');
+
   const isFocused = useWindowFocus();
   const headerOpen = useOverlayStore((s) => s.headerOpen)
   const sidebarOpen = useOverlayStore((s) => s.sidebarOpen)
@@ -73,6 +76,19 @@ export const ZenLayout: React.FC = () => {
       window.removeEventListener('resize', measure)
     }
   }, [headerLatched, sidebarLatched])
+
+  // ⭐ 초기 마운트 시 강제 실행 (디버깅)
+  useEffect(() => {
+    console.log('[Layout] Component mounted, hasRef:', !!viewPlaceholderRef.current)
+    
+    // 초기 bounds 즉시 계산
+    if (viewPlaceholderRef.current) {
+      console.log('[Layout] Triggering initial updateBounds')
+      updateBounds()
+    } else {
+      console.warn('[Layout] viewPlaceholderRef.current is NULL on mount!')
+    }
+  }, []) // 빈 의존성 = 마운트 시 1회만 (updateBounds 의도적 제외)
 
   // 측정된 pinned size가 바뀌면 bounds도 다시 계산해야 잘림/미적용 레이스가 없다.
   useEffect(() => {

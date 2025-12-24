@@ -125,12 +125,16 @@ export class ViewManager {
       logger.info('[ViewManager] Creating new tab...', { url })
 
       // Step 1: WebContentsView 생성
+      // ⭐ backgroundColor를 투명하게 설정 (기본값은 흰색!)
       const view = new WebContentsView({
         webPreferences: {
           contextIsolation: true,
           sandbox: true,
         },
       })
+
+      // ⭐ 투명 배경 설정 (Electron은 기본적으로 흰색 배경 사용)
+      view.setBackgroundColor('#00000000')
 
       // Step 2: 고유 ID 생성
       const tabId = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
@@ -207,19 +211,32 @@ export class ViewManager {
       return
     }
 
-    const { width, height } = this.contentWindow.getBounds()
+    const contentBounds = this.contentWindow.getBounds()
+    const { width, height } = contentBounds
+
+    // ⭐ 디버깅: Content Window 실제 크기
+    logger.info('[📐 MAIN] Content Window actual bounds:', {
+      x: contentBounds.x,
+      y: contentBounds.y,
+      width: contentBounds.width,
+      height: contentBounds.height,
+    })
+
+    // Bleed는 투명 배경 설정으로 필요 없어짐
+    const bleed = 0
 
     // Safe-area 오프셋을 빼서 실제 WebContentsView bounds 계산
     this.externalActiveBounds = {
       x: safeArea.left,
       y: safeArea.top,
-      width: Math.max(0, width - safeArea.left),
-      height: Math.max(0, height - safeArea.top),
+      width: Math.max(0, width - safeArea.left + bleed),
+      height: Math.max(0, height - safeArea.top + bleed),
     }
 
-    logger.debug('[📐 MAIN] Calculated bounds from safe-area:', {
+    logger.debug('[📐 MAIN] Calculated bounds from safe-area (with bleed):', {
       contentWindow: { w: width, h: height },
       safeArea,
+      bleed,
       calculatedBounds: this.externalActiveBounds
     })
 

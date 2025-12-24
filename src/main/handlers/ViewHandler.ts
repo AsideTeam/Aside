@@ -18,8 +18,13 @@ export function setupViewHandlers(registry: IpcRegistry): void {
 
   registry.on(IPC_CHANNELS.VIEW.RESIZE, (_event, bounds: ViewBounds) => {
     try {
+      logger.info('[ViewHandler] 📥 Received VIEW.RESIZE from renderer:', { ...bounds })
       const parsed = ViewResizeSchema.safeParse(bounds)
-      if (!parsed.success) return
+      if (!parsed.success) {
+        logger.warn('[ViewHandler] VIEW.RESIZE validation failed:', { error: parsed.error })
+        return
+      }
+      logger.info('[ViewHandler] Calling ViewManager.setActiveViewBounds')
       ViewManager.setActiveViewBounds(bounds)
     } catch (error) {
       logger.error('[ViewHandler] view:resize failed:', error)

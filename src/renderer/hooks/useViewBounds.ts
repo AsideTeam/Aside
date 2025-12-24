@@ -49,10 +49,14 @@ export const useViewBounds = (
     try {
       const rect = contentAreaRef.current.getBoundingClientRect();
 
+      // ⭐ 디버깅: 실제 rect 값 로깅 (소수점 포함)
+      console.log('[📐 RENDERER] Raw placeholder rect:', 
+        `x:${rect.x} y:${rect.y} w:${rect.width} h:${rect.height}`);
+
       // Safe-area 오프셋만 계산 (pinned sidebar/header 크기)
       const newBounds: ViewBounds = {
-        left: Math.round(rect.x * scaleFactor),
-        top: Math.round(rect.y * scaleFactor),
+        left: Math.round((rect.x + margins.left) * scaleFactor),
+        top: Math.round((rect.y + margins.top) * scaleFactor),
       };
 
       // 이전과 다를 때만 업데이트 (성능 최적화)
@@ -62,17 +66,15 @@ export const useViewBounds = (
           logger.warn('useViewBounds - Invalid bounds; skip resize')
           return
         }
-        logger.info('[📐 RENDERER → MAIN] Sending safe-area offsets:', {
-          left: newBounds.left,
-          top: newBounds.top,
-        });
+        console.log('[📐 RENDERER → MAIN] Sending safe-area offsets:', 
+          `left:${newBounds.left} top:${newBounds.top}`);
         window.electronAPI.view.resize(parsed.data);
         lastBoundsRef.current = newBounds;
       }
     } catch (error) {
       logger.error('useViewBounds - Error updating bounds', { error });
     }
-  }, [contentAreaRef, margin, margins.bottom, margins.left, margins.right, margins.top, scaleFactor]);
+  }, [contentAreaRef, scaleFactor, margins.left, margins.top]);
 
   return { updateBounds };
 };

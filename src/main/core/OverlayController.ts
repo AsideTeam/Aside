@@ -54,6 +54,31 @@ export class OverlayController {
   private static lastMetricsLogAt = 0
   private static lastStaleLogAt = 0
 
+  private static lastWindowButtonsVisible: boolean | null = null
+
+  private static setMacWindowButtonsVisible(visible: boolean): void {
+    if (process.platform !== 'darwin') return
+    if (this.lastWindowButtonsVisible === visible) return
+
+    // contentWindow가 실제 포커스를 가지는 설계지만,
+    // uiWindow가 일시적으로 포커스를 받을 수 있어 둘 다 안전하게 처리한다.
+    try {
+      this.contentWindow?.setWindowButtonVisibility(visible)
+    } catch {
+      // ignore
+    }
+
+    // UI window는 기본 숨김을 유지하고 싶으면 여기서 false로 고정할 수도 있음.
+    // 다만 focus race로 traffic lights가 깜빡이는 걸 막기 위해 동일 값으로 맞춘다.
+    try {
+      this.uiWindow?.setWindowButtonVisibility(visible)
+    } catch {
+      // ignore
+    }
+
+    this.lastWindowButtonsVisible = visible
+  }
+
   static updateHoverMetrics(metrics: OverlayHoverMetrics): void {
     // Renderer가 보낸 값은 언제든 이상할 수 있으니 최소한의 sanity만 적용
     if (!Number.isFinite(metrics.sidebarRightPx)) return
@@ -309,6 +334,9 @@ export class OverlayController {
       this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen }
       this.broadcastOverlayState(this.currentState)
 
+      // macOS: header가 열릴 때만 traffic lights 표시
+      this.setMacWindowButtonsVisible(wantHeaderOpen)
+
       // Solid: zone 위에 있거나 latch된 경우
       const shouldBeSolid = wantHeaderOpen || wantSidebarOpen
       
@@ -355,6 +383,9 @@ export class OverlayController {
     ) {
       this.currentState = newState
       this.broadcastOverlayState(newState)
+
+      // macOS: header가 닫히면 traffic lights도 숨김
+      this.setMacWindowButtonsVisible(newState.headerOpen)
     }
   }
 

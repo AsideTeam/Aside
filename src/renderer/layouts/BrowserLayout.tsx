@@ -16,13 +16,7 @@ interface BrowserLayoutProps {
 
 export const BrowserLayout: React.FC<BrowserLayoutProps> = ({
   currentUrl,
-  isLoading = false,
-  canGoBack = false,
-  canGoForward = false,
   onNavigate,
-  onReload,
-  onGoBack,
-  onGoForward,
   children,
 }) => {
   return (
@@ -30,12 +24,6 @@ export const BrowserLayout: React.FC<BrowserLayoutProps> = ({
       <AddressBar
         currentUrl={currentUrl}
         onNavigate={onNavigate}
-        onReload={onReload}
-        onGoBack={onGoBack}
-        onGoForward={onGoForward}
-        canGoBack={canGoBack}
-        canGoForward={canGoForward}
-        isLoading={isLoading}
       />
       <main className="flex-1 overflow-hidden">
         {children}
