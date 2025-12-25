@@ -62,7 +62,7 @@
 
 /* ===== Pinned Tabs Area ===== */
 .aside-pinned-area {
-  padding: 12px;
+  padding: 16px;
   border-bottom: 1px solid var(--color-border-primary);
   -webkit-app-region: no-drag;
 }
@@ -367,6 +367,7 @@
   transition:
     transform 0.2s ease,
     opacity 0.2s ease;
+  /* 헤더 전체는 drag하지 않음 - 상단만 drag */
   -webkit-app-region: no-drag;
   width: 100%;
   max-width: none;
@@ -378,7 +379,7 @@
   left: 0;
   transform: none;
   width: 100%;
-  padding: 0 12px;
+  padding: 0;
 }
 
 /* L-Shape: 사이드바 pinned면 헤더는 옆에서 시작 (겹침 방지) */
@@ -400,10 +401,13 @@
 }
 
 .aside-header-surface {
+  /* macOS traffic lights 공간(대략 3버튼 + 여유). 필요하면 값만 조정 */
+  --aside-traffic-lights-space: 68px;
+
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 16px;
+  padding: 6px 12px 6px calc(12px + var(--aside-traffic-lights-space));
   height: 44px;
   /* border-radius 제거 - 직사각형 */
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -411,15 +415,34 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  /* 헤더 surface는 drag하지 않음 - 상단 drag 영역만 drag */
+  -webkit-app-region: no-drag;
+  position: relative;
+}
+
+/* 헤더 상단 drag 영역 (traffic lights 영역만) */
+/* ⚠️ 중요: 헤더가 열렸을 때만 drag 영역이 작동하도록 */
+.aside-header--open::before,
+.aside-header--pinned::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--aside-traffic-lights-space);
+  height: 100%;
+  /* macOS traffic lights 영역만 drag 가능 */
+  -webkit-app-region: drag;
+  pointer-events: auto;
+  z-index: 1;
 }
 
 /* 1. 좌측 네비게이션 (macOS Traffic Light 공간 확보) */
 .aside-header-nav {
   display: flex;
   align-items: center;
-  gap: 4px; 
+  gap: 8px;
   flex: 0 0 auto;
-  margin-left: 80px; /* macOS 버튼 공간 */
+  margin-left: 0;
 }
 
 /* 2. URLBar (중앙 정렬, 적절한 너비) */
@@ -435,7 +458,7 @@
 .aside-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex: 0 0 auto;
 }
 
@@ -457,6 +480,8 @@
   font-size: 14px;
   outline: none;
   text-align: center;
+  /* 클릭/입력은 정상 작동하도록 drag 제외 */
+  -webkit-app-region: no-drag;
 }
 
 .aside-header-input::placeholder {
@@ -480,6 +505,8 @@
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   transition: all 0.15s ease;
+  /* 버튼은 클릭 가능해야 하므로 drag 제외 */
+  -webkit-app-region: no-drag;
 }
 
 .aside-header-btn:hover {

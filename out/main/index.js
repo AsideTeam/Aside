@@ -678,6 +678,7 @@ class MainWindow {
       logger.info("[MainWindow] Creating main window...");
       const { x, y, width, height } = screen.getPrimaryDisplay().bounds;
       const isMacOS = process.platform === "darwin";
+      const macTrafficLights = { x: 12, y: 11 };
       const contentWindowOptions = {
         x,
         y,
@@ -692,7 +693,7 @@ class MainWindow {
         // - traffic lights는 오버레이되므로 위치를 명시
         ...isMacOS ? {
           titleBarStyle: "hidden",
-          trafficLightPosition: { x: 12, y: 12 }
+          trafficLightPosition: macTrafficLights
         } : {},
         webPreferences: {
           // WebContentsView가 별도로 contextIsolation을 사용
@@ -718,7 +719,7 @@ class MainWindow {
         // macOS: UI 오버레이도 동일하게 hidden titlebar로 맞춰 좌표계를 일관되게 유지
         ...isMacOS ? {
           titleBarStyle: "hidden",
-          trafficLightPosition: { x: 12, y: 12 }
+          trafficLightPosition: macTrafficLights
         } : {},
         transparent: isMacOS,
         hasShadow: false,
@@ -856,13 +857,33 @@ class MainWindow {
    */
   static setupWindowEvents() {
     if (!this.uiWindow || !this.contentWindow) return;
-    const syncBounds = () => {
+    let isSyncing = false;
+    const syncFromUI = () => {
       if (!this.uiWindow || !this.contentWindow) return;
-      const bounds = this.uiWindow.getBounds();
-      this.contentWindow.setBounds(bounds);
+      if (isSyncing) return;
+      try {
+        isSyncing = true;
+        const bounds = this.uiWindow.getBounds();
+        this.contentWindow.setBounds(bounds);
+      } finally {
+        isSyncing = false;
+      }
     };
-    this.uiWindow.on("move", syncBounds);
-    this.uiWindow.on("resize", syncBounds);
+    const syncFromContent = () => {
+      if (!this.uiWindow || !this.contentWindow) return;
+      if (isSyncing) return;
+      try {
+        isSyncing = true;
+        const bounds = this.contentWindow.getBounds();
+        this.uiWindow.setBounds(bounds);
+      } finally {
+        isSyncing = false;
+      }
+    };
+    this.uiWindow.on("move", syncFromUI);
+    this.uiWindow.on("resize", syncFromUI);
+    this.contentWindow.on("move", syncFromContent);
+    this.contentWindow.on("resize", syncFromContent);
     this.uiWindow.on("closed", () => {
       logger.info("[MainWindow] UI window closed");
       try {

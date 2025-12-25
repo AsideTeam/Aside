@@ -60,18 +60,18 @@ export class OverlayController {
     if (process.platform !== 'darwin') return
     if (this.lastWindowButtonsVisible === visible) return
 
-    // contentWindow가 실제 포커스를 가지는 설계지만,
-    // uiWindow가 일시적으로 포커스를 받을 수 있어 둘 다 안전하게 처리한다.
+    // ⚠️ 중요: parent-child 관계에서 child만 traffic lights를 표시
+    // - contentWindow (child)만 traffic lights를 제어
+    // - uiWindow (parent)는 항상 숨김 (중복 방지)
     try {
       this.contentWindow?.setWindowButtonVisibility(visible)
     } catch {
       // ignore
     }
 
-    // UI window는 기본 숨김을 유지하고 싶으면 여기서 false로 고정할 수도 있음.
-    // 다만 focus race로 traffic lights가 깜빡이는 걸 막기 위해 동일 값으로 맞춘다.
+    // UI window (parent)는 항상 숨김 유지 (중복 방지)
     try {
-      this.uiWindow?.setWindowButtonVisibility(visible)
+      this.uiWindow?.setWindowButtonVisibility(false)
     } catch {
       // ignore
     }

@@ -69,6 +69,10 @@ export class MainWindow {
       const { x, y, width, height } = screen.getPrimaryDisplay().bounds
       const isMacOS = process.platform === 'darwin'
 
+      // Arc/Zen 스타일 헤더(44px)에 맞춘 traffic lights 오프셋
+      // 필요하면 여기 숫자만 미세 조정하면 됨.
+      const macTrafficLights = { x: 12, y: 11 }             
+
       // Step 2: ContentWindow(바닥) 옵션 구성 - WebContentsView만 호스팅
       const contentWindowOptions: Electron.BrowserWindowConstructorOptions = {
         x,
@@ -83,11 +87,11 @@ export class MainWindow {
 
         // macOS: Hidden Titlebar (Arc/Zen 스타일)
         // - 콘텐츠가 창의 (0,0)부터 그려지도록 함
-        // - traffic lights는 오버레이되므로 위치를 명시
+        // - traffic lights는 contentWindow에만 표시 (parent-child 관계에서 중복 방지)
         ...(isMacOS
           ? {
               titleBarStyle: 'hidden',
-              trafficLightPosition: { x: 12, y: 12 },
+              trafficLightPosition: macTrafficLights,
             }
           : {}),
 
@@ -120,11 +124,13 @@ export class MainWindow {
 
         frame: false,
 
-        // macOS: UI 오버레이도 동일하게 hidden titlebar로 맞춰 좌표계를 일관되게 유지
+        // macOS: UI 오버레이 (parent)는 traffic lights를 표시하지 않음
+        // - parent-child 관계에서 child(contentWindow)만 traffic lights를 표시
+        // - titleBarStyle은 hidden으로 유지하되 trafficLightPosition은 설정하지 않음
         ...(isMacOS
           ? {
               titleBarStyle: 'hidden',
-              trafficLightPosition: { x: 12, y: 12 },
+              // ⚠️ trafficLightPosition 제거 - parent는 traffic lights를 표시하지 않음
             }
           : {}),
         transparent: isMacOS,
@@ -161,15 +167,18 @@ export class MainWindow {
           if (didShow) return
           if (!this.contentWindow || !this.uiWindow) return
 
-          // macOS: traffic lights는 기본 숨김 (header hover/open에서만 표시)
+          // macOS: traffic lights는 contentWindow에만 표시
+          // - uiWindow (parent)는 항상 숨김
+          // - contentWindow (child)는 header hover/open에서만 표시 (OverlayController에서 제어)
           if (isMacOS) {
             try {
+              // contentWindow는 OverlayController에서 제어하므로 여기서는 초기값만 설정
               this.contentWindow.setWindowButtonVisibility(false)
             } catch {
               // ignore
             }
             try {
-              // UI window는 포커스가 갈 수 있으므로 항상 숨김 유지
+              // UI window (parent)는 항상 숨김 (중복 방지)
               this.uiWindow.setWindowButtonVisibility(false)
             } catch {
               // ignore
@@ -310,15 +319,31 @@ export class MainWindow {
   private static setupWindowEvents(): void {
     if (!this.uiWindow || !this.contentWindow) return
 
-    // 동기화: UI 이동/리사이즈 -> Content도 동일하게
-    const syncBounds = () => {
+    // 동기화: parent-child 관계에서는 child만 parent를 따라간다.
+    // uiWindow가 parent, contentWindow가 child이므로 contentWindow만 uiWindow를 따라가도록.
+    // ⚠️ 중요: 양방향 동기화는 무한 루프와 bounds 계산 오류를 일으킬 수 있음
+    let isSyncing = false
+
+    // UIWindow (parent)가 움직이면 ContentWindow (child)를 따라가게 함
+    const syncFromUI = () => {
       if (!this.uiWindow || !this.contentWindow) return
-      const bounds = this.uiWindow.getBounds()
-      this.contentWindow.setBounds(bounds)
+      if (isSyncing) return
+      try {
+        isSyncing = true
+        const bounds = this.uiWindow.getBounds()
+        this.contentWindow.setBounds(bounds)
+      } finally {
+        isSyncing = false
+      }
     }
 
-    this.uiWindow.on('move', syncBounds)
-    this.uiWindow.on('resize', syncBounds)
+    // ContentWindow는 parent를 따라가므로, ContentWindow의 move/resize 이벤트는 무시
+    // (사용자가 직접 contentWindow를 드래그할 수 없으므로 이 이벤트는 발생하지 않아야 함)
+    // 하지만 안전을 위해 ContentWindow의 이벤트는 리스너를 등록하지 않음
+
+    this.uiWindow.on('move', syncFromUI)
+    this.uiWindow.on('resize', syncFromUI)
+    // ⚠️ contentWindow의 move/resize 이벤트는 등록하지 않음 (양방향 동기화 방지)
 
     // UI 닫히면 Content도 닫고 앱 종료
     this.uiWindow.on('closed', () => {
