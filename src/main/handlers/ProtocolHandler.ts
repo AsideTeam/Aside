@@ -12,7 +12,7 @@
  */
 
 import { app, protocol } from 'electron'
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 
 /**
  * 프로토콜 핸들러 설정

@@ -9,7 +9,7 @@
  * - 에러 응답 처리
  */
 
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 import { ViewManager } from '@main/managers/ViewManager'
 import { SettingsService } from '@main/services/SettingsService'
 import type { SettingsSchema } from '@shared/types'

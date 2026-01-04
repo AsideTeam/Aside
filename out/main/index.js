@@ -329,6 +329,7 @@ class OverlayController {
   // ===== Window References =====
   static uiWindow = null;
   static contentWindow = null;
+  static uiWebContents = null;
   static cleanupFns = [];
   // ===== State =====
   static currentState = { headerOpen: false, sidebarOpen: false };
@@ -341,11 +342,12 @@ class OverlayController {
   // ===== Timers & Tracking =====
   static hoverTrackingTimer = null;
   static lastStateUpdateTime = 0;
+  // Prevent rapid open/close flicker near the edge hotzones.
+  static lastHeaderOpenedAt = 0;
   static setMacWindowButtonsVisible(visible) {
     if (process.platform !== "darwin" || this.lastWindowButtonsVisible === visible) return;
     try {
-      this.contentWindow?.setWindowButtonVisibility(visible);
-      this.uiWindow?.setWindowButtonVisibility(false);
+      this.uiWindow?.setWindowButtonVisibility(visible);
       this.lastWindowButtonsVisible = visible;
     } catch {
     }
@@ -370,7 +372,8 @@ class OverlayController {
       this.lastStateUpdateTime = 0;
     }, WINDOW_ADJUST_DEBOUNCE_MS);
     try {
-      this.uiWindow?.webContents.send("window:resized", { timestamp: Date.now() });
+      ;
+      (this.uiWebContents ?? this.uiWindow?.webContents)?.send("window:resized", { timestamp: Date.now() });
     } catch {
     }
   }
@@ -401,18 +404,19 @@ class OverlayController {
   static broadcastLatch(channel, latched) {
     try {
       const payload = OverlayLatchChangedEventSchema.parse({ latched, timestamp: Date.now() });
-      this.uiWindow?.webContents.send(channel, payload);
+      (this.uiWebContents ?? this.uiWindow?.webContents)?.send(channel, payload);
     } catch {
     }
   }
   /**
    * Attach controller to windows
    */
-  static attach({ uiWindow, contentWindow }) {
-    if (this.uiWindow === uiWindow && this.contentWindow === contentWindow) return;
+  static attach({ uiWindow, contentWindow, uiWebContents }) {
+    if (this.uiWindow === uiWindow && this.contentWindow === contentWindow && this.uiWebContents === (uiWebContents ?? null)) return;
     this.dispose();
     this.uiWindow = uiWindow;
     this.contentWindow = contentWindow;
+    this.uiWebContents = uiWebContents ?? null;
     this.setupFocusTracking();
     this.startGlobalMouseTracking();
     this.setupKeyboardShortcuts();
@@ -428,6 +432,7 @@ class OverlayController {
     }
     this.uiWindow = null;
     this.contentWindow = null;
+    this.uiWebContents = null;
   }
   /**
    * Arc 스타일 Step 1: Window Focus Tracking
@@ -447,7 +452,8 @@ class OverlayController {
     const broadcastFocus = (focused) => {
       overlayStore.getState().setFocused(focused);
       try {
-        uiWindow.webContents.send("window:focus-changed", focused);
+        const target = this.uiWebContents ?? uiWindow.webContents;
+        target.send("window:focus-changed", focused);
       } catch {
       }
       if (!focused) {
@@ -490,7 +496,6 @@ class OverlayController {
     const windowFocused = overlayStore.getState().focused;
     if (!windowFocused) {
       this.closeNonLatchedOverlays();
-      this.setUIWindowGhost();
       return;
     }
     const { x: mouseX, y: mouseY } = screen.getCursorScreenPoint();
@@ -499,13 +504,11 @@ class OverlayController {
     const insideWindow = mouseX >= bounds.x && mouseX < bounds.x + bounds.width && mouseY >= bounds.y && mouseY < bounds.y + bounds.height;
     if (!insideWindow) {
       this.closeNonLatchedOverlays();
-      this.setUIWindowGhost();
       return;
     }
     const metricsAgeMs = this.hoverMetrics ? Date.now() - this.hoverMetrics.timestamp : Number.POSITIVE_INFINITY;
     if (!Number.isFinite(metricsAgeMs) || metricsAgeMs > MAX_METRICS_AGE_MS) {
       this.closeNonLatchedOverlays();
-      this.setUIWindowGhost();
       return;
     }
     const relativeX = Math.max(0, Math.floor(mouseX - bounds.x));
@@ -518,8 +521,19 @@ class OverlayController {
     const effectiveHeaderZoneBottom = Math.min(Math.max(0, headerZoneBottom), bounds.height);
     const inSidebarZone = relativeX <= effectiveSidebarZoneRight;
     const inHeaderZone = relativeY <= effectiveHeaderZoneBottom;
-    const wantHeaderOpen = headerLatched || inHeaderZone;
+    let wantHeaderOpen = headerLatched || inHeaderZone;
     const wantSidebarOpen = sidebarLatched || inSidebarZone;
+    if (!headerLatched) {
+      const nowMs = Date.now();
+      if (wantHeaderOpen) {
+        this.lastHeaderOpenedAt = nowMs;
+      } else {
+        const minOpenMs = 200;
+        if (this.currentState.headerOpen && nowMs - this.lastHeaderOpenedAt < minOpenMs) {
+          wantHeaderOpen = true;
+        }
+      }
+    }
     if (Math.random() < 0.02) {
       logger.debug("[OverlayController] Coordinate Debug", {
         mouse: { screenX: mouseX, screenY: mouseY, relativeX, relativeY },
@@ -544,8 +558,6 @@ class OverlayController {
       this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen };
       this.broadcastOverlayState(this.currentState);
       this.setMacWindowButtonsVisible(wantHeaderOpen);
-      const shouldBeSolid = wantHeaderOpen || wantSidebarOpen;
-      shouldBeSolid ? this.setUIWindowSolid() : this.setUIWindowGhost();
     }
   }
   /**
@@ -568,20 +580,9 @@ class OverlayController {
     if (!this.uiWindow) return;
     const timestamp = Date.now();
     try {
-      this.uiWindow.webContents.send(state.headerOpen ? "header:open" : "header:close", { timestamp });
-      this.uiWindow.webContents.send(state.sidebarOpen ? "sidebar:open" : "sidebar:close", { timestamp });
-    } catch {
-    }
-  }
-  static setUIWindowGhost() {
-    try {
-      this.uiWindow?.setIgnoreMouseEvents(true, { forward: true });
-    } catch {
-    }
-  }
-  static setUIWindowSolid() {
-    try {
-      this.uiWindow?.setIgnoreMouseEvents(false);
+      const target = this.uiWebContents ?? this.uiWindow.webContents;
+      target.send(state.headerOpen ? "header:open" : "header:close", { timestamp });
+      target.send(state.sidebarOpen ? "sidebar:open" : "sidebar:close", { timestamp });
     } catch {
     }
   }
@@ -629,8 +630,13 @@ class MainWindow {
   // NOTE: Zen/Arc 스타일 오버레이를 위해 2-윈도우 구조를 사용
   // - contentWindow: WebContentsView(웹페이지) 전용
   // - uiWindow: React UI(투명 오버레이) 전용
+  // NOTE(2026-01): 2-윈도우는 macOS에서 드래그 중 미세 지연/드리프트가 발생해
+  // UI(header)와 WebContentsView가 “따로 노는” 느낌이 생긴다.
+  // 따라서 단일 BrowserWindow를 생성하고, ViewManager/OverlayController API 호환을 위해
+  // uiWindow/contentWindow가 동일 인스턴스를 참조하도록 한다.
   static uiWindow = null;
   static contentWindow = null;
+  static uiOverlayView = null;
   static isCreating = false;
   /**
    * MainWindow 생성
@@ -658,35 +664,6 @@ class MainWindow {
       const { x, y, width, height } = screen.getPrimaryDisplay().bounds;
       const isMacOS = process.platform === "darwin";
       const macTrafficLights = { x: 12, y: 11 };
-      const contentWindowOptions = {
-        x,
-        y,
-        width,
-        height,
-        minWidth: 800,
-        minHeight: 600,
-        // 바닥창은 웹페이지만 보여주므로 프레임리스
-        frame: false,
-        // macOS: Hidden Titlebar (Arc/Zen 스타일)
-        // - 콘텐츠가 창의 (0,0)부터 그려지도록 함
-        // - traffic lights는 contentWindow에만 표시 (parent-child 관계에서 중복 방지)
-        ...isMacOS ? {
-          titleBarStyle: "hidden",
-          trafficLightPosition: macTrafficLights
-        } : {},
-        webPreferences: {
-          // WebContentsView가 별도로 contextIsolation을 사용
-          contextIsolation: true,
-          sandbox: Env.isDev ? false : true
-        },
-        // UI 준비될 때까지 숨김
-        show: false,
-        // 컨텐츠 배경 (투명 금지)
-        // Renderer 테마의 --color-bg-secondary (rgb(17, 24, 39))와 맞춰
-        // sidebar 그림자/투명 합성에서 언더레이가 튀며 seam처럼 보이는 현상을 줄인다.
-        backgroundColor: "#111827"
-      };
-      this.contentWindow = new BrowserWindow(contentWindowOptions);
       const uiWindowOptions = {
         x,
         y,
@@ -695,16 +672,17 @@ class MainWindow {
         minWidth: 800,
         minHeight: 600,
         frame: false,
-        // macOS: UI 오버레이 (parent)는 traffic lights를 표시하지 않음
-        // - parent-child 관계에서 child(contentWindow)만 traffic lights를 표시
-        // - titleBarStyle은 hidden으로 유지하되 trafficLightPosition은 설정하지 않음
+        // macOS: Hidden Titlebar (Arc/Zen 스타일)
         ...isMacOS ? {
-          titleBarStyle: "hidden"
-          // ⚠️ trafficLightPosition 제거 - parent는 traffic lights를 표시하지 않음
+          titleBarStyle: "hidden",
+          trafficLightPosition: macTrafficLights
         } : {},
-        transparent: isMacOS,
+        // 단일 윈도우 모드에서는 투명 윈도우가 “아무것도 안 보이는” 상태를 만들기 쉽다.
+        // (overlay-mode CSS가 background를 transparent로 만들 수 있음)
+        // 따라서 macOS에서도 기본은 불투명으로 유지한다.
+        transparent: false,
         hasShadow: false,
-        backgroundColor: isMacOS ? "#00000000" : "#1a1a1a",
+        backgroundColor: "#1a1a1a",
         // 바닥창 위에 붙어서 같이 움직이도록
         webPreferences: {
           preload: join(__dirname, "../preload/index.cjs"),
@@ -714,67 +692,73 @@ class MainWindow {
         show: false
       };
       this.uiWindow = new BrowserWindow(uiWindowOptions);
+      this.contentWindow = this.uiWindow;
+      this.uiOverlayView = new WebContentsView({
+        webPreferences: {
+          preload: join(__dirname, "../preload/index.cjs"),
+          contextIsolation: true,
+          sandbox: Env.isDev ? false : true,
+          nodeIntegration: false,
+          webSecurity: true
+        }
+      });
       logger.info("[MainWindow] Windows created", {
         width,
         height,
         platform: process.platform
       });
+      try {
+        const root = this.uiWindow.getContentView();
+        root.addChildView(this.uiOverlayView);
+        this.uiOverlayView.setBounds({ x: 0, y: 0, width, height });
+      } catch (error) {
+        logger.error("[MainWindow] Failed to attach uiOverlayView", error);
+        throw error;
+      }
       this.setupWindowEvents();
       let didShow = false;
-      const showBoth = () => {
+      const showMain = () => {
         try {
           if (didShow) return;
-          if (!this.contentWindow || !this.uiWindow) return;
+          if (!this.uiWindow) return;
           if (isMacOS) {
             try {
-              this.contentWindow.setWindowButtonVisibility(false);
               this.uiWindow.setWindowButtonVisibility(false);
             } catch {
             }
           }
-          const bounds = this.uiWindow.getBounds();
-          this.contentWindow.setBounds(bounds, false);
-          this.contentWindow.show();
-          this.contentWindow.moveTop();
           this.uiWindow.show();
-          this.uiWindow.moveTop();
-          if (isMacOS) {
-            try {
-              this.uiWindow.setAlwaysOnTop(true, "floating");
-            } catch {
-            }
-          }
-          this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
-          OverlayController.attach({ uiWindow: this.uiWindow, contentWindow: this.contentWindow });
-          this.contentWindow.focus();
-          try {
-            this.uiWindow.moveTop();
-          } catch {
-          }
+          this.uiWindow.focus();
+          OverlayController.attach({
+            uiWindow: this.uiWindow,
+            contentWindow: this.uiWindow,
+            uiWebContents: this.uiOverlayView?.webContents ?? void 0
+          });
           didShow = true;
-          logger.info("[MainWindow] Content/UI windows shown");
+          logger.info("[MainWindow] Main window shown (single-window)");
         } catch (error) {
           logger.error("[MainWindow] Failed to show windows:", error);
         }
       };
-      this.uiWindow.once("ready-to-show", showBoth);
+      this.uiWindow.once("ready-to-show", showMain);
+      await this.uiWindow.loadURL("about:blank");
       const startUrl = this.getStartUrl();
-      await this.uiWindow.loadURL(startUrl);
-      logger.info("[MainWindow] UI URL loaded", { url: startUrl });
+      await this.uiOverlayView.webContents.loadURL(startUrl);
+      logger.info("[MainWindow] UI URL loaded (overlay view)", { url: startUrl });
       setTimeout(() => {
         try {
-          if (!this.uiWindow || !this.contentWindow) return;
+          if (!this.uiWindow) return;
           if (didShow) return;
-          if (!this.uiWindow.isVisible() || !this.contentWindow.isVisible()) {
+          if (!this.uiWindow.isVisible()) {
             logger.warn("[MainWindow] ready-to-show fallback triggered; forcing show");
-            showBoth();
+            showMain();
           }
         } catch (error) {
           logger.error("[MainWindow] Fallback show failed:", error);
         }
       }, 1200);
       if (Env.isDev) {
-        this.uiWindow.webContents.openDevTools({ mode: "detach" });
+        this.uiOverlayView.webContents.openDevTools({ mode: "detach" });
         logger.info("[MainWindow] DevTools opened (dev mode, detached)");
       }
       return this.uiWindow;
@@ -795,6 +779,9 @@ class MainWindow {
   static getWindow() {
     return this.uiWindow;
   }
+  static getUiOverlayWebContents() {
+    return this.uiOverlayView?.webContents ?? null;
+  }
   /** 바닥(Content) 윈도우 반환 (WebContentsView 호스팅) */
   static getContentWindow() {
     return this.contentWindow;
@@ -808,18 +795,19 @@ class MainWindow {
    */
   static destroy() {
     OverlayController.dispose();
-    if (this.uiWindow) {
-      this.uiWindow.removeAllListeners();
-      this.uiWindow.webContents?.removeAllListeners();
-      this.uiWindow.destroy();
-      this.uiWindow = null;
+    const win = this.uiWindow;
+    if (win) {
+      win.removeAllListeners();
+      win.webContents?.removeAllListeners();
+      win.destroy();
     }
-    if (this.contentWindow) {
-      this.contentWindow.removeAllListeners();
-      this.contentWindow.webContents?.removeAllListeners();
-      this.contentWindow.destroy();
-      this.contentWindow = null;
+    try {
+      this.uiOverlayView?.webContents?.removeAllListeners();
+    } catch {
     }
+    this.uiOverlayView = null;
+    this.uiWindow = null;
+    this.contentWindow = null;
     logger.info("[MainWindow] Windows destroyed and cleaned up");
   }
   /**
@@ -846,33 +834,6 @@ class MainWindow {
    */
   static setupWindowEvents() {
     if (!this.uiWindow || !this.contentWindow) return;
-    let lastSyncedPos = null;
-    let moveSyncScheduled = false;
-    let lastHoverBoundsUpdateAt = 0;
-    const scheduleMoveSync = () => {
-      if (moveSyncScheduled) return;
-      moveSyncScheduled = true;
-      setImmediate(() => {
-        moveSyncScheduled = false;
-        if (!this.uiWindow || !this.contentWindow) return;
-        const bounds = this.uiWindow.getBounds();
-        const x = bounds.x;
-        const y = bounds.y;
-        if (!lastSyncedPos || lastSyncedPos.x !== x || lastSyncedPos.y !== y) {
-          lastSyncedPos = { x, y };
-          try {
-            this.contentWindow.setPosition(x, y, false);
-          } catch (error) {
-            logger.error("[MainWindow] syncMoveContent failed:", error);
-          }
-        }
-        const now = Date.now();
-        if (now - lastHoverBoundsUpdateAt >= 50) {
-          lastHoverBoundsUpdateAt = now;
-          OverlayController.onWindowMoved(bounds);
-        }
-      });
-    };
     const syncBoundsAfterMove = () => {
       if (!this.uiWindow) return;
       const bounds = this.uiWindow.getBounds();
@@ -881,14 +842,12 @@ class MainWindow {
     const syncResize = () => {
       if (!this.uiWindow || !this.contentWindow) return;
       const bounds = this.uiWindow.getBounds();
-      OverlayController.onWindowResized(bounds);
       try {
-        this.contentWindow.setBounds(bounds, false);
-      } catch (error) {
-        logger.error("[MainWindow] syncResizeContent failed:", error);
+        this.uiOverlayView?.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height });
+      } catch {
       }
+      OverlayController.onWindowResized(bounds);
     };
-    this.uiWindow.on("move", scheduleMoveSync);
     this.uiWindow.on("moved", syncBoundsAfterMove);
     this.uiWindow.on("resized", syncResize);
     this.uiWindow.on("closed", () => {
@@ -896,20 +855,14 @@ class MainWindow {
       try {
         OverlayController.dispose();
         this.uiWindow = null;
-        this.contentWindow?.close();
+        this.contentWindow = null;
       } finally {
         if (process.platform !== "darwin") {
           app.quit();
         }
       }
     });
-    this.contentWindow.on("closed", () => {
-      logger.info("[MainWindow] Content window closed");
-      OverlayController.dispose();
-      this.contentWindow = null;
-      this.uiWindow?.close();
-    });
-    logger.info("[MainWindow] Event listeners attached (CSS-only drag + real-time view sync)");
+    logger.info("[MainWindow] Event listeners attached (single-window)");
   }
 }
 const IPC_CHANNELS = {
@@ -1015,7 +968,7 @@ class ViewManager {
   static tabs = /* @__PURE__ */ new Map();
   static activeTabId = null;
   static contentWindow = null;
-  static uiWindow = null;
+  static uiWebContents = null;
   static isInitializing = false;
   static externalActiveBounds = null;
   /**
@@ -1028,7 +981,7 @@ class ViewManager {
    *
    * @param window - 부모 BrowserWindow
    */
-  static async initialize(contentWindow, uiWindow) {
+  static async initialize(contentWindow, uiWebContents) {
     if (this.contentWindow) {
       logger.warn("[ViewManager] Already initialized. Skipping.");
       return;
@@ -1040,7 +993,8 @@ class ViewManager {
     try {
       logger.info("[ViewManager] Initializing...");
       this.contentWindow = contentWindow;
-      this.uiWindow = uiWindow;
+      this.uiWebContents = uiWebContents;
+      this.dumpContentViewTree("after-initialize");
       this.contentWindow.on("resize", () => {
         this.layout();
       });
@@ -1049,6 +1003,7 @@ class ViewManager {
       this.switchTab(homeTabId);
       this.layout();
       logger.info("[ViewManager] Layout applied");
+      this.dumpContentViewTree("after-layout");
       logger.info("[ViewManager] Initialization completed");
     } catch (error) {
       logger.error("[ViewManager] Initialization failed:", error);
@@ -1091,7 +1046,15 @@ class ViewManager {
         isActive: false
       };
       this.tabs.set(tabId, tabData);
-      this.contentWindow.getContentView().addChildView(view);
+      const contentView = this.contentWindow.getContentView();
+      try {
+        if (contentView.children.includes(view)) {
+          contentView.removeChildView(view);
+        }
+      } catch {
+      }
+      contentView.addChildView(view);
+      this.dumpContentViewTree("after-add-tab-view");
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
       await view.webContents.loadURL(url);
       this.setupTabEvents(tabId, view);
@@ -1304,7 +1267,7 @@ class ViewManager {
     this.tabs.clear();
     this.activeTabId = null;
     this.contentWindow = null;
-    this.uiWindow = null;
+    this.uiWebContents = null;
     logger.info("[ViewManager] All tabs destroyed");
   }
   /**
@@ -1371,13 +1334,13 @@ class ViewManager {
    * tabs:updated 이벤트를 Main Window의 webContents로 전송
    */
   static syncToRenderer() {
-    if (!this.uiWindow) return;
+    if (!this.uiWebContents) return;
     const state = {
       tabs: this.getTabs(),
       activeTabId: this.activeTabId
     };
     try {
-      this.uiWindow.webContents.send("tabs:updated", state);
+      this.uiWebContents.send("tabs:updated", state);
       logger.info("[ViewManager] Synced to renderer", { tabCount: state.tabs.length });
     } catch (error) {
       logger.error("[ViewManager] Failed to sync to renderer:", error);
@@ -1392,13 +1355,13 @@ class ViewManager {
   static setupTabEvents(tabId, view) {
     view.webContents.on("before-input-event", (_event, input) => {
       try {
-        if (!this.uiWindow) return;
+        if (!this.uiWebContents) return;
         if (input.type !== "mouseDown" && input.type !== "mouseUp") return;
         const payload = OverlayContentPointerEventSchema.parse({
           kind: input.type,
           timestamp: Date.now()
         });
-        this.uiWindow.webContents.send(IPC_CHANNELS.OVERLAY.CONTENT_POINTER, payload);
+        this.uiWebContents.send(IPC_CHANNELS.OVERLAY.CONTENT_POINTER, payload);
       } catch {
       }
     });
@@ -1416,8 +1379,8 @@ class ViewManager {
         tabData.url = url;
         logger.info("[ViewManager] Tab URL changed", { tabId, url });
         this.syncToRenderer();
-        if (this.uiWindow && tabData.isActive) {
-          this.uiWindow.webContents.send("view:navigated", {
+        if (this.uiWebContents && tabData.isActive) {
+          this.uiWebContents.send("view:navigated", {
             url,
             canGoBack: view.webContents.navigationHistory.canGoBack(),
             canGoForward: view.webContents.navigationHistory.canGoForward(),
@@ -1431,8 +1394,8 @@ class ViewManager {
       if (tabData) {
         tabData.url = url;
         this.syncToRenderer();
-        if (this.uiWindow && tabData.isActive) {
-          this.uiWindow.webContents.send("view:navigated", {
+        if (this.uiWebContents && tabData.isActive) {
+          this.uiWebContents.send("view:navigated", {
             url,
             canGoBack: view.webContents.navigationHistory.canGoBack(),
             canGoForward: view.webContents.navigationHistory.canGoForward(),
@@ -1444,14 +1407,49 @@ class ViewManager {
     view.webContents.on("did-finish-load", () => {
       const tabData = this.tabs.get(tabId);
       if (!tabData) return;
-      if (this.uiWindow && tabData.isActive) {
-        this.uiWindow.webContents.send("view:loaded", {
+      if (this.uiWebContents && tabData.isActive) {
+        this.uiWebContents.send("view:loaded", {
           url: view.webContents.getURL(),
           timestamp: Date.now()
         });
       }
     });
     logger.info("[ViewManager] Tab event listeners attached", { tabId });
+  }
+  static dumpContentViewTree(reason) {
+    if (!this.contentWindow) return;
+    try {
+      const contentView = this.contentWindow.getContentView();
+      const uiId = this.uiWebContents?.id;
+      const children = contentView.children.map((child, index) => {
+        const ctor = child.constructor?.name;
+        const maybe = child;
+        const wcId = maybe.webContents?.id;
+        let bounds = null;
+        try {
+          bounds = child.getBounds?.() ?? null;
+        } catch {
+          bounds = null;
+        }
+        return {
+          index,
+          type: ctor ?? "Unknown",
+          isUiWebContents: uiId ? wcId === uiId : false,
+          webContentsId: wcId ?? null,
+          isContentRoot: false,
+          bounds
+        };
+      });
+      logger.info("[ViewManager] ContentView tree", {
+        reason,
+        windowId: this.contentWindow.id,
+        uiWebContentsId: uiId ?? null,
+        childCount: children.length,
+        children
+      });
+    } catch (error) {
+      logger.error("[ViewManager] Failed to dump content view tree", error);
+    }
   }
 }
 class UpdateService {
@@ -1764,11 +1762,11 @@ class AppLifecycle {
       logger.info("Step 4/8: Database connected");
       logger.info("Step 5/8: Initializing ViewManager");
       const mainWindow = await MainWindow.create();
-      const contentWindow = MainWindow.getContentWindow();
-      if (!contentWindow) {
-        throw new Error("[AppLifecycle] Content window not found");
+      const uiWebContents = MainWindow.getUiOverlayWebContents();
+      if (!uiWebContents) {
+        throw new Error("[AppLifecycle] UI overlay webContents not available");
       }
-      await ViewManager.initialize(contentWindow, mainWindow);
+      await ViewManager.initialize(mainWindow, uiWebContents);
       logger.info("Step 5/8: ViewManager initialized");
       logger.info("Step 6/8: Services initialized");
       logger.info("Step 7/8: IPC handlers registered");
@@ -2856,7 +2854,7 @@ function setupNavigationInterceptors() {
   });
   logger.info("[ProtocolHandler] Navigation interceptors setup completed");
 }
-app.name = "aside";
+app.name = Env.isDev ? "aside-dev" : "aside";
 setupProtocolHandlers();
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {

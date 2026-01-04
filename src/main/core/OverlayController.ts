@@ -12,8 +12,8 @@
  * - Renderer는 animation만 담당
  */
 
-import { BrowserWindow, screen } from 'electron'
-import { logger } from '@main/utils/Logger'
+import { BrowserWindow, WebContents, screen } from 'electron'
+import { logger } from '@main/utils/logger'
 import { overlayStore } from '@main/state/overlayStore'
 import { OverlayLatchChangedEventSchema } from '@shared/validation/schemas'
 
@@ -34,6 +34,7 @@ type OverlayState = {
 type AttachArgs = {
   uiWindow: BrowserWindow
   contentWindow: BrowserWindow
+  uiWebContents?: WebContents
 }
 
 // ===== Constants =====
@@ -47,6 +48,7 @@ export class OverlayController {
   // ===== Window References =====
   private static uiWindow: BrowserWindow | null = null
   private static contentWindow: BrowserWindow | null = null
+  private static uiWebContents: WebContents | null = null
   private static cleanupFns: Array<() => void> = []
   
   // ===== State =====
@@ -70,8 +72,8 @@ export class OverlayController {
     if (process.platform !== 'darwin' || this.lastWindowButtonsVisible === visible) return
     
     try {
-      this.contentWindow?.setWindowButtonVisibility(visible)
-      this.uiWindow?.setWindowButtonVisibility(false) // parent는 항상 숨김
+      // 단일 윈도우: header open 상태에 맞춰 traffic lights 표시를 토글한다.
+      this.uiWindow?.setWindowButtonVisibility(visible)
       this.lastWindowButtonsVisible = visible
     } catch { /* ignore */ }
   }
@@ -101,7 +103,7 @@ export class OverlayController {
     }, WINDOW_ADJUST_DEBOUNCE_MS)
     
     try {
-      this.uiWindow?.webContents.send('window:resized', { timestamp: Date.now() })
+      ;(this.uiWebContents ?? this.uiWindow?.webContents)?.send('window:resized', { timestamp: Date.now() })
     } catch { /* ignore */ }
   }
 
@@ -143,19 +145,20 @@ export class OverlayController {
   private static broadcastLatch(channel: 'header:latch-changed' | 'sidebar:latch-changed', latched: boolean): void {
     try {
       const payload = OverlayLatchChangedEventSchema.parse({ latched, timestamp: Date.now() })
-      this.uiWindow?.webContents.send(channel, payload)
+      ;(this.uiWebContents ?? this.uiWindow?.webContents)?.send(channel, payload)
     } catch { /* ignore */ }
   }
 
   /**
    * Attach controller to windows
    */
-  static attach({ uiWindow, contentWindow }: AttachArgs): void {
-    if (this.uiWindow === uiWindow && this.contentWindow === contentWindow) return
+  static attach({ uiWindow, contentWindow, uiWebContents }: AttachArgs): void {
+    if (this.uiWindow === uiWindow && this.contentWindow === contentWindow && this.uiWebContents === (uiWebContents ?? null)) return
 
     this.dispose()
     this.uiWindow = uiWindow
     this.contentWindow = contentWindow
+    this.uiWebContents = uiWebContents ?? null
 
     // Arc 스타일: focus tracking + global mouse tracking + keyboard shortcuts
     this.setupFocusTracking()
@@ -178,6 +181,7 @@ export class OverlayController {
     
     this.uiWindow = null
     this.contentWindow = null
+    this.uiWebContents = null
   }
 
   /**
@@ -202,7 +206,8 @@ export class OverlayController {
       overlayStore.getState().setFocused(focused)
       
       try {
-        uiWindow.webContents.send('window:focus-changed', focused)
+        const target = this.uiWebContents ?? uiWindow.webContents
+        target.send('window:focus-changed', focused)
       } catch {
         // ignore
       }
@@ -259,7 +264,6 @@ export class OverlayController {
     const windowFocused = overlayStore.getState().focused
     if (!windowFocused) {
       this.closeNonLatchedOverlays()
-      this.setUIWindowGhost()
       return
     }
 
@@ -279,7 +283,6 @@ export class OverlayController {
 
     if (!insideWindow) {
       this.closeNonLatchedOverlays()
-      this.setUIWindowGhost()
       return
     }
 
@@ -287,7 +290,6 @@ export class OverlayController {
     const metricsAgeMs = this.hoverMetrics ? Date.now() - this.hoverMetrics.timestamp : Number.POSITIVE_INFINITY
     if (!Number.isFinite(metricsAgeMs) || metricsAgeMs > MAX_METRICS_AGE_MS) {
       this.closeNonLatchedOverlays()
-      this.setUIWindowGhost()
       return
     }
 
@@ -365,9 +367,6 @@ export class OverlayController {
       this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen }
       this.broadcastOverlayState(this.currentState)
       this.setMacWindowButtonsVisible(wantHeaderOpen)
-      
-      const shouldBeSolid = wantHeaderOpen || wantSidebarOpen
-      shouldBeSolid ? this.setUIWindowSolid() : this.setUIWindowGhost()
     }
   }
 
@@ -400,17 +399,10 @@ export class OverlayController {
     
     const timestamp = Date.now()
     try {
-      this.uiWindow.webContents.send(state.headerOpen ? 'header:open' : 'header:close', { timestamp })
-      this.uiWindow.webContents.send(state.sidebarOpen ? 'sidebar:open' : 'sidebar:close', { timestamp })
+      const target = this.uiWebContents ?? this.uiWindow.webContents
+      target.send(state.headerOpen ? 'header:open' : 'header:close', { timestamp })
+      target.send(state.sidebarOpen ? 'sidebar:open' : 'sidebar:close', { timestamp })
     } catch { /* ignore */ }
-  }
-
-  private static setUIWindowGhost(): void {
-    try { this.uiWindow?.setIgnoreMouseEvents(true, { forward: true }) } catch { /* ignore */ }
-  }
-
-  private static setUIWindowSolid(): void {
-    try { this.uiWindow?.setIgnoreMouseEvents(false) } catch { /* ignore */ }
   }
 
   /**

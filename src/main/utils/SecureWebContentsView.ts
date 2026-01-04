@@ -15,7 +15,7 @@
  */
 
 import { WebContentsView, session } from 'electron'
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 import { Env } from '@main/config'
 
 /**

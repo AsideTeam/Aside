@@ -14,15 +14,17 @@
 
 import { app } from 'electron'
 import Store from 'electron-store'
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
+import { Env } from '@main/config'
 import { AppLifecycle } from '@main/core/lifecycle'
 import { SessionManager } from '@main/core/Session'
 import { UpdateService } from '@main/services/Update'
 import { setupIPCHandlers, removeAllIPCHandlers } from '@main/handlers'
 import { setupProtocolHandlers, setupNavigationInterceptors } from '@main/handlers/ProtocolHandler'
 
-// 앱 이름 설정 (userData 경로에 영향을 줌)
-app.name = 'aside'
+// 앱 이름 설정 (userData 경로 및 single instance lock에 영향을 줌)
+// dev는 별도 이름을 써서 프로덕션/다른 세션과 충돌을 피한다.
+app.name = Env.isDev ? 'aside-dev' : 'aside'
 
 // 프로토콜 핸들러 등록 (app.ready 전에 호출 필요)
 setupProtocolHandlers()

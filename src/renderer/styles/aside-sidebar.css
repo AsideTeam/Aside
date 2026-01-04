@@ -315,9 +315,13 @@
   width: 100vw;
   height: 100vh;
   background: transparent;
-  /* Ghost/Solid은 Electron setIgnoreMouseEvents가 담당.
-     여기서 pointer-events를 꺼버리면 hit-test zone이 elementFromPoint에 잡히지 않는다. */
-  pointer-events: auto;
+  /* 단일 윈도우(Views): 탭이 topmost(뒤에), React UI는 CSS z-index로 overlay(앞에).
+     기본은 클릭을 웹 컨텐츠로 통과, 실제 UI/히트존만 pointer-events auto. */
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;  /* Google 콘텐츠 위에 overlay로 유지 */
 }
 
 /* ===== Hit-Test Zones (Ghost & Solid) ===== */

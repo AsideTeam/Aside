@@ -16,7 +16,7 @@
  * - 앱 재시작 시 기본값으로 리셋됨
  */
 
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 
 /**
  * 앱 상태 데이터 모델

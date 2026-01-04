@@ -9,7 +9,7 @@
  * - 다른 서비스와의 협업
  */
 
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 import { SettingsStore } from './SettingsStore'
 import type { SettingsSchema } from '@shared/types'
 

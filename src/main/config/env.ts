@@ -13,7 +13,7 @@
  */
 
 import { app } from 'electron'
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 import { APP_NAME } from '@shared/constants/app'
 
 app.name = APP_NAME.toLowerCase()

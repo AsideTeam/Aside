@@ -53,12 +53,30 @@ export const ZenLayout: React.FC = () => {
   useLayoutEffect(() => {
     const measure = () => {
       const sidebarEl = document.querySelector('.aside-sidebar') as HTMLElement | null
-      const headerEl = document.querySelector('.aside-header--pinned') as HTMLElement | null
+      const headerEl = document.querySelector('.aside-header') as HTMLElement | null
+      const headerSurfaceEl = document.querySelector('.aside-header-surface') as HTMLElement | null
 
-      const sidebarRect = sidebarLatched && sidebarEl ? sidebarEl.getBoundingClientRect() : null
-      const headerRect = headerLatched && headerEl ? headerEl.getBoundingClientRect() : null
-      const left = sidebarRect ? Math.round(sidebarRect.right) : 0
-      const top = headerRect ? Math.round(headerRect.bottom) : 0
+      const shouldInsetSidebar = sidebarOpen || sidebarLatched
+      const shouldInsetHeader = headerOpen || headerLatched
+
+      const sidebarRect = shouldInsetSidebar && sidebarEl ? sidebarEl.getBoundingClientRect() : null
+      const headerRect = shouldInsetHeader && headerEl ? headerEl.getBoundingClientRect() : null
+
+      // transform/animation 중에도 안정적으로 쓰도록 0으로 clamp
+      const measuredLeft = sidebarRect ? Math.max(0, Math.round(sidebarRect.right)) : 0
+      const measuredTop = headerRect ? Math.max(0, Math.round(headerRect.bottom)) : 0
+
+      // open 직후(transition 초반)에는 right/bottom이 0이 될 수 있으므로 width/height로 보정
+      const fallbackLeft = shouldInsetSidebar && sidebarEl ? Math.max(0, Math.round(sidebarEl.getBoundingClientRect().width)) : 0
+      const fallbackTop = shouldInsetHeader
+        ? Math.max(
+            0,
+            Math.round(headerSurfaceEl?.getBoundingClientRect().height ?? headerEl?.getBoundingClientRect().height ?? 44)
+          )
+        : 0
+
+      const left = shouldInsetSidebar ? Math.max(measuredLeft, fallbackLeft) : 0
+      const top = shouldInsetHeader ? Math.max(measuredTop, fallbackTop) : 0
 
       setPinnedInsets((prev) => {
         if (prev.left === left && prev.top === top) return prev
@@ -75,7 +93,7 @@ export const ZenLayout: React.FC = () => {
       window.cancelAnimationFrame(raf)
       window.removeEventListener('resize', measure)
     }
-  }, [headerLatched, sidebarLatched])
+  }, [headerOpen, sidebarOpen, headerLatched, sidebarLatched])
 
   // ⭐ 초기 마운트 시 bounds 계산 (디버깅 로그 제거)
   useEffect(() => {
@@ -88,7 +106,15 @@ export const ZenLayout: React.FC = () => {
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => updateBounds())
     return () => window.cancelAnimationFrame(raf)
-  }, [pinnedInsets.left, pinnedInsets.top, headerLatched, sidebarLatched, updateBounds])
+  }, [
+    pinnedInsets.left,
+    pinnedInsets.top,
+    headerOpen,
+    sidebarOpen,
+    headerLatched,
+    sidebarLatched,
+    updateBounds,
+  ])
 
   useEffect(() => {
     const onResize = () => updateBounds()
@@ -119,8 +145,8 @@ export const ZenLayout: React.FC = () => {
       <div
         className={cn('aside-frame', 'no-drag')} // ⭐ WebContentsView 영역은 드래그 불가 (CSS 클래스)
         style={{
-          paddingLeft: sidebarLatched ? 'var(--aside-sidebar-pinned-width)' : '0px',
-          paddingTop: headerLatched ? 'var(--aside-header-pinned-height)' : '0px',
+          paddingLeft: sidebarOpen || sidebarLatched ? 'var(--aside-sidebar-pinned-width)' : '0px',
+          paddingTop: headerOpen || headerLatched ? 'var(--aside-header-pinned-height)' : '0px',
         } as React.CSSProperties}
       >
         <div className="aside-view-container">

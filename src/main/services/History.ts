@@ -12,7 +12,7 @@
  *   const list = await HistoryService.getHistory(100)
  */
 
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 
 /**
  * 방문 기록 데이터 모델

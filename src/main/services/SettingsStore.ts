@@ -9,7 +9,7 @@
  */
 
 import Store from 'electron-store'
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 import type { SettingsSchema } from '@shared/types'
 
 const DEFAULT_SETTINGS: SettingsSchema = {

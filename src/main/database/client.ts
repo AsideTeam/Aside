@@ -15,7 +15,7 @@
  */
 
 import { PrismaClient } from '@prisma/client'
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 
 /**
  * Database 싱글톤 관리

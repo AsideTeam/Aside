@@ -13,7 +13,7 @@
  *   ipcRenderer.invoke('tab:close', { tabId: 'tab-123' })
  */
 
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 import { ViewManager } from '@main/managers/ViewManager'
 import { AppState } from '@main/managers/AppState'
 import { IPC_CHANNELS } from '@shared/ipc/channels'

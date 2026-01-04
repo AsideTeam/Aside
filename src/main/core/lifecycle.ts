@@ -16,7 +16,7 @@
  */
 
 import { Paths, validateEnv } from '@main/config'
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 import { MainWindow } from '@main/core/window'
 import { ViewManager } from '@main/managers/ViewManager'
 import { UpdateService } from '@main/services/Update'
@@ -84,11 +84,12 @@ export class AppLifecycle {
       // Step 5: Managers 초기화
       logger.info('Step 5/8: Initializing ViewManager')
       const mainWindow = await MainWindow.create()
-      const contentWindow = MainWindow.getContentWindow()
-      if (!contentWindow) {
-        throw new Error('[AppLifecycle] Content window not found')
+      // 단일 윈도우: WebContentsView는 mainWindow의 contentView에 붙는다.
+      const uiWebContents = MainWindow.getUiOverlayWebContents()
+      if (!uiWebContents) {
+        throw new Error('[AppLifecycle] UI overlay webContents not available')
       }
-      await ViewManager.initialize(contentWindow, mainWindow)
+      await ViewManager.initialize(mainWindow, uiWebContents)
       logger.info('Step 5/8: ViewManager initialized')
 
       // Step 6: Services 초기화

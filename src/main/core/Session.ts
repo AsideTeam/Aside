@@ -11,7 +11,7 @@
  */
 
 import { session } from 'electron'
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 import { Env } from '@main/config'
 
 // Chrome User-Agent (Google 차단 방지)

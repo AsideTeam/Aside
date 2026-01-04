@@ -6,7 +6,7 @@
  * - view:navigate: 활성 WebContentsView URL 이동
  */
 
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 import { ViewManager } from '@main/managers/ViewManager'
 import type { ViewBounds } from '@shared/types/view'
 import { IPC_CHANNELS } from '@shared/ipc/channels'

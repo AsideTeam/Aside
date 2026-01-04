@@ -10,7 +10,7 @@
  *   setupIPCHandlers()
  */
 
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 import { setupAppHandlers } from './AppHandler'
 import { setupTabHandlers } from './TabHandler'
 import { setupSettingsHandlers } from './SettingsHandler'

@@ -12,7 +12,7 @@
  *   AdBlockService.isAdURL('https://ads.example.com/banner.js')
  */
 
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 
 /**
  * AdBlock 싱글톤

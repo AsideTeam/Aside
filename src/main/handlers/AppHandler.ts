@@ -12,7 +12,7 @@
  */
 
 import { app } from 'electron'
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 import { MainWindow } from '@main/core/window'
 import { OverlayController } from '@main/core/OverlayController'
 import { AppState } from '@main/managers/AppState'

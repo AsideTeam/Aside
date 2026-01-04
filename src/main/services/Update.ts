@@ -11,7 +11,7 @@
  *   UpdateService.initialize()
  */
 
-import { logger } from '@main/utils/Logger'
+import { logger } from '@main/utils/logger'
 
 /**
  * Update Service 싱글톤

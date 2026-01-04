@@ -18,8 +18,8 @@
  * - ViewManager = 상태 관리 및 레이아웃 계산
  */
 
-import { BrowserWindow, WebContentsView } from 'electron'
-import { logger } from '@main/utils/Logger'
+import { BrowserWindow, WebContents, WebContentsView } from 'electron'
+import { logger } from '@main/utils/logger'
 import { IPC_CHANNELS } from '@shared/ipc/channels'
 import type { ViewBounds } from '@shared/types/view'
 import { OverlayContentPointerEventSchema } from '@shared/validation/schemas'
@@ -47,7 +47,7 @@ export class ViewManager {
   private static tabs: Map<string, TabData> = new Map()
   private static activeTabId: string | null = null
   private static contentWindow: BrowserWindow | null = null
-  private static uiWindow: BrowserWindow | null = null
+  private static uiWebContents: WebContents | null = null
   private static isInitializing = false
   private static externalActiveBounds: { x: number; y: number; width: number; height: number } | null = null
 
@@ -61,7 +61,7 @@ export class ViewManager {
    *
    * @param window - 부모 BrowserWindow
    */
-  static async initialize(contentWindow: BrowserWindow, uiWindow: BrowserWindow): Promise<void> {
+  static async initialize(contentWindow: BrowserWindow, uiWebContents: WebContents): Promise<void> {
     if (this.contentWindow) {
       logger.warn('[ViewManager] Already initialized. Skipping.')
       return
@@ -77,7 +77,9 @@ export class ViewManager {
       logger.info('[ViewManager] Initializing...')
 
       this.contentWindow = contentWindow
-      this.uiWindow = uiWindow
+      this.uiWebContents = uiWebContents
+
+      this.dumpContentViewTree('after-initialize')
 
       // 윈도우 리사이즈 시 레이아웃 재계산
       this.contentWindow.on('resize', () => {
@@ -94,6 +96,8 @@ export class ViewManager {
       // Step 2: 레이아웃 계산 및 적용
       this.layout()
       logger.info('[ViewManager] Layout applied')
+
+      this.dumpContentViewTree('after-layout')
 
       logger.info('[ViewManager] Initialization completed')
     } catch (error) {
@@ -151,8 +155,21 @@ export class ViewManager {
       this.tabs.set(tabId, tabData)
 
       // Step 4: ContentWindow에 추가 (초기에는 숨김)
-      // ⚠️ Electron 39: contentView는 게터 메서드로 변경됨
-      this.contentWindow.getContentView().addChildView(view)
+      // 단일 윈도우(Views): 탭 WebContentsView를 topmost에 두어 Google이 앞에 보이게 한다.
+      // React UI는 CSS z-index로 header/sidebar overlay를 유지한다.
+      const contentView = this.contentWindow.getContentView()
+
+      try {
+        if (contentView.children.includes(view)) {
+          contentView.removeChildView(view)
+        }
+      } catch {
+        // ignore
+      }
+
+      contentView.addChildView(view)  // topmost로 추가
+
+      this.dumpContentViewTree('after-add-tab-view')
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
 
       // Step 5: URL 로드
@@ -428,7 +445,7 @@ export class ViewManager {
     this.tabs.clear()
     this.activeTabId = null
     this.contentWindow = null
-    this.uiWindow = null
+    this.uiWebContents = null
 
     logger.info('[ViewManager] All tabs destroyed')
   }
@@ -496,7 +513,8 @@ export class ViewManager {
           tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
           logger.debug('[ViewManager] Layout: hiding WebView for about page', { url: tabData.url })
         } else {
-          // 일반 웹페이지: 보이기
+          // 일반 웹페이지: Renderer가 계산한 safe-area(insets)를 그대로 사용
+          // (header/sidebar open/latched 상태에 따라 top/left가 동적으로 변함)
           tabData.view.setBounds(activeBounds)
         }
       } else {
@@ -511,7 +529,7 @@ export class ViewManager {
    * tabs:updated 이벤트를 Main Window의 webContents로 전송
    */
   private static syncToRenderer(): void {
-    if (!this.uiWindow) return
+    if (!this.uiWebContents) return
 
     const state = {
       tabs: this.getTabs(),
@@ -519,7 +537,7 @@ export class ViewManager {
     }
 
     try {
-      this.uiWindow.webContents.send('tabs:updated', state)
+      this.uiWebContents.send('tabs:updated', state)
       logger.info('[ViewManager] Synced to renderer', { tabCount: state.tabs.length })
     } catch (error) {
       logger.error('[ViewManager] Failed to sync to renderer:', error)
@@ -537,7 +555,7 @@ export class ViewManager {
     // uiWindow가 Ghost일 때 Renderer가 mouseup을 못 받아 overlay open이 "붙는" 문제를 방지.
     view.webContents.on('before-input-event', (_event, input) => {
       try {
-        if (!this.uiWindow) return
+        if (!this.uiWebContents) return
         if (input.type !== 'mouseDown' && input.type !== 'mouseUp') return
 
         const payload = OverlayContentPointerEventSchema.parse({
@@ -545,7 +563,7 @@ export class ViewManager {
           timestamp: Date.now(),
         })
 
-        this.uiWindow.webContents.send(IPC_CHANNELS.OVERLAY.CONTENT_POINTER, payload)
+        this.uiWebContents.send(IPC_CHANNELS.OVERLAY.CONTENT_POINTER, payload)
       } catch {
         // ignore
       }
@@ -569,8 +587,8 @@ export class ViewManager {
         logger.info('[ViewManager] Tab URL changed', { tabId, url })
         this.syncToRenderer()
 
-        if (this.uiWindow && tabData.isActive) {
-          this.uiWindow.webContents.send('view:navigated', {
+        if (this.uiWebContents && tabData.isActive) {
+          this.uiWebContents.send('view:navigated', {
             url,
             canGoBack: view.webContents.navigationHistory.canGoBack(),
             canGoForward: view.webContents.navigationHistory.canGoForward(),
@@ -587,8 +605,8 @@ export class ViewManager {
         tabData.url = url
         this.syncToRenderer()
 
-        if (this.uiWindow && tabData.isActive) {
-          this.uiWindow.webContents.send('view:navigated', {
+        if (this.uiWebContents && tabData.isActive) {
+          this.uiWebContents.send('view:navigated', {
             url,
             canGoBack: view.webContents.navigationHistory.canGoBack(),
             canGoForward: view.webContents.navigationHistory.canGoForward(),
@@ -603,8 +621,8 @@ export class ViewManager {
       const tabData = this.tabs.get(tabId)
       if (!tabData) return
 
-      if (this.uiWindow && tabData.isActive) {
-        this.uiWindow.webContents.send('view:loaded', {
+      if (this.uiWebContents && tabData.isActive) {
+        this.uiWebContents.send('view:loaded', {
           url: view.webContents.getURL(),
           timestamp: Date.now(),
         })
@@ -612,5 +630,44 @@ export class ViewManager {
     })
 
     logger.info('[ViewManager] Tab event listeners attached', { tabId })
+  }
+
+  private static dumpContentViewTree(reason: string): void {
+    if (!this.contentWindow) return
+
+    try {
+      const contentView = this.contentWindow.getContentView()
+      const uiId = this.uiWebContents?.id
+
+      const children = contentView.children.map((child, index) => {
+        const ctor = (child as unknown as { constructor?: { name?: string } }).constructor?.name
+        const maybe = child as unknown as { webContents?: { id?: number } }
+        const wcId = maybe.webContents?.id
+        let bounds: unknown = null
+        try {
+          bounds = (child as unknown as { getBounds?: () => unknown }).getBounds?.() ?? null
+        } catch {
+          bounds = null
+        }
+        return {
+          index,
+          type: ctor ?? 'Unknown',
+          isUiWebContents: uiId ? wcId === uiId : false,
+          webContentsId: wcId ?? null,
+          isContentRoot: false,
+          bounds,
+        }
+      })
+
+      logger.info('[ViewManager] ContentView tree', {
+        reason,
+        windowId: this.contentWindow.id,
+        uiWebContentsId: uiId ?? null,
+        childCount: children.length,
+        children,
+      })
+    } catch (error) {
+      logger.error('[ViewManager] Failed to dump content view tree', error)
+    }
   }
 }
