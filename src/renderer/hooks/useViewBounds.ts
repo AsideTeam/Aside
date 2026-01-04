@@ -17,6 +17,7 @@ import { useCallback, useRef } from 'react';
 import { logger } from '../lib/logger';
 import type { ViewBounds } from '@shared/types/view';
 import { ViewResizeSchema } from '@shared/validation/schemas'
+import { useOverlayStore } from '@renderer/lib/overlayStore'
 
 type Margins = {
   top: number;
@@ -39,19 +40,20 @@ export const useViewBounds = (
   const { margin = 0, scaleFactor = 1 } = options;
   const margins = normalizeMargins(margin);
   const lastBoundsRef = useRef<ViewBounds | null>(null);
+  const isDragging = useOverlayStore((s) => s.isDragging)
 
   const updateBounds = useCallback(() => {
+    // ⭐ 핵심: 드래그 중에는 bounds 업데이트를 완전히 차단 (Layout Thrashing 방지)
+    if (isDragging) {
+      return
+    }
+
     if (!contentAreaRef.current || !window.electronAPI?.view) {
-      logger.warn('useViewBounds - contentAreaRef or electronAPI.view not available');
-      return;
+      return
     }
 
     try {
       const rect = contentAreaRef.current.getBoundingClientRect();
-
-      // ⭐ 디버깅: 실제 rect 값 로깅 (소수점 포함)
-      console.log('[📐 RENDERER] Raw placeholder rect:', 
-        `x:${rect.x} y:${rect.y} w:${rect.width} h:${rect.height}`);
 
       // Safe-area 오프셋만 계산 (pinned sidebar/header 크기)
       const newBounds: ViewBounds = {
@@ -63,18 +65,15 @@ export const useViewBounds = (
       if (!lastBoundsRef.current || !areBoundsEqual(lastBoundsRef.current, newBounds)) {
         const parsed = ViewResizeSchema.safeParse(newBounds)
         if (!parsed.success) {
-          logger.warn('useViewBounds - Invalid bounds; skip resize')
           return
         }
-        console.log('[📐 RENDERER → MAIN] Sending safe-area offsets:', 
-          `left:${newBounds.left} top:${newBounds.top}`);
         window.electronAPI.view.resize(parsed.data);
         lastBoundsRef.current = newBounds;
       }
     } catch (error) {
       logger.error('useViewBounds - Error updating bounds', { error });
     }
-  }, [contentAreaRef, scaleFactor, margins.left, margins.top]);
+  }, [contentAreaRef, scaleFactor, margins.left, margins.top, isDragging]);
 
   return { updateBounds };
 };

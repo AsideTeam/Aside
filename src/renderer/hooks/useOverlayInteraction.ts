@@ -27,16 +27,30 @@ export function useOverlayInteraction(): void {
 
     let rafId: number | null = null
     let stopped = false
+    let forceUpdateRequested = false // ⭐ 강제 업데이트 플래그
+
+    // ⭐ Zen 방식: window:resized 이벤트 리스너 추가 (즉시 metrics 재측정)
+    const handleWindowResized = () => {
+      forceUpdateRequested = true
+    }
+
+    try {
+      window.electronAPI?.on('window:resized', handleWindowResized)
+    } catch {
+      // ignore
+    }
 
     const measureAndSend = () => {
       if (stopped) return
 
       const now = Date.now()
-      // invoke 비용이 있으니 적당히 throttle (20fps)
-      if (now - lastSentAtRef.current < 50) {
+      // ⭐ Zen 방식: forceUpdate 요청 시 throttle 무시
+      const shouldThrottle = !forceUpdateRequested && (now - lastSentAtRef.current < 100)
+      if (shouldThrottle) {
         rafId = window.requestAnimationFrame(measureAndSend)
         return
       }
+      forceUpdateRequested = false // 플래그 리셋
 
       const sidebarEl = document.querySelector('.aside-sidebar') as HTMLElement | null
       const headerEl = document.querySelector('.aside-header') as HTMLElement | null
@@ -99,6 +113,12 @@ export function useOverlayInteraction(): void {
     return () => {
       stopped = true
       if (rafId !== null) window.cancelAnimationFrame(rafId)
+      // ⭐ cleanup: window:resized 리스너 제거
+      try {
+        window.electronAPI?.off?.('window:resized', handleWindowResized)
+      } catch {
+        // ignore
+      }
     }
   }, [])
 }

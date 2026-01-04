@@ -340,6 +340,7 @@
   width: 100vw;
   /* macOS 상단(title bar/traffic lights) 근처까지 감지되도록 여유를 둔다 */
   height: 32px;
+  -webkit-app-region: drag;
 }
 
 .aside-hit-zone--sidebar {
@@ -351,6 +352,10 @@
 }
 
 .aside-overlay--sidebar-open .aside-hit-zone--sidebar {
+  pointer-events: none;
+}
+
+.aside-overlay--header-open .aside-hit-zone--header {
   pointer-events: none;
 }
 
@@ -415,25 +420,10 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  /* 헤더 surface는 drag하지 않음 - 상단 drag 영역만 drag */
-  -webkit-app-region: no-drag;
-  position: relative;
-}
-
-/* 헤더 상단 drag 영역 (traffic lights 영역만) */
-/* ⚠️ 중요: 헤더가 열렸을 때만 drag 영역이 작동하도록 */
-.aside-header--open::before,
-.aside-header--pinned::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: var(--aside-traffic-lights-space);
-  height: 100%;
-  /* macOS traffic lights 영역만 drag 가능 */
+  /* ⚠️ 헤더 surface는 drag 가능 (전체 창에서 drag 허용) */
   -webkit-app-region: drag;
-  pointer-events: auto;
-  z-index: 1;
+  position: relative;
+  z-index: 0;
 }
 
 /* 1. 좌측 네비게이션 (macOS Traffic Light 공간 확보) */
@@ -443,6 +433,8 @@
   gap: 8px;
   flex: 0 0 auto;
   margin-left: 0;
+  position: relative;
+  z-index: 2; /* 드래그 영역 위 */
 }
 
 /* 2. URLBar (중앙 정렬, 적절한 너비) */
@@ -452,6 +444,8 @@
   flex: 1 1 0;
   min-width: 0;
   margin: 0 12px;
+  position: relative;
+  z-index: 2; /* 드래그 영역 위 */
 }
 
 /* 3. 우측 액션 버튼 */
@@ -460,6 +454,8 @@
   align-items: center;
   gap: 12px;
   flex: 0 0 auto;
+  position: relative;
+  z-index: 2; /* 드래그 영역 위 */
 }
 
 /* overlay-mode에서도 배경 유지 */

@@ -20,6 +20,8 @@ import { ViewManager } from '@main/managers/ViewManager'
 import { IPC_CHANNELS } from '@shared/ipc/channels'
 import type { IpcRegistry } from './IpcRegistry'
 import { OverlayHoverMetricsSchema } from '@shared/validation/schemas'
+import { z } from 'zod'
+import { overlayStore } from '@main/state/overlayStore'
 
 /**
  * 앱 제어 핸들러 등록
@@ -150,8 +152,25 @@ export function setupAppHandlers(registry: IpcRegistry): void {
     }
   })
 
-  // Arc 스타일: setInteractive는 Main의 global mouse tracking이 자동으로 처리
-  // Renderer에서 호출할 필요 없음 (deprecated)
+  // ⭐ 드래그 상태 관리: 드래그 중에는 레이아웃 계산 차단
+  registry.handle(IPC_CHANNELS.OVERLAY.SET_INTERACTIVE, async (_event, payload: unknown) => {
+    try {
+      const parsed = z.object({ interactive: z.boolean() }).safeParse(payload)
+      if (!parsed.success) {
+        return { success: false, error: 'Invalid payload' }
+      }
+      
+      // 드래그 중이면 interactive=false, 드래그 종료면 interactive=true
+      const isDragging = !parsed.data.interactive
+      overlayStore.getState().setDragging(isDragging)
+      
+      logger.debug('[AppHandler] overlay:set-interactive', { interactive: parsed.data.interactive, isDragging })
+      return { success: true }
+    } catch (error) {
+      logger.error('[AppHandler] overlay:set-interactive failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
 
   registry.handle(IPC_CHANNELS.OVERLAY.DEBUG, async (_event, payload: unknown) => {
     try {

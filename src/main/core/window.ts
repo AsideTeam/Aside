@@ -138,8 +138,6 @@ export class MainWindow {
         backgroundColor: isMacOS ? '#00000000' : '#1a1a1a',
 
         // 바닥창 위에 붙어서 같이 움직이도록
-        parent: this.contentWindow,
-
         webPreferences: {
           preload: join(__dirname, '../preload/index.cjs'),
           contextIsolation: true,
@@ -150,6 +148,9 @@ export class MainWindow {
       }
 
       this.uiWindow = new BrowserWindow(uiWindowOptions)
+
+      // NOTE: parent/child 바인딩은 플랫폼별 z-order가 달라 UI 오버레이가 가려질 수 있어 사용하지 않는다.
+      // 대신 uiWindow(드래그 주체)를 OS가 움직이고, contentWindow가 그 위치를 실시간으로 따라가도록 동기화한다.
 
       logger.info('[MainWindow] Windows created', {
         width,
@@ -168,25 +169,18 @@ export class MainWindow {
           if (!this.contentWindow || !this.uiWindow) return
 
           // macOS: traffic lights는 contentWindow에만 표시
-          // - uiWindow (parent)는 항상 숨김
-          // - contentWindow (child)는 header hover/open에서만 표시 (OverlayController에서 제어)
           if (isMacOS) {
             try {
-              // contentWindow는 OverlayController에서 제어하므로 여기서는 초기값만 설정
               this.contentWindow.setWindowButtonVisibility(false)
-            } catch {
-              // ignore
-            }
-            try {
-              // UI window (parent)는 항상 숨김 (중복 방지)
               this.uiWindow.setWindowButtonVisibility(false)
             } catch {
               // ignore
             }
           }
 
-          // 초기 bounds 동기화
-          this.contentWindow.setBounds(this.uiWindow.getBounds())
+          // ⭐ contentWindow와 uiWindow를 정확히 정렬
+          const bounds = this.uiWindow.getBounds()
+          this.contentWindow.setBounds(bounds, false)
 
           // Step 1: ContentWindow를 먼저 show하고 최상단에 (WebContentsView 보이게)
           this.contentWindow.show()
@@ -196,12 +190,28 @@ export class MainWindow {
           this.uiWindow.show()
           this.uiWindow.moveTop()
 
+          // macOS: contentWindow에 focus를 주더라도 UI 오버레이가 뒤로 밀리지 않게 고정
+          if (isMacOS) {
+            try {
+              this.uiWindow.setAlwaysOnTop(true, 'floating')
+            } catch {
+              // ignore
+            }
+          }
+
           // 기본은 웹페이지 클릭이 통과하도록
           this.uiWindow.setIgnoreMouseEvents(true, { forward: true })
           OverlayController.attach({ uiWindow: this.uiWindow, contentWindow: this.contentWindow })
 
           // 실제 사용자 포커스는 contentWindow에 있어야 함 (uiWindow는 click-through)
           this.contentWindow.focus()
+
+          // focus로 z-order가 바뀌는 케이스 방지 (특히 macOS)
+          try {
+            this.uiWindow.moveTop()
+          } catch {
+            // ignore
+          }
 
           didShow = true
           logger.info('[MainWindow] Content/UI windows shown')
@@ -313,37 +323,72 @@ export class MainWindow {
   /**
    * 창 이벤트 설정
    *
-   * - closed: 창 닫힐 때 인스턴스 정리
-   * - closed → app 종료 (단일 창 기반)
+   * 핵심: CSS의 -webkit-app-region: drag가 OS 수준에서 창 이동 처리
+   * - moved: 드래그 완료 후 (OverlayController 호버 판정 업데이트)
+   * - resized: 창 크기 변경 시 [브라우저 View만 크기 맞춤]
    */
   private static setupWindowEvents(): void {
     if (!this.uiWindow || !this.contentWindow) return
 
-    // 동기화: parent-child 관계에서는 child만 parent를 따라간다.
-    // uiWindow가 parent, contentWindow가 child이므로 contentWindow만 uiWindow를 따라가도록.
-    // ⚠️ 중요: 양방향 동기화는 무한 루프와 bounds 계산 오류를 일으킬 수 있음
-    let isSyncing = false
+    // One-way follow (UI -> Content) to keep the two-window illusion during native OS drag.
+    // - DO NOT set bounds on uiWindow here (avoid feedback loops / double-drag).
+    let lastSyncedPos: { x: number; y: number } | null = null
+    let moveSyncScheduled = false
+    let lastHoverBoundsUpdateAt = 0
 
-    // UIWindow (parent)가 움직이면 ContentWindow (child)를 따라가게 함
-    const syncFromUI = () => {
-      if (!this.uiWindow || !this.contentWindow) return
-      if (isSyncing) return
-      try {
-        isSyncing = true
+    const scheduleMoveSync = () => {
+      if (moveSyncScheduled) return
+      moveSyncScheduled = true
+
+      setImmediate(() => {
+        moveSyncScheduled = false
+        if (!this.uiWindow || !this.contentWindow) return
+
         const bounds = this.uiWindow.getBounds()
-        this.contentWindow.setBounds(bounds)
-      } finally {
-        isSyncing = false
+        const x = bounds.x
+        const y = bounds.y
+
+        if (!lastSyncedPos || lastSyncedPos.x !== x || lastSyncedPos.y !== y) {
+          lastSyncedPos = { x, y }
+          try {
+            this.contentWindow.setPosition(x, y, false)
+          } catch (error) {
+            logger.error('[MainWindow] syncMoveContent failed:', error)
+          }
+        }
+
+        // Keep hover coordinates roughly accurate while dragging, without spamming.
+        const now = Date.now()
+        if (now - lastHoverBoundsUpdateAt >= 50) {
+          lastHoverBoundsUpdateAt = now
+          OverlayController.onWindowMoved(bounds)
+        }
+      })
+    }
+
+    // ⭐ 드래그 완료 후 호버 판정 업데이트
+    const syncBoundsAfterMove = () => {
+      if (!this.uiWindow) return
+      const bounds = this.uiWindow.getBounds()
+      OverlayController.onWindowMoved(bounds)
+    }
+
+    const syncResize = () => {
+      if (!this.uiWindow || !this.contentWindow) return
+      const bounds = this.uiWindow.getBounds()
+      OverlayController.onWindowResized(bounds)
+
+      try {
+        this.contentWindow.setBounds(bounds, false)
+      } catch (error) {
+        logger.error('[MainWindow] syncResizeContent failed:', error)
       }
     }
 
-    // ContentWindow는 parent를 따라가므로, ContentWindow의 move/resize 이벤트는 무시
-    // (사용자가 직접 contentWindow를 드래그할 수 없으므로 이 이벤트는 발생하지 않아야 함)
-    // 하지만 안전을 위해 ContentWindow의 이벤트는 리스너를 등록하지 않음
-
-    this.uiWindow.on('move', syncFromUI)
-    this.uiWindow.on('resize', syncFromUI)
-    // ⚠️ contentWindow의 move/resize 이벤트는 등록하지 않음 (양방향 동기화 방지)
+    // ⭐ 이벤트 리스너 등록
+    this.uiWindow.on('move', scheduleMoveSync)
+    this.uiWindow.on('moved', syncBoundsAfterMove)
+    this.uiWindow.on('resized', syncResize)
 
     // UI 닫히면 Content도 닫고 앱 종료
     this.uiWindow.on('closed', () => {
@@ -367,7 +412,7 @@ export class MainWindow {
       this.uiWindow?.close()
     })
 
-    logger.info('[MainWindow] Event listeners attached (dual-window)')
+    logger.info('[MainWindow] Event listeners attached (CSS-only drag + real-time view sync)')
   }
 
 }

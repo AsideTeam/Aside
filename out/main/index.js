@@ -205,7 +205,8 @@ const initialState = {
   headerOpen: false,
   sidebarOpen: false,
   headerLatched: false,
-  sidebarLatched: false
+  sidebarLatched: false,
+  isDragging: false
 };
 const overlayStore = createStore((set, get) => ({
   ...initialState,
@@ -214,6 +215,7 @@ const overlayStore = createStore((set, get) => ({
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setHeaderLatched: (latched) => set({ headerLatched: latched }),
   setSidebarLatched: (latched) => set({ sidebarLatched: latched }),
+  setDragging: (dragging) => set({ isDragging: dragging }),
   toggleHeaderLatched: () => {
     const next = !get().headerLatched;
     set({ headerLatched: next });
@@ -318,55 +320,66 @@ function validateOrThrow(schema, data) {
   }
   return result.data;
 }
+const TRACKING_INTERVAL_MS = 50;
+const MAX_METRICS_AGE_MS = 3e3;
+const STATE_UPDATE_THROTTLE_MS = 50;
+const WINDOW_ADJUST_THROTTLE_MS = 150;
+const WINDOW_ADJUST_DEBOUNCE_MS = 100;
 class OverlayController {
+  // ===== Window References =====
   static uiWindow = null;
   static contentWindow = null;
   static cleanupFns = [];
-  // Arc 스타일 global mouse tracking
-  static hoverTrackingTimer = null;
+  // ===== State =====
   static currentState = { headerOpen: false, sidebarOpen: false };
-  // Renderer 실측 기반 hover metrics (DOM getBoundingClientRect)
   static hoverMetrics = null;
-  static TRACKING_INTERVAL_MS = 16;
-  // 60fps (Arc와 동일)
-  static MAX_METRICS_AGE_MS = 3e3;
-  static lastMetricsLogAt = 0;
-  static lastStaleLogAt = 0;
+  static cachedWindowBounds = null;
+  // ===== Flags =====
+  static isWindowMoving = false;
+  static isWindowResizing = false;
   static lastWindowButtonsVisible = null;
+  // ===== Timers & Tracking =====
+  static hoverTrackingTimer = null;
+  static lastStateUpdateTime = 0;
   static setMacWindowButtonsVisible(visible) {
-    if (process.platform !== "darwin") return;
-    if (this.lastWindowButtonsVisible === visible) return;
+    if (process.platform !== "darwin" || this.lastWindowButtonsVisible === visible) return;
     try {
       this.contentWindow?.setWindowButtonVisibility(visible);
+      this.uiWindow?.setWindowButtonVisibility(false);
+      this.lastWindowButtonsVisible = visible;
     } catch {
     }
+  }
+  /**
+   * ⭐ Zen 방식: Window가 이동할 때 호출 (moved 이벤트)
+   * Main Process가 window 위치를 즉시 업데이트하여 좌표계 불일치 해결
+   */
+  static onWindowMoved(bounds) {
+    this.cachedWindowBounds = bounds;
+    this.isWindowMoving = true;
+    setTimeout(() => {
+      this.isWindowMoving = false;
+      this.lastStateUpdateTime = 0;
+    }, WINDOW_ADJUST_DEBOUNCE_MS);
+  }
+  static onWindowResized(bounds) {
+    this.cachedWindowBounds = bounds;
+    this.isWindowResizing = true;
+    setTimeout(() => {
+      this.isWindowResizing = false;
+      this.lastStateUpdateTime = 0;
+    }, WINDOW_ADJUST_DEBOUNCE_MS);
     try {
-      this.uiWindow?.setWindowButtonVisibility(visible);
+      this.uiWindow?.webContents.send("window:resized", { timestamp: Date.now() });
     } catch {
     }
-    this.lastWindowButtonsVisible = visible;
   }
   static updateHoverMetrics(metrics) {
-    if (!Number.isFinite(metrics.sidebarRightPx)) return;
-    if (!Number.isFinite(metrics.headerBottomPx)) return;
-    if (!Number.isFinite(metrics.titlebarHeightPx)) return;
-    if (!Number.isFinite(metrics.dpr) || metrics.dpr <= 0) return;
-    if (!Number.isFinite(metrics.timestamp)) return;
-    if (metrics.sidebarRightPx < 0) metrics.sidebarRightPx = 0;
-    if (metrics.headerBottomPx < 0) metrics.headerBottomPx = 0;
-    if (metrics.titlebarHeightPx < 0) metrics.titlebarHeightPx = 0;
+    if (!Number.isFinite(metrics.sidebarRightPx) || !Number.isFinite(metrics.headerBottomPx) || !Number.isFinite(metrics.titlebarHeightPx) || !Number.isFinite(metrics.dpr) || metrics.dpr <= 0 || !Number.isFinite(metrics.timestamp)) return;
+    metrics.sidebarRightPx = Math.max(0, metrics.sidebarRightPx);
+    metrics.headerBottomPx = Math.max(0, metrics.headerBottomPx);
+    metrics.titlebarHeightPx = Math.max(0, metrics.titlebarHeightPx);
     this.hoverMetrics = metrics;
-    const now = Date.now();
-    if (now - this.lastMetricsLogAt > 5e3) {
-      this.lastMetricsLogAt = now;
-      logger.debug("[OverlayController] hover metrics updated", {
-        sidebarRightPx: metrics.sidebarRightPx,
-        headerBottomPx: metrics.headerBottomPx,
-        titlebarHeightPx: metrics.titlebarHeightPx,
-        dpr: metrics.dpr,
-        ageMs: Math.max(0, now - metrics.timestamp)
-      });
-    }
   }
   // Latch state (pinned)
   static getHeaderLatched() {
@@ -440,11 +453,6 @@ class OverlayController {
       if (!focused) {
         this.closeNonLatchedOverlays();
       }
-      logger.debug("[OverlayController] focus changed", {
-        focused,
-        contentWindowId: contentWindow.id,
-        uiWindowId: uiWindow.id
-      });
     };
     const onAnyFocusBlur = () => {
       broadcastFocus(computeFocused());
@@ -468,13 +476,8 @@ class OverlayController {
    */
   static startGlobalMouseTracking() {
     if (!this.uiWindow || !this.contentWindow) return;
-    this.hoverTrackingTimer = setInterval(() => {
-      this.trackMouseAndUpdateState();
-    }, this.TRACKING_INTERVAL_MS);
-    this.cleanupFns.push(() => {
-      this.stopGlobalMouseTracking();
-    });
-    logger.debug("[OverlayController] Global mouse tracking started");
+    this.hoverTrackingTimer = setInterval(() => this.trackMouseAndUpdateState(), TRACKING_INTERVAL_MS);
+    this.cleanupFns.push(() => this.stopGlobalMouseTracking());
   }
   static stopGlobalMouseTracking() {
     if (this.hoverTrackingTimer) {
@@ -491,7 +494,8 @@ class OverlayController {
       return;
     }
     const { x: mouseX, y: mouseY } = screen.getCursorScreenPoint();
-    const bounds = this.uiWindow.getBounds();
+    const bounds = this.cachedWindowBounds || this.uiWindow.getBounds();
+    const isAdjusting = this.isWindowMoving || this.isWindowResizing;
     const insideWindow = mouseX >= bounds.x && mouseX < bounds.x + bounds.width && mouseY >= bounds.y && mouseY < bounds.y + bounds.height;
     if (!insideWindow) {
       this.closeNonLatchedOverlays();
@@ -499,16 +503,7 @@ class OverlayController {
       return;
     }
     const metricsAgeMs = this.hoverMetrics ? Date.now() - this.hoverMetrics.timestamp : Number.POSITIVE_INFINITY;
-    if (!Number.isFinite(metricsAgeMs) || metricsAgeMs > this.MAX_METRICS_AGE_MS) {
-      const now = Date.now();
-      if (now - this.lastStaleLogAt > 2e3) {
-        this.lastStaleLogAt = now;
-        logger.debug("[OverlayController] metrics stale - forcing ghost/close", {
-          hasMetrics: Boolean(this.hoverMetrics),
-          metricsAgeMs,
-          maxAgeMs: this.MAX_METRICS_AGE_MS
-        });
-      }
+    if (!Number.isFinite(metricsAgeMs) || metricsAgeMs > MAX_METRICS_AGE_MS) {
       this.closeNonLatchedOverlays();
       this.setUIWindowGhost();
       return;
@@ -517,38 +512,40 @@ class OverlayController {
     const relativeY = Math.max(0, Math.floor(mouseY - bounds.y));
     const { headerLatched, sidebarLatched } = overlayStore.getState();
     const metrics = this.hoverMetrics;
-    const sidebarZoneRight = metrics ? Math.max(0, metrics.sidebarRightPx) : 0;
-    const headerZoneBottom = metrics ? Math.max(0, metrics.headerBottomPx + Math.max(0, metrics.titlebarHeightPx)) : 0;
+    const sidebarZoneRight = metrics ? Math.floor(metrics.sidebarRightPx) : 0;
+    const headerZoneBottom = metrics ? Math.floor(metrics.headerBottomPx + metrics.titlebarHeightPx) : 0;
     const effectiveSidebarZoneRight = Math.min(Math.max(0, sidebarZoneRight), bounds.width);
     const effectiveHeaderZoneBottom = Math.min(Math.max(0, headerZoneBottom), bounds.height);
     const inSidebarZone = relativeX <= effectiveSidebarZoneRight;
     const inHeaderZone = relativeY <= effectiveHeaderZoneBottom;
     const wantHeaderOpen = headerLatched || inHeaderZone;
     const wantSidebarOpen = sidebarLatched || inSidebarZone;
-    if (this.currentState.headerOpen !== wantHeaderOpen || this.currentState.sidebarOpen !== wantSidebarOpen) {
+    if (Math.random() < 0.02) {
+      logger.debug("[OverlayController] Coordinate Debug", {
+        mouse: { screenX: mouseX, screenY: mouseY, relativeX, relativeY },
+        bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+        metrics: {
+          sidebarRightPx: metrics?.sidebarRightPx,
+          headerBottomPx: metrics?.headerBottomPx,
+          titlebarHeightPx: metrics?.titlebarHeightPx,
+          sidebarZoneRight,
+          headerZoneBottom
+        },
+        zones: { inSidebarZone, inHeaderZone },
+        state: { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen }
+      });
+    }
+    const now = Date.now();
+    const timeSinceLastUpdate = now - this.lastStateUpdateTime;
+    const throttleMs = isAdjusting ? WINDOW_ADJUST_THROTTLE_MS : STATE_UPDATE_THROTTLE_MS;
+    const shouldUpdate = this.currentState.headerOpen !== wantHeaderOpen || this.currentState.sidebarOpen !== wantSidebarOpen;
+    if (shouldUpdate && (timeSinceLastUpdate >= throttleMs || this.lastStateUpdateTime === 0)) {
+      this.lastStateUpdateTime = now;
       this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen };
       this.broadcastOverlayState(this.currentState);
       this.setMacWindowButtonsVisible(wantHeaderOpen);
       const shouldBeSolid = wantHeaderOpen || wantSidebarOpen;
-      logger.debug("[OverlayController] State changed", {
-        mouse: { x: relativeX, y: relativeY },
-        zones: { sidebar: inSidebarZone, header: inHeaderZone },
-        state: { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen },
-        latch: { header: headerLatched, sidebar: sidebarLatched },
-        shouldBeSolid,
-        metrics: metrics ? {
-          sidebarRightPx: metrics.sidebarRightPx,
-          headerBottomPx: metrics.headerBottomPx,
-          titlebarHeightPx: metrics.titlebarHeightPx,
-          dpr: metrics.dpr,
-          ageMs: Math.max(0, Date.now() - metrics.timestamp)
-        } : null
-      });
-      if (shouldBeSolid) {
-        this.setUIWindowSolid();
-      } else {
-        this.setUIWindowGhost();
-      }
+      shouldBeSolid ? this.setUIWindowSolid() : this.setUIWindowGhost();
     }
   }
   /**
@@ -567,42 +564,24 @@ class OverlayController {
       this.setMacWindowButtonsVisible(newState.headerOpen);
     }
   }
-  /**
-   * Renderer에 overlay open/close 상태 전송
-   */
   static broadcastOverlayState(state) {
     if (!this.uiWindow) return;
+    const timestamp = Date.now();
     try {
-      if (state.headerOpen) {
-        this.uiWindow.webContents.send("header:open", { timestamp: Date.now() });
-      } else {
-        this.uiWindow.webContents.send("header:close", { timestamp: Date.now() });
-      }
-      if (state.sidebarOpen) {
-        this.uiWindow.webContents.send("sidebar:open", { timestamp: Date.now() });
-      } else {
-        this.uiWindow.webContents.send("sidebar:close", { timestamp: Date.now() });
-      }
+      this.uiWindow.webContents.send(state.headerOpen ? "header:open" : "header:close", { timestamp });
+      this.uiWindow.webContents.send(state.sidebarOpen ? "sidebar:open" : "sidebar:close", { timestamp });
     } catch {
     }
   }
-  /**
-   * UI Window를 Ghost (click-through) 모드로 전환
-   */
   static setUIWindowGhost() {
-    if (!this.uiWindow) return;
     try {
-      this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
+      this.uiWindow?.setIgnoreMouseEvents(true, { forward: true });
     } catch {
     }
   }
-  /**
-   * UI Window를 Solid (interactive) 모드로 전환
-   */
   static setUIWindowSolid() {
-    if (!this.uiWindow) return;
     try {
-      this.uiWindow.setIgnoreMouseEvents(false);
+      this.uiWindow?.setIgnoreMouseEvents(false);
     } catch {
     }
   }
@@ -690,7 +669,7 @@ class MainWindow {
         frame: false,
         // macOS: Hidden Titlebar (Arc/Zen 스타일)
         // - 콘텐츠가 창의 (0,0)부터 그려지도록 함
-        // - traffic lights는 오버레이되므로 위치를 명시
+        // - traffic lights는 contentWindow에만 표시 (parent-child 관계에서 중복 방지)
         ...isMacOS ? {
           titleBarStyle: "hidden",
           trafficLightPosition: macTrafficLights
@@ -716,16 +695,17 @@ class MainWindow {
         minWidth: 800,
         minHeight: 600,
         frame: false,
-        // macOS: UI 오버레이도 동일하게 hidden titlebar로 맞춰 좌표계를 일관되게 유지
+        // macOS: UI 오버레이 (parent)는 traffic lights를 표시하지 않음
+        // - parent-child 관계에서 child(contentWindow)만 traffic lights를 표시
+        // - titleBarStyle은 hidden으로 유지하되 trafficLightPosition은 설정하지 않음
         ...isMacOS ? {
-          titleBarStyle: "hidden",
-          trafficLightPosition: macTrafficLights
+          titleBarStyle: "hidden"
+          // ⚠️ trafficLightPosition 제거 - parent는 traffic lights를 표시하지 않음
         } : {},
         transparent: isMacOS,
         hasShadow: false,
         backgroundColor: isMacOS ? "#00000000" : "#1a1a1a",
         // 바닥창 위에 붙어서 같이 움직이도록
-        parent: this.contentWindow,
         webPreferences: {
           preload: join(__dirname, "../preload/index.cjs"),
           contextIsolation: true,
@@ -748,21 +728,29 @@ class MainWindow {
           if (isMacOS) {
             try {
               this.contentWindow.setWindowButtonVisibility(false);
-            } catch {
-            }
-            try {
               this.uiWindow.setWindowButtonVisibility(false);
             } catch {
             }
           }
-          this.contentWindow.setBounds(this.uiWindow.getBounds());
+          const bounds = this.uiWindow.getBounds();
+          this.contentWindow.setBounds(bounds, false);
           this.contentWindow.show();
           this.contentWindow.moveTop();
           this.uiWindow.show();
           this.uiWindow.moveTop();
+          if (isMacOS) {
+            try {
+              this.uiWindow.setAlwaysOnTop(true, "floating");
+            } catch {
+            }
+          }
           this.uiWindow.setIgnoreMouseEvents(true, { forward: true });
           OverlayController.attach({ uiWindow: this.uiWindow, contentWindow: this.contentWindow });
           this.contentWindow.focus();
+          try {
+            this.uiWindow.moveTop();
+          } catch {
+          }
           didShow = true;
           logger.info("[MainWindow] Content/UI windows shown");
         } catch (error) {
@@ -852,38 +840,57 @@ class MainWindow {
   /**
    * 창 이벤트 설정
    *
-   * - closed: 창 닫힐 때 인스턴스 정리
-   * - closed → app 종료 (단일 창 기반)
+   * 핵심: CSS의 -webkit-app-region: drag가 OS 수준에서 창 이동 처리
+   * - moved: 드래그 완료 후 (OverlayController 호버 판정 업데이트)
+   * - resized: 창 크기 변경 시 [브라우저 View만 크기 맞춤]
    */
   static setupWindowEvents() {
     if (!this.uiWindow || !this.contentWindow) return;
-    let isSyncing = false;
-    const syncFromUI = () => {
-      if (!this.uiWindow || !this.contentWindow) return;
-      if (isSyncing) return;
-      try {
-        isSyncing = true;
+    let lastSyncedPos = null;
+    let moveSyncScheduled = false;
+    let lastHoverBoundsUpdateAt = 0;
+    const scheduleMoveSync = () => {
+      if (moveSyncScheduled) return;
+      moveSyncScheduled = true;
+      setImmediate(() => {
+        moveSyncScheduled = false;
+        if (!this.uiWindow || !this.contentWindow) return;
         const bounds = this.uiWindow.getBounds();
-        this.contentWindow.setBounds(bounds);
-      } finally {
-        isSyncing = false;
-      }
+        const x = bounds.x;
+        const y = bounds.y;
+        if (!lastSyncedPos || lastSyncedPos.x !== x || lastSyncedPos.y !== y) {
+          lastSyncedPos = { x, y };
+          try {
+            this.contentWindow.setPosition(x, y, false);
+          } catch (error) {
+            logger.error("[MainWindow] syncMoveContent failed:", error);
+          }
+        }
+        const now = Date.now();
+        if (now - lastHoverBoundsUpdateAt >= 50) {
+          lastHoverBoundsUpdateAt = now;
+          OverlayController.onWindowMoved(bounds);
+        }
+      });
     };
-    const syncFromContent = () => {
+    const syncBoundsAfterMove = () => {
+      if (!this.uiWindow) return;
+      const bounds = this.uiWindow.getBounds();
+      OverlayController.onWindowMoved(bounds);
+    };
+    const syncResize = () => {
       if (!this.uiWindow || !this.contentWindow) return;
-      if (isSyncing) return;
+      const bounds = this.uiWindow.getBounds();
+      OverlayController.onWindowResized(bounds);
       try {
-        isSyncing = true;
-        const bounds = this.contentWindow.getBounds();
-        this.uiWindow.setBounds(bounds);
-      } finally {
-        isSyncing = false;
+        this.contentWindow.setBounds(bounds, false);
+      } catch (error) {
+        logger.error("[MainWindow] syncResizeContent failed:", error);
       }
     };
-    this.uiWindow.on("move", syncFromUI);
-    this.uiWindow.on("resize", syncFromUI);
-    this.contentWindow.on("move", syncFromContent);
-    this.contentWindow.on("resize", syncFromContent);
+    this.uiWindow.on("move", scheduleMoveSync);
+    this.uiWindow.on("moved", syncBoundsAfterMove);
+    this.uiWindow.on("resized", syncResize);
     this.uiWindow.on("closed", () => {
       logger.info("[MainWindow] UI window closed");
       try {
@@ -902,7 +909,7 @@ class MainWindow {
       this.contentWindow = null;
       this.uiWindow?.close();
     });
-    logger.info("[MainWindow] Event listeners attached (dual-window)");
+    logger.info("[MainWindow] Event listeners attached (CSS-only drag + real-time view sync)");
   }
 }
 const IPC_CHANNELS = {
@@ -2039,6 +2046,21 @@ function setupAppHandlers(registry2) {
       return { success: true, latched };
     } catch (error) {
       logger.error("[AppHandler] overlay:toggle-sidebar-latch failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  registry2.handle(IPC_CHANNELS.OVERLAY.SET_INTERACTIVE, async (_event, payload) => {
+    try {
+      const parsed = z.object({ interactive: z.boolean() }).safeParse(payload);
+      if (!parsed.success) {
+        return { success: false, error: "Invalid payload" };
+      }
+      const isDragging = !parsed.data.interactive;
+      overlayStore.getState().setDragging(isDragging);
+      logger.debug("[AppHandler] overlay:set-interactive", { interactive: parsed.data.interactive, isDragging });
+      return { success: true };
+    } catch (error) {
+      logger.error("[AppHandler] overlay:set-interactive failed:", error);
       return { success: false, error: String(error) };
     }
   });

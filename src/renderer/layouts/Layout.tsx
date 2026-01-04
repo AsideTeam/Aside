@@ -20,8 +20,8 @@ import { useOverlayStore } from '@renderer/lib/overlayStore';
 import { logger } from '@renderer/lib';
 
 export const ZenLayout: React.FC = () => {
-  // ⭐ 디버깅: ZenLayout 렌더링 확인
-  logger.info('[ZenLayout] Rendering component');
+  // ⭐ 디버깅 로그 제거 (과도한 렌더링 로그 방지)
+  // logger.info('[ZenLayout] Rendering component');
 
   const isFocused = useWindowFocus();
   const headerOpen = useOverlayStore((s) => s.headerOpen)
@@ -77,36 +77,18 @@ export const ZenLayout: React.FC = () => {
     }
   }, [headerLatched, sidebarLatched])
 
-  // ⭐ 초기 마운트 시 강제 실행 (디버깅)
+  // ⭐ 초기 마운트 시 bounds 계산 (디버깅 로그 제거)
   useEffect(() => {
-    console.log('[Layout] Component mounted, hasRef:', !!viewPlaceholderRef.current)
-    
-    // 초기 bounds 즉시 계산
     if (viewPlaceholderRef.current) {
-      console.log('[Layout] Triggering initial updateBounds')
       updateBounds()
-    } else {
-      console.warn('[Layout] viewPlaceholderRef.current is NULL on mount!')
     }
   }, []) // 빈 의존성 = 마운트 시 1회만 (updateBounds 의도적 제외)
 
-  // 측정된 pinned size가 바뀌면 bounds도 다시 계산해야 잘림/미적용 레이스가 없다.
+  // ⭐ 단순화: pinned size 변경 시에만 bounds 재계산 (중복 제거)
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => updateBounds())
     return () => window.cancelAnimationFrame(raf)
-  }, [pinnedInsets.left, pinnedInsets.top, updateBounds])
-
-  // WebContentsView bounds 업데이트
-  // - 기본: 전체 화면
-  // - sidebar/header latch 시: 해당 영역만큼 WebContentsView를 밀어내고, 남은 영역에 맞게 리사이즈
-  useEffect(() => {
-    const raf = window.requestAnimationFrame(() => {
-      updateBounds()
-    })
-    return () => {
-      window.cancelAnimationFrame(raf)
-    }
-  }, [updateBounds, headerLatched, sidebarLatched])
+  }, [pinnedInsets.left, pinnedInsets.top, headerLatched, sidebarLatched, updateBounds])
 
   useEffect(() => {
     const onResize = () => updateBounds()
@@ -118,6 +100,7 @@ export const ZenLayout: React.FC = () => {
     <div
       className={cn(
         'aside-overlay',
+        'drag-region', // ⭐ 전체 창 드래그 가능 (CSS 클래스)
         isFocused ? 'aside-window-focused' : 'aside-window-blurred',
         headerOpen ? 'aside-overlay--header-open' : '',
         sidebarOpen ? 'aside-overlay--sidebar-open' : '',
@@ -134,11 +117,11 @@ export const ZenLayout: React.FC = () => {
     >
       {/* WebContentsView 자리(placeholder). latch 상태에서만 실제로 공간을 차지하도록 padding 처리 */}
       <div
-        className="aside-frame"
+        className={cn('aside-frame', 'no-drag')} // ⭐ WebContentsView 영역은 드래그 불가 (CSS 클래스)
         style={{
           paddingLeft: sidebarLatched ? 'var(--aside-sidebar-pinned-width)' : '0px',
           paddingTop: headerLatched ? 'var(--aside-header-pinned-height)' : '0px',
-        }}
+        } as React.CSSProperties}
       >
         <div className="aside-view-container">
           <div ref={viewPlaceholderRef} className="aside-view-placeholder" />
@@ -151,7 +134,6 @@ export const ZenLayout: React.FC = () => {
       ) : null}
 
       {/* Hit-test zones (Ghost 모드에서 elementFromPoint로 감지) */}
-      <div className="aside-hit-zone aside-hit-zone--header" data-overlay-zone="header" />
       <div className="aside-hit-zone aside-hit-zone--sidebar" data-overlay-zone="sidebar" />
 
       <AsideHeader />

@@ -13,6 +13,12 @@ export const AsideHeader: React.FC = () => {
   
   const web = useWebContents()
 
+  // ⭐ CSS-only 드래그
+  // - CSS의 -webkit-app-region: drag가 OS 수준에서 처리
+  // - JS 이벤트 리스너 불필요 (OS가 직접 창 이동)
+  // - View 동기화는 window.ts의 'move' 이벤트에서 자동 처리
+  // 결과: 덜덜거림, 오프셋 어긋남, Sticky Drag 모두 해결
+
   const headerClass =
     (isOpen ? 'aside-header aside-header--open' : 'aside-header') +
     (isHeaderLatched ? ' aside-header--pinned' : '')
@@ -26,60 +32,65 @@ export const AsideHeader: React.FC = () => {
     : 'aside-header-btn'
 
   return (
-    <div className={headerClass} data-overlay-zone="header" data-interactive="true">
-      <div className="aside-header-surface">
-        
-        {/* 1. 좌측 네비게이션 (Traffic Light 옆) */}
-        <div className="aside-header-nav">
-          <button 
-            className="aside-header-btn"
-            onClick={web.goBack}
-            disabled={!web.canGoBack}
-            title="뒤로"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button 
-            className="aside-header-btn"
-            onClick={web.goForward}
-            disabled={!web.canGoForward}
-            title="앞으로"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-          <button 
-            className="aside-header-btn"
-            onClick={web.reload}
-            disabled={web.isLoading}
-            title="새로고침"
-          >
-            <RotateCw className="w-4 h-4" />
-          </button>
+    <>
+      <div
+        className="aside-hit-zone aside-hit-zone--header"
+        data-overlay-zone="header"
+        aria-hidden="true"
+      />
+      <div className={headerClass} data-overlay-zone="header" data-interactive="true">
+        <div className="aside-header-surface">
+          {/* 1. 좌측 네비게이션 (Traffic Light 옆) */}
+          <div className="aside-header-nav">
+            <button
+              className="aside-header-btn"
+              onClick={web.goBack}
+              disabled={!web.canGoBack}
+              title="뒤로"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              className="aside-header-btn"
+              onClick={web.goForward}
+              disabled={!web.canGoForward}
+              title="앞으로"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              className="aside-header-btn"
+              onClick={web.reload}
+              disabled={web.isLoading}
+              title="새로고침"
+            >
+              <RotateCw className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* 2. 중앙 URLBar */}
+          <AddressBar wrapperClassName="aside-header-addressbar" inputClassName="aside-header-input" />
+
+          {/* 3. 우측 액션 버튼 */}
+          <div className="aside-header-actions">
+            <button
+              onClick={toggleSidebarLatch}
+              className={sidebarBtnClass}
+              title={isSidebarLatched ? '사이드바 고정 해제 (Cmd/Ctrl+B)' : '사이드바 고정 (Cmd/Ctrl+B)'}
+            >
+              <PanelLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={toggleHeaderLatch}
+              className={headerBtnClass}
+              title={isHeaderLatched ? '주소바 고정 해제 (Cmd/Ctrl+L)' : '주소바 고정 (Cmd/Ctrl+L)'}
+            >
+              <Pin className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-
-        {/* 2. 중앙 URLBar */}
-        <AddressBar wrapperClassName="aside-header-addressbar" inputClassName="aside-header-input" />
-
-        {/* 3. 우측 액션 버튼 */}
-        <div className="aside-header-actions">
-          <button 
-            onClick={toggleSidebarLatch} 
-            className={sidebarBtnClass}
-            title={isSidebarLatched ? '사이드바 고정 해제 (Cmd/Ctrl+B)' : '사이드바 고정 (Cmd/Ctrl+B)'}
-          >
-             <PanelLeft className="w-4 h-4" />
-          </button>
-          <button 
-            onClick={toggleHeaderLatch} 
-            className={headerBtnClass}
-            title={isHeaderLatched ? '주소바 고정 해제 (Cmd/Ctrl+L)' : '주소바 고정 (Cmd/Ctrl+L)'}
-          >
-             <Pin className="w-4 h-4" />
-          </button>
-        </div>
-
       </div>
-    </div>
+    </>
   )
 }
 

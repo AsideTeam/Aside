@@ -55,6 +55,9 @@ const allowedEventChannels = [
 
   // Window focus state (Main -> Renderer)
   'window:focus-changed',
+
+  // Window resize notification (Main -> Renderer)
+  'window:resized',
 ]
 
 /**
@@ -199,9 +202,8 @@ const electronAPI = {
  */
 try {
   contextBridge.exposeInMainWorld('electronAPI', electronAPI)
-  console.log('[Preload] ElectronAPI exposed to renderer')
 } catch (error) {
-  console.error('[Preload] Failed to expose ElectronAPI:', error)
+  // Intentionally ignore to avoid noisy stdout in production.
 }
 
 /**

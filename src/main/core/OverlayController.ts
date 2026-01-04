@@ -7,19 +7,17 @@
  * 3. Hover zone 안에 있는지 (zone 판정)
  *
  * 핵심 원칙:
- * - close 조건은 Main에서 global하게 판단 (Renderer mouseleave 신뢰 불가)
- * - focus=false OR insideWindow=false → 무조건 close
- * - ignoreMouseEvents(true)는 renderer 이벤트를 죽이므로 hover-out은 Main 처리
- * - Renderer는 open/close animation만 담당
+ * - Main에서 모든 hover/focus 판정 (Renderer는 신뢰 불가)
+ * - Window move/resize 시 즉시 bounds 캐시 업데이트
+ * - Renderer는 animation만 담당
  */
 
 import { BrowserWindow, screen } from 'electron'
 import { logger } from '@main/utils/Logger'
 import { overlayStore } from '@main/state/overlayStore'
-import {
-  OverlayLatchChangedEventSchema,
-} from '@shared/validation/schemas'
+import { OverlayLatchChangedEventSchema } from '@shared/validation/schemas'
 
+// ===== Types =====
 type OverlayHoverMetrics = {
   sidebarRightPx: number
   headerBottomPx: number
@@ -28,83 +26,97 @@ type OverlayHoverMetrics = {
   timestamp: number
 }
 
-type AttachArgs = {
-  uiWindow: BrowserWindow
-  contentWindow: BrowserWindow
-}
-
 type OverlayState = {
   headerOpen: boolean
   sidebarOpen: boolean
 }
 
+type AttachArgs = {
+  uiWindow: BrowserWindow
+  contentWindow: BrowserWindow
+}
+
+// ===== Constants =====
+const TRACKING_INTERVAL_MS = 50 // 20fps
+const MAX_METRICS_AGE_MS = 3000 // 3초
+const STATE_UPDATE_THROTTLE_MS = 50 // 기본 throttle (더 빠른 반응)
+const WINDOW_ADJUST_THROTTLE_MS = 150 // 이동/크기조절 중 throttle (더 빠른 반응)
+const WINDOW_ADJUST_DEBOUNCE_MS = 100 // 이동/크기조절 완료 debounce (더 빠른 반응)
+
 export class OverlayController {
+  // ===== Window References =====
   private static uiWindow: BrowserWindow | null = null
   private static contentWindow: BrowserWindow | null = null
   private static cleanupFns: Array<() => void> = []
   
-  // Arc 스타일 global mouse tracking
-  private static hoverTrackingTimer: ReturnType<typeof setInterval> | null = null
+  // ===== State =====
   private static currentState: OverlayState = { headerOpen: false, sidebarOpen: false }
-
-  // Renderer 실측 기반 hover metrics (DOM getBoundingClientRect)
   private static hoverMetrics: OverlayHoverMetrics | null = null
-  private static readonly TRACKING_INTERVAL_MS = 16  // 60fps (Arc와 동일)
-  private static readonly MAX_METRICS_AGE_MS = 3000
-  private static lastMetricsLogAt = 0
-  private static lastStaleLogAt = 0
-
+  private static cachedWindowBounds: Electron.Rectangle | null = null
+  
+  // ===== Flags =====
+  private static isWindowMoving = false
+  private static isWindowResizing = false
   private static lastWindowButtonsVisible: boolean | null = null
+  
+  // ===== Timers & Tracking =====
+  private static hoverTrackingTimer: ReturnType<typeof setInterval> | null = null
+  private static lastStateUpdateTime = 0
+
+  // Prevent rapid open/close flicker near the edge hotzones.
+  private static lastHeaderOpenedAt = 0
 
   private static setMacWindowButtonsVisible(visible: boolean): void {
-    if (process.platform !== 'darwin') return
-    if (this.lastWindowButtonsVisible === visible) return
-
-    // ⚠️ 중요: parent-child 관계에서 child만 traffic lights를 표시
-    // - contentWindow (child)만 traffic lights를 제어
-    // - uiWindow (parent)는 항상 숨김 (중복 방지)
+    if (process.platform !== 'darwin' || this.lastWindowButtonsVisible === visible) return
+    
     try {
       this.contentWindow?.setWindowButtonVisibility(visible)
-    } catch {
-      // ignore
-    }
+      this.uiWindow?.setWindowButtonVisibility(false) // parent는 항상 숨김
+      this.lastWindowButtonsVisible = visible
+    } catch { /* ignore */ }
+  }
 
-    // UI window (parent)는 항상 숨김 유지 (중복 방지)
+  /**
+   * ⭐ Zen 방식: Window가 이동할 때 호출 (moved 이벤트)
+   * Main Process가 window 위치를 즉시 업데이트하여 좌표계 불일치 해결
+   */
+  static onWindowMoved(bounds: Electron.Rectangle): void {
+    // ⭐ 실시간 bounds 캐싱 (호버 판정에 즉시 반영)
+    this.cachedWindowBounds = bounds
+    this.isWindowMoving = true
+    setTimeout(() => {
+      this.isWindowMoving = false
+      // ⭐ 이동 완료 후 즉시 상태 업데이트 (throttle 무시)
+      this.lastStateUpdateTime = 0
+    }, WINDOW_ADJUST_DEBOUNCE_MS)
+  }
+
+  static onWindowResized(bounds: Electron.Rectangle): void {
+    this.cachedWindowBounds = bounds
+    this.isWindowResizing = true
+    setTimeout(() => {
+      this.isWindowResizing = false
+      // ⭐ 크기 조절 완료 후 즉시 상태 업데이트 (throttle 무시)
+      this.lastStateUpdateTime = 0
+    }, WINDOW_ADJUST_DEBOUNCE_MS)
+    
     try {
-      this.uiWindow?.setWindowButtonVisibility(false)
-    } catch {
-      // ignore
-    }
-
-    this.lastWindowButtonsVisible = visible
+      this.uiWindow?.webContents.send('window:resized', { timestamp: Date.now() })
+    } catch { /* ignore */ }
   }
 
   static updateHoverMetrics(metrics: OverlayHoverMetrics): void {
-    // Renderer가 보낸 값은 언제든 이상할 수 있으니 최소한의 sanity만 적용
-    if (!Number.isFinite(metrics.sidebarRightPx)) return
-    if (!Number.isFinite(metrics.headerBottomPx)) return
-    if (!Number.isFinite(metrics.titlebarHeightPx)) return
-    if (!Number.isFinite(metrics.dpr) || metrics.dpr <= 0) return
-    if (!Number.isFinite(metrics.timestamp)) return
+    // Validation
+    if (!Number.isFinite(metrics.sidebarRightPx) || !Number.isFinite(metrics.headerBottomPx) ||
+        !Number.isFinite(metrics.titlebarHeightPx) || !Number.isFinite(metrics.dpr) ||
+        metrics.dpr <= 0 || !Number.isFinite(metrics.timestamp)) return
 
-    // 음수 방지 (DOM rect가 음수가 될 수 있음)
-    if (metrics.sidebarRightPx < 0) metrics.sidebarRightPx = 0
-    if (metrics.headerBottomPx < 0) metrics.headerBottomPx = 0
-    if (metrics.titlebarHeightPx < 0) metrics.titlebarHeightPx = 0
+    // Clamp to positive values
+    metrics.sidebarRightPx = Math.max(0, metrics.sidebarRightPx)
+    metrics.headerBottomPx = Math.max(0, metrics.headerBottomPx)
+    metrics.titlebarHeightPx = Math.max(0, metrics.titlebarHeightPx)
 
     this.hoverMetrics = metrics
-
-    const now = Date.now()
-    if (now - this.lastMetricsLogAt > 5000) {
-      this.lastMetricsLogAt = now
-      logger.debug('[OverlayController] hover metrics updated', {
-        sidebarRightPx: metrics.sidebarRightPx,
-        headerBottomPx: metrics.headerBottomPx,
-        titlebarHeightPx: metrics.titlebarHeightPx,
-        dpr: metrics.dpr,
-        ageMs: Math.max(0, now - metrics.timestamp),
-      })
-    }
   }
 
   // Latch state (pinned)
@@ -128,13 +140,11 @@ export class OverlayController {
     return latched
   }
 
-  private static broadcastLatch(channel: 'header:latch-changed' | 'sidebar:latch-changed', latched: boolean) {
+  private static broadcastLatch(channel: 'header:latch-changed' | 'sidebar:latch-changed', latched: boolean): void {
     try {
       const payload = OverlayLatchChangedEventSchema.parse({ latched, timestamp: Date.now() })
       this.uiWindow?.webContents.send(channel, payload)
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }
 
   /**
@@ -201,12 +211,6 @@ export class OverlayController {
       if (!focused) {
         this.closeNonLatchedOverlays()
       }
-
-      logger.debug('[OverlayController] focus changed', {
-        focused,
-        contentWindowId: contentWindow.id,
-        uiWindowId: uiWindow.id,
-      })
     }
 
     const onAnyFocusBlur = () => {
@@ -237,15 +241,8 @@ export class OverlayController {
   private static startGlobalMouseTracking(): void {
     if (!this.uiWindow || !this.contentWindow) return
 
-    this.hoverTrackingTimer = setInterval(() => {
-      this.trackMouseAndUpdateState()
-    }, this.TRACKING_INTERVAL_MS)
-
-    this.cleanupFns.push(() => {
-      this.stopGlobalMouseTracking()
-    })
-
-    logger.debug('[OverlayController] Global mouse tracking started')
+    this.hoverTrackingTimer = setInterval(() => this.trackMouseAndUpdateState(), TRACKING_INTERVAL_MS)
+    this.cleanupFns.push(() => this.stopGlobalMouseTracking())
   }
 
   private static stopGlobalMouseTracking(): void {
@@ -258,7 +255,7 @@ export class OverlayController {
   private static trackMouseAndUpdateState(): void {
     if (!this.uiWindow || !this.contentWindow) return
 
-    // Arc Step 1: Window focused인가?
+    // ⭐ Arc Step 1: Window focused인가?
     const windowFocused = overlayStore.getState().focused
     if (!windowFocused) {
       this.closeNonLatchedOverlays()
@@ -268,7 +265,11 @@ export class OverlayController {
 
     // Arc Step 2: 마우스가 window bounds 안에 있는가?
     const { x: mouseX, y: mouseY } = screen.getCursorScreenPoint()
-    const bounds = this.uiWindow.getBounds()
+    // ⭐ Zen 방식: cached bounds 우선 사용 (move 중에도 정확한 좌표)
+    const bounds = this.cachedWindowBounds || this.uiWindow.getBounds()
+    
+    // ⭐ Window 이동/크기조절 중에는 hysteresis 적용 (빠른 상태 변경 방지)
+    const isAdjusting = this.isWindowMoving || this.isWindowResizing
 
     const insideWindow =
       mouseX >= bounds.x &&
@@ -282,86 +283,91 @@ export class OverlayController {
       return
     }
 
-    // Renderer 실측값이 끊기면(스테일) 안전하게 닫는다.
-    // Electron에서는 stale metrics로 hit-test를 계속하면 “안 닫힘/엉뚱한 곳에서 열림”이 생길 수 있음.
+    // Metrics stale check
     const metricsAgeMs = this.hoverMetrics ? Date.now() - this.hoverMetrics.timestamp : Number.POSITIVE_INFINITY
-    if (!Number.isFinite(metricsAgeMs) || metricsAgeMs > this.MAX_METRICS_AGE_MS) {
-      const now = Date.now()
-      if (now - this.lastStaleLogAt > 2000) {
-        this.lastStaleLogAt = now
-        logger.debug('[OverlayController] metrics stale - forcing ghost/close', {
-          hasMetrics: Boolean(this.hoverMetrics),
-          metricsAgeMs,
-          maxAgeMs: this.MAX_METRICS_AGE_MS,
-        })
-      }
+    if (!Number.isFinite(metricsAgeMs) || metricsAgeMs > MAX_METRICS_AGE_MS) {
       this.closeNonLatchedOverlays()
       this.setUIWindowGhost()
       return
     }
 
     // Arc Step 3: Hover zone 판정 (window 안에 있을 때만)
+    // ⭐ 핵심: screen coordinates로 모든 계산 수행
     const relativeX = Math.max(0, Math.floor(mouseX - bounds.x))
     const relativeY = Math.max(0, Math.floor(mouseY - bounds.y))
 
     const { headerLatched, sidebarLatched } = overlayStore.getState()
 
-    // Zone 판정: Renderer 실측값만 사용 (하드코딩 금지)
-    // - sidebarRightPx: .aside-sidebar.getBoundingClientRect().right
-    // - headerBottomPx: .aside-header.getBoundingClientRect().bottom
-    // - titlebarHeightPx: innerHeight - documentElement.clientHeight (추정)
+    // ⭐ Zone 판정: Electron의 getBounds()는 logical pixels를 반환
+    // - macOS: getBounds()는 DPR과 무관하게 항상 logical coordinates
+    // - Renderer의 getBoundingClientRect()도 CSS logical pixels
+    // - 따라서 DPR 변환 불필요!
     const metrics = this.hoverMetrics
-    const sidebarZoneRight = metrics ? Math.max(0, metrics.sidebarRightPx) : 0
+    
+    // CSS logical pixels 그대로 사용 (DPR 변환 불필요)
+    const sidebarZoneRight = metrics ? Math.floor(metrics.sidebarRightPx) : 0
     const headerZoneBottom = metrics
-      ? Math.max(0, metrics.headerBottomPx + Math.max(0, metrics.titlebarHeightPx))
+      ? Math.floor(metrics.headerBottomPx + metrics.titlebarHeightPx)
       : 0
 
-    // window bounds를 넘는 값은 clamp (예: 오차/레이스)
+    // Bounds를 넘지 않도록 clamp
     const effectiveSidebarZoneRight = Math.min(Math.max(0, sidebarZoneRight), bounds.width)
     const effectiveHeaderZoneBottom = Math.min(Math.max(0, headerZoneBottom), bounds.height)
 
     const inSidebarZone = relativeX <= effectiveSidebarZoneRight
     const inHeaderZone = relativeY <= effectiveHeaderZoneBottom
 
-    const wantHeaderOpen = headerLatched || inHeaderZone
+    let wantHeaderOpen = headerLatched || inHeaderZone
     const wantSidebarOpen = sidebarLatched || inSidebarZone
 
-    // State 변경이 있으면 broadcast + interactive 갱신
-    if (
+    // Hysteresis: once opened, keep the header open briefly to avoid “never visible” flicker.
+    if (!headerLatched) {
+      const nowMs = Date.now()
+      if (wantHeaderOpen) {
+        this.lastHeaderOpenedAt = nowMs
+      } else {
+        const minOpenMs = 200
+        if (this.currentState.headerOpen && nowMs - this.lastHeaderOpenedAt < minOpenMs) {
+          wantHeaderOpen = true
+        }
+      }
+    }
+
+    // ⭐ DEBUG: 좌표 변환 확인
+    if (Math.random() < 0.02) { // 2% 확률로 로깅
+      logger.debug('[OverlayController] Coordinate Debug', {
+        mouse: { screenX: mouseX, screenY: mouseY, relativeX, relativeY },
+        bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+        metrics: {
+          sidebarRightPx: metrics?.sidebarRightPx,
+          headerBottomPx: metrics?.headerBottomPx,
+          titlebarHeightPx: metrics?.titlebarHeightPx,
+          sidebarZoneRight,
+          headerZoneBottom,
+        },
+        zones: { inSidebarZone, inHeaderZone },
+        state: { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen },
+      })
+    }
+
+    // Throttle state updates
+    const now = Date.now()
+    const timeSinceLastUpdate = now - this.lastStateUpdateTime
+    const throttleMs = isAdjusting ? WINDOW_ADJUST_THROTTLE_MS : STATE_UPDATE_THROTTLE_MS
+    
+    const shouldUpdate = 
       this.currentState.headerOpen !== wantHeaderOpen ||
       this.currentState.sidebarOpen !== wantSidebarOpen
-    ) {
+
+    // ⭐ State 변경이 필요하고 throttle 시간이 지났거나 강제 업데이트(lastStateUpdateTime=0)인 경우
+    if (shouldUpdate && (timeSinceLastUpdate >= throttleMs || this.lastStateUpdateTime === 0)) {
+      this.lastStateUpdateTime = now
       this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen }
       this.broadcastOverlayState(this.currentState)
-
-      // macOS: header가 열릴 때만 traffic lights 표시
       this.setMacWindowButtonsVisible(wantHeaderOpen)
-
-      // Solid: zone 위에 있거나 latch된 경우
+      
       const shouldBeSolid = wantHeaderOpen || wantSidebarOpen
-      
-      logger.debug('[OverlayController] State changed', {
-        mouse: { x: relativeX, y: relativeY },
-        zones: { sidebar: inSidebarZone, header: inHeaderZone },
-        state: { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen },
-        latch: { header: headerLatched, sidebar: sidebarLatched },
-        shouldBeSolid,
-        metrics: metrics
-          ? {
-              sidebarRightPx: metrics.sidebarRightPx,
-              headerBottomPx: metrics.headerBottomPx,
-              titlebarHeightPx: metrics.titlebarHeightPx,
-              dpr: metrics.dpr,
-              ageMs: Math.max(0, Date.now() - metrics.timestamp),
-            }
-          : null,
-      })
-      
-      if (shouldBeSolid) {
-        this.setUIWindowSolid()
-      } else {
-        this.setUIWindowGhost()
-      }
+      shouldBeSolid ? this.setUIWindowSolid() : this.setUIWindowGhost()
     }
   }
 
@@ -389,51 +395,22 @@ export class OverlayController {
     }
   }
 
-  /**
-   * Renderer에 overlay open/close 상태 전송
-   */
   private static broadcastOverlayState(state: OverlayState): void {
     if (!this.uiWindow) return
-
+    
+    const timestamp = Date.now()
     try {
-      if (state.headerOpen) {
-        this.uiWindow.webContents.send('header:open', { timestamp: Date.now() })
-      } else {
-        this.uiWindow.webContents.send('header:close', { timestamp: Date.now() })
-      }
-
-      if (state.sidebarOpen) {
-        this.uiWindow.webContents.send('sidebar:open', { timestamp: Date.now() })
-      } else {
-        this.uiWindow.webContents.send('sidebar:close', { timestamp: Date.now() })
-      }
-    } catch {
-      // ignore
-    }
+      this.uiWindow.webContents.send(state.headerOpen ? 'header:open' : 'header:close', { timestamp })
+      this.uiWindow.webContents.send(state.sidebarOpen ? 'sidebar:open' : 'sidebar:close', { timestamp })
+    } catch { /* ignore */ }
   }
 
-  /**
-   * UI Window를 Ghost (click-through) 모드로 전환
-   */
   private static setUIWindowGhost(): void {
-    if (!this.uiWindow) return
-    try {
-      this.uiWindow.setIgnoreMouseEvents(true, { forward: true })
-    } catch {
-      // ignore
-    }
+    try { this.uiWindow?.setIgnoreMouseEvents(true, { forward: true }) } catch { /* ignore */ }
   }
 
-  /**
-   * UI Window를 Solid (interactive) 모드로 전환
-   */
   private static setUIWindowSolid(): void {
-    if (!this.uiWindow) return
-    try {
-      this.uiWindow.setIgnoreMouseEvents(false)
-    } catch {
-      // ignore
-    }
+    try { this.uiWindow?.setIgnoreMouseEvents(false) } catch { /* ignore */ }
   }
 
   /**

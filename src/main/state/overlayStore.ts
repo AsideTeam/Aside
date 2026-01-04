@@ -6,6 +6,7 @@ export type MainOverlayState = {
   sidebarOpen: boolean
   headerLatched: boolean
   sidebarLatched: boolean
+  isDragging: boolean // ⭐ 드래그 중 상태 (레이아웃 계산 차단용)
 }
 
 export type MainOverlayActions = {
@@ -14,6 +15,7 @@ export type MainOverlayActions = {
   setSidebarOpen: (open: boolean) => void
   setHeaderLatched: (latched: boolean) => void
   setSidebarLatched: (latched: boolean) => void
+  setDragging: (dragging: boolean) => void
 
   toggleHeaderLatched: () => boolean
   toggleSidebarLatched: () => boolean
@@ -29,6 +31,7 @@ const initialState: MainOverlayState = {
   sidebarOpen: false,
   headerLatched: false,
   sidebarLatched: false,
+  isDragging: false,
 }
 
 export const overlayStore = createStore<MainOverlayStore>((set, get) => ({
@@ -39,6 +42,7 @@ export const overlayStore = createStore<MainOverlayStore>((set, get) => ({
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setHeaderLatched: (latched) => set({ headerLatched: latched }),
   setSidebarLatched: (latched) => set({ sidebarLatched: latched }),
+  setDragging: (dragging) => set({ isDragging: dragging }),
 
   toggleHeaderLatched: () => {
     const next = !get().headerLatched
