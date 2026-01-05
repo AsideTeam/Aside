@@ -1,18 +1,15 @@
 /**
- * Sidebar Component - Arc Browser Style
+ * Sidebar Component - Arc Browser Style (V2)
  *
- * 5-section layout:
- * 1. Pinned Apps Grid (2x3)
- * 2. Space / Pinned tabs section
- * 3. Tab List (scrollable main area)
- * 4. Mini Player (conditional)
- * 5. Footer Actions
- *
- * Dynamic width measurement & hover zone communication with Main Process
+ * 개선된 구조:
+ * 1. Favicon Bar (상단) - 사용자 추가 앱/웹사이트 파비콘
+ * 2. Space Section - 고정 탭들 (앱 재시작 후에도 유지)
+ * 3. Active Tabs Section - 현재 열려있는 탭들
+ * 4. Footer - 다운로드 + 추가 옵션
  */
 
-import React, { useLayoutEffect, useRef, useState } from 'react'
-import { Plus } from 'lucide-react'
+import React, { useLayoutEffect, useRef } from 'react'
+import { Plus, Download } from 'lucide-react'
 import { useOverlayStore } from '@renderer/lib/overlayStore'
 import { cn } from '@renderer/styles'
 import { useTabs } from '@renderer/hooks/useTabs'
@@ -23,8 +20,6 @@ import {
   PinnedTabItem,
   TabListItem,
   SidebarDivider,
-  MiniPlayer,
-  SidebarFooter,
 } from './sidebar/index'
 
 export const Sidebar: React.FC = () => {
@@ -34,23 +29,20 @@ export const Sidebar: React.FC = () => {
   const headerOpen = useOverlayStore((s) => s.headerOpen)
   const headerLatched = useOverlayStore((s) => s.headerLatched)
 
-  // 미니 플레이어 상태 (나중에 실제 미디어 감지로 변경)
-  const [showMiniPlayer] = useState(false)
-  const [isMediaPlaying] = useState(false)
-
-  // Push down if header is visible (floating or pinned)
-  const shouldPushDown = headerOpen || headerLatched
-
-  // Separate tabs
+  // Separate pinned (Space) vs normal (Active) tabs
   const pinnedTabs = tabs.filter((t) => {
     const tab = t as unknown as { isPinned?: boolean }
     return Boolean(tab.isPinned)
   })
-  const normalTabs = tabs
+  const normalTabs = tabs.filter((t) => {
+    const tab = t as unknown as { isPinned?: boolean }
+    return !tab.isPinned
+  })
 
+  const shouldPushDown = headerOpen || headerLatched
   const sidebarRef = useRef<HTMLDivElement>(null)
 
-  // Dynamic sidebar width measurement for overlay hover zones
+  // Dynamic width measurement for overlay hover zones
   useLayoutEffect(() => {
     const measureAndSend = async () => {
       if (!sidebarRef.current) return
@@ -110,40 +102,41 @@ export const Sidebar: React.FC = () => {
       data-overlay-zone="sidebar"
       data-interactive="true"
     >
-      {/* Main scrollable content area */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-3 py-4 space-y-4">
-        
-        {/* 1. PINNED APPS GRID */}
-        <section>
-          <SectionHeader title="Apps" />
-          <PinnedAppsGrid
-            onAppClick={(app: unknown) => {
-              const appData = app as unknown as { url: string }
-              createTab(appData.url)
-            }}
-          />
-        </section>
+      {/* 1. FAVICON BAR (최상단) */}
+      <div className="sidebar-favicon-section">
+        <PinnedAppsGrid
+          onFaviconClick={(item: unknown) => {
+            const fav = item as unknown as { url: string }
+            createTab(fav.url)
+          }}
+        />
+      </div>
 
-        {/* 2. SPACE / PINNED TABS SECTION (if any pinned tabs exist) */}
+      {/* Main scrollable content */}
+      <div className="flex-1 overflow-y-auto no-scrollbar sidebar-scroll-area">
+        
+        {/* 2. SPACE SECTION (고정 탭) */}
         {pinnedTabs.length > 0 && (
-          <section className="space-y-2">
+          <section className="sidebar-space-section">
             <SectionHeader title="Space" />
-            {pinnedTabs.map((tab) => (
-              <PinnedTabItem
-                key={tab.id}
-                id={tab.id}
-                title={tab.title || 'Untitled'}
-                type="bookmark"
-                isActive={tab.id === activeTabId}
-                onSelect={() => switchTab(tab.id)}
-                onDelete={() => closeTab(tab.id)}
-              />
-            ))}
+            <div className="sidebar-space-items">
+              {pinnedTabs.map((tab) => (
+                <PinnedTabItem
+                  key={tab.id}
+                  id={tab.id}
+                  title={tab.title || 'Untitled'}
+                  type="bookmark"
+                  isActive={tab.id === activeTabId}
+                  onSelect={() => switchTab(tab.id)}
+                  onDelete={() => closeTab(tab.id)}
+                />
+              ))}
+            </div>
           </section>
         )}
 
-        {/* 3. ACTIVE TABS LIST SECTION */}
-        <section className="space-y-3">
+        {/* 3. ACTIVE TABS SECTION */}
+        <section className="sidebar-active-section">
           <SidebarDivider text="활성 탭" />
 
           {/* New Tab Button */}
@@ -151,65 +144,53 @@ export const Sidebar: React.FC = () => {
             onClick={() => {
               createTab()
             }}
-            className={cn(
-              'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg',
-              'text-gray-400 hover:text-white',
-              'hover:bg-white/5',
-              'transition-colors group',
-              'font-medium text-[13px]'
-            )}
+            className="sidebar-new-tab-btn"
           >
-            <div className={cn(
-              'w-5 h-5 flex items-center justify-center rounded-md',
-              'bg-white/5 group-hover:bg-white/10',
-              'transition-colors'
-            )}>
+            <div className="sidebar-new-tab-icon">
               <Plus size={14} />
             </div>
             <span>새 탭</span>
           </button>
 
-          {/* Tab List Items */}
-          <div className="space-y-1">
-            {normalTabs.map((tab) => (
-              <TabListItem
-                key={tab.id}
-                id={tab.id}
-                title={tab.title || 'Untitled'}
-                isActive={tab.id === activeTabId}
-                onSelect={() => switchTab(tab.id)}
-                onClose={() => closeTab(tab.id)}
-              />
-            ))}
+          {/* Active Tabs List */}
+          <div className="sidebar-tabs-list">
+            {normalTabs.length > 0 ? (
+              normalTabs.map((tab) => (
+                <TabListItem
+                  key={tab.id}
+                  id={tab.id}
+                  title={tab.title || 'Untitled'}
+                  isActive={tab.id === activeTabId}
+                  onSelect={() => switchTab(tab.id)}
+                  onClose={() => closeTab(tab.id)}
+                />
+              ))
+            ) : (
+              <div className="sidebar-empty-state">
+                <p>열려 있는 탭이 없습니다</p>
+              </div>
+            )}
           </div>
         </section>
       </div>
 
-      {/* 4. MINI PLAYER (Conditional) */}
-      {showMiniPlayer && (
-        <div className="px-3 py-3">
-          <MiniPlayer
-            isVisible={true}
-            isPlaying={isMediaPlaying}
-            title="호리미야 -piece-"
-            artist="애니메이션"
-            thumbnail=""
-          />
-        </div>
-      )}
-
-      {/* 5. SIDEBAR FOOTER */}
-      <SidebarFooter
-        onSettingsClick={() => {
-          console.log('[Sidebar] Settings clicked')
-        }}
-        onDownloadsClick={() => {
-          console.log('[Sidebar] Downloads clicked')
-        }}
-        onAddClick={() => {
-          console.log('[Sidebar] Add Space clicked')
-        }}
-      />
+      {/* 4. FOOTER */}
+      <div className="sidebar-footer">
+        <button
+          className="sidebar-footer-btn"
+          title="Downloads"
+          onClick={() => console.log('[Sidebar] Downloads clicked')}
+        >
+          <Download size={18} />
+        </button>
+        <button
+          className="sidebar-footer-btn sidebar-footer-btn--add"
+          title="Add Space"
+          onClick={() => console.log('[Sidebar] Add Space clicked')}
+        >
+          <Plus size={18} />
+        </button>
+      </div>
     </aside>
   )
 }

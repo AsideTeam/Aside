@@ -1,0 +1,467 @@
+/**
+ * Sidebar CSS - Arc Browser Style
+ * 
+ * 구조:
+ * 1. Favicon Bar (상단 고정)
+ * 2. Scrollable Area (Space + Active Tabs)
+ * 3. Footer (Download + Add)
+ */
+
+/* ===== FAVICON BAR ===== */
+.sidebar-favicon-section {
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-favicon-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.sidebar-favicon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.sidebar-favicon:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: scale(1.05);
+}
+
+.sidebar-favicon:active {
+  transform: scale(0.95);
+}
+
+.sidebar-favicon-img {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
+.sidebar-favicon-placeholder {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+}
+
+/* ===== SCROLLABLE AREA ===== */
+.sidebar-scroll-area {
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sidebar-scroll-area::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.sidebar-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* ===== SPACE SECTION (고정 탭) ===== */
+.sidebar-space-section {
+  padding: 12px 4px;
+}
+
+.sidebar-space-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ===== ACTIVE TABS SECTION ===== */
+.sidebar-active-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px;
+}
+
+/* ===== TAB 아이템 기본 스타일 ===== */
+.sidebar-tab-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-tab-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-tab-item--active {
+  background: white;
+  color: black;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.sidebar-tab-item--active:hover {
+  background: white;
+}
+
+.sidebar-tab-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.sidebar-tab-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(59, 130, 246, 0.2);
+  font-size: 12px;
+}
+
+.sidebar-tab-item--active .sidebar-tab-icon {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.sidebar-tab-title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-tab-close {
+  opacity: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  transition: all 0.15s ease;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.sidebar-tab-item:hover .sidebar-tab-close {
+  opacity: 1;
+}
+
+.sidebar-tab-item--active .sidebar-tab-close {
+  opacity: 1;
+}
+
+.sidebar-tab-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #ef4444;
+}
+
+.sidebar-tab-item--active .sidebar-tab-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* ===== NEW TAB BUTTON ===== */
+.sidebar-new-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: rgba(209, 213, 219, 1);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  text-align: left;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-new-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.sidebar-new-tab-btn:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-new-tab-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.sidebar-new-tab-btn:hover .sidebar-new-tab-icon {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ===== TABS LIST ===== */
+.sidebar-tabs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-empty-state {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(107, 114, 128, 1);
+}
+
+/* ===== DIVIDER ===== */
+.sidebar-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-divider-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-divider-text {
+  font-size: 10px;
+  color: rgba(107, 114, 128, 1);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* ===== FOOTER ===== */
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(14, 15, 17, 1);
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-footer-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: rgba(107, 114, 128, 1);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-footer-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(209, 213, 219, 1);
+}
+
+.sidebar-footer-btn:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-footer-btn--add {
+  margin-left: auto;
+}
+
+/* ===== SECTION HEADER ===== */
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(107, 114, 128, 1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-section-menu {
+  opacity: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: rgba(107, 114, 128, 1);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sidebar-section-header:hover .sidebar-section-menu {
+  opacity: 1;
+}
+
+.sidebar-section-menu:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(209, 213, 219, 1);
+}
+
+/* ===== PINNED TAB ITEM ===== */
+.sidebar-pinned-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-pinned-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-pinned-item--active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-pinned-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.sidebar-pinned-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(107, 114, 128, 1);
+}
+
+.sidebar-pinned-item--active .sidebar-pinned-icon {
+  color: rgba(59, 130, 246, 1);
+}
+
+.sidebar-pinned-title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-pinned-delete {
+  opacity: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.sidebar-pinned-item:hover .sidebar-pinned-delete {
+  opacity: 1;
+}
+
+.sidebar-pinned-delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: rgba(239, 68, 68, 1);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-favicon,
+  .sidebar-tab-item,
+  .sidebar-new-tab-btn,
+  .sidebar-footer-btn,
+  .sidebar-tab-close,
+  .sidebar-pinned-delete {
+    transition: none;
+  }
+}
+
+@media (max-width: 320px) {
+  .sidebar-favicon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .sidebar-favicon-img {
+    width: 18px;
+    height: 18px;
+  }
+}

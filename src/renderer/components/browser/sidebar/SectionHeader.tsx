@@ -1,11 +1,10 @@
 /**
  * SectionHeader Component
  *
- * 사이드바 섹션 헤더 (e.g., "Space", "활성 탭")
+ * 사이드바 섹션 헤더 (e.g., "Space")
  */
 
 import React from 'react'
-import { cn } from '@renderer/styles'
 import { MoreHorizontal } from 'lucide-react'
 
 interface SectionHeaderProps {
@@ -20,8 +19,8 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
   rightContent,
 }) => {
   return (
-    <div className="flex items-center justify-between px-2 py-2">
-      <span className="text-xs font-semibold text-gray-500 tracking-wider uppercase">
+    <div className="sidebar-section-header">
+      <span className="sidebar-section-title">
         {title}
       </span>
       {rightContent ? (
@@ -29,13 +28,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
       ) : onMenuClick ? (
         <button
           onClick={onMenuClick}
-          className={cn(
-            'p-1 rounded-md',
-            'text-gray-600 hover:text-gray-400',
-            'hover:bg-white/5',
-            'transition-colors',
-            'group'
-          )}
+          className="sidebar-section-menu"
         >
           <MoreHorizontal size={14} />
         </button>

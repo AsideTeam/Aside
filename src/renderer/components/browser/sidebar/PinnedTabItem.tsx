@@ -5,8 +5,7 @@
  */
 
 import React from 'react'
-import { cn } from '@renderer/styles'
-import { Globe, Folder } from 'lucide-react'
+import { Globe, Folder, X } from 'lucide-react'
 
 interface PinnedTabItemProps {
   id: string
@@ -30,33 +29,15 @@ export const PinnedTabItem: React.FC<PinnedTabItemProps> = ({
   return (
     <div
       onClick={() => onSelect?.(id)}
-      className={cn(
-        'group flex items-center justify-between',
-        'w-full px-3 py-2.5 rounded-lg',
-        'cursor-pointer transition-all duration-200',
-        isActive
-          ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5'
-          : 'text-gray-400 hover:text-gray-200 hover:bg-white/5',
-        'truncate'
-      )}
+      className={isActive ? 'sidebar-pinned-item sidebar-pinned-item--active' : 'sidebar-pinned-item'}
       title={title}
     >
-      <div className="flex items-center gap-2.5 overflow-hidden">
-        {/* Icon */}
-        <div className={cn(
-          'w-5 h-5 flex items-center justify-center shrink-0',
-          'rounded-md',
-          isActive ? 'bg-blue-500/20 text-blue-400' : 'text-gray-600'
-        )}>
+      <div className="sidebar-pinned-item-left">
+        <div className="sidebar-pinned-icon">
           {icon || (type === 'folder' ? <Folder size={14} /> : <Globe size={14} />)}
         </div>
 
-        {/* Title */}
-        <span className={cn(
-          'text-[13px] font-medium',
-          'truncate',
-          'leading-none pb-0.5'
-        )}>
+        <span className="sidebar-pinned-title">
           {title}
         </span>
       </div>
@@ -68,17 +49,10 @@ export const PinnedTabItem: React.FC<PinnedTabItemProps> = ({
             e.stopPropagation()
             onDelete(id)
           }}
-          className={cn(
-            'p-1 rounded-md',
-            'opacity-0 group-hover:opacity-100',
-            'text-gray-500 hover:text-red-400 hover:bg-red-500/10',
-            'transition-all duration-200',
-            'shrink-0',
-            'ml-2'
-          )}
+          className="sidebar-pinned-delete"
           aria-label="Delete"
         >
-          <span className="text-sm">×</span>
+          <X size={14} />
         </button>
       )}
     </div>
