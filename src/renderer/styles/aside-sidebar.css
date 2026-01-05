@@ -578,16 +578,6 @@
 
 /* Sidebar pinned: WebView 영역 시작점에 1px divider를 그려
    배경 대비로 인해 seam이 두껍게 보이는 착시를 줄인다. */
-.aside-overlay--sidebar-pinned .aside-view-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 1px;
-  background: var(--color-border-primary);
-  pointer-events: none;
-}
 
 /* WebContentsView 자리 - 직사각형으로 꽉 채움 (border-radius 없음) */
 .aside-view-placeholder {

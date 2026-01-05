@@ -327,17 +327,27 @@ export class OverlayController {
     const effectiveSidebarZoneRight = Math.min(Math.max(0, sidebarZoneRight), bounds.width)
     const effectiveHeaderZoneBottom = Math.min(Math.max(0, headerZoneBottom), bounds.height)
 
-    const inSidebarZone = relativeX <= effectiveSidebarZoneRight
-    const inHeaderZone = relativeY <= effectiveHeaderZoneBottom
+    let effectiveInSidebarZone = relativeX <= effectiveSidebarZoneRight
+    const effectiveInHeaderZone = relativeY <= effectiveHeaderZoneBottom
+
+    // ⭐ Mutual Exclusion: Top-Left Corner(Intersection) 처리
+    // 두 영역이 겹치는 위치에서 둘 다 Floating(Hover) 상태로 열리는 것을 방지.
+    // 사용자 입장에서 왼쪽 위 구석은 교통 제어(Traffic Lights) 및 내비게이션 영역이므로 헤더를 우선함.
+    if (effectiveInSidebarZone && effectiveInHeaderZone) {
+      if (!headerLatched || !sidebarLatched) {
+        // 어느 하나라도 Floating 상태라면 헤더 영역 우선 (사이드바 영역에서 배제)
+        effectiveInSidebarZone = false
+      }
+    }
 
     // Hysteresis: prevent too fast flickering
     const nowMs = Date.now()
-    if (inHeaderZone) this.lastHeaderInZoneAt = nowMs
-    if (inSidebarZone) this.lastSidebarInZoneAt = nowMs
+    if (effectiveInHeaderZone) this.lastHeaderInZoneAt = nowMs
+    if (effectiveInSidebarZone) this.lastSidebarInZoneAt = nowMs
 
     // Determine intended states with hysteresis
-    let finalHeaderOpen = headerLatched || inHeaderZone
-    let finalSidebarOpen = sidebarLatched || inSidebarZone
+    let finalHeaderOpen = headerLatched || effectiveInHeaderZone
+    let finalSidebarOpen = sidebarLatched || effectiveInSidebarZone
 
     const minOpenMs = 400
     const closeDelayMs = 250
@@ -381,14 +391,17 @@ export class OverlayController {
           sidebarZoneRight,
           headerZoneBottom,
         },
-        zones: { inSidebarZone, inHeaderZone },
+        zones: { 
+          inSidebarZone: effectiveInSidebarZone, 
+          inHeaderZone: effectiveInHeaderZone 
+        },
         state: { headerOpen: finalHeaderOpen, sidebarOpen: finalSidebarOpen },
       })
     }
 
     // ⭐ Interactivity: 마우스가 UI 영역에 있으면 UI를 상단으로, 아니면 컨텐츠를 상단으로
     // 그래야 WebContentsView(구글 등)의 클릭이 막히지 않음.
-    if (inHeaderZone || inSidebarZone) {
+    if (effectiveInHeaderZone || effectiveInSidebarZone) {
       ViewManager.ensureUITopmost()
     } else {
       ViewManager.ensureContentTopmost()

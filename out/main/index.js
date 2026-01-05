@@ -1159,13 +1159,18 @@ class OverlayController {
     const headerZoneBottom = Math.floor((metrics?.headerBottomPx ?? 0) + (metrics?.titlebarHeightPx ?? 0));
     const effectiveSidebarZoneRight = Math.min(Math.max(0, sidebarZoneRight), bounds.width);
     const effectiveHeaderZoneBottom = Math.min(Math.max(0, headerZoneBottom), bounds.height);
-    const inSidebarZone = relativeX <= effectiveSidebarZoneRight;
-    const inHeaderZone = relativeY <= effectiveHeaderZoneBottom;
+    let effectiveInSidebarZone = relativeX <= effectiveSidebarZoneRight;
+    const effectiveInHeaderZone = relativeY <= effectiveHeaderZoneBottom;
+    if (effectiveInSidebarZone && effectiveInHeaderZone) {
+      if (!headerLatched || !sidebarLatched) {
+        effectiveInSidebarZone = false;
+      }
+    }
     const nowMs = Date.now();
-    if (inHeaderZone) this.lastHeaderInZoneAt = nowMs;
-    if (inSidebarZone) this.lastSidebarInZoneAt = nowMs;
-    let finalHeaderOpen = headerLatched || inHeaderZone;
-    let finalSidebarOpen = sidebarLatched || inSidebarZone;
+    if (effectiveInHeaderZone) this.lastHeaderInZoneAt = nowMs;
+    if (effectiveInSidebarZone) this.lastSidebarInZoneAt = nowMs;
+    let finalHeaderOpen = headerLatched || effectiveInHeaderZone;
+    let finalSidebarOpen = sidebarLatched || effectiveInSidebarZone;
     const minOpenMs = 400;
     const closeDelayMs = 250;
     if (!headerLatched) {
@@ -1201,11 +1206,14 @@ class OverlayController {
           sidebarZoneRight,
           headerZoneBottom
         },
-        zones: { inSidebarZone, inHeaderZone },
+        zones: {
+          inSidebarZone: effectiveInSidebarZone,
+          inHeaderZone: effectiveInHeaderZone
+        },
         state: { headerOpen: finalHeaderOpen, sidebarOpen: finalSidebarOpen }
       });
     }
-    if (inHeaderZone || inSidebarZone) {
+    if (effectiveInHeaderZone || effectiveInSidebarZone) {
       ViewManager.ensureUITopmost();
     } else {
       ViewManager.ensureContentTopmost();
@@ -2144,14 +2152,11 @@ function setupAppHandlers(registry2) {
   });
   registry2.handle(IPC_CHANNELS.OVERLAY.UPDATE_HOVER_METRICS, async (_event, payload) => {
     try {
-      console.log("[AppHandler] Received payload:", JSON.stringify(payload));
       const parsed = OverlayHoverMetricsSchema.safeParse(payload);
       if (!parsed.success) {
-        console.error("[AppHandler] ❌ Zod validation failed:", parsed.error.message);
-        console.error("[AppHandler] Payload was:", payload);
+        logger.warn("[AppHandler] ❌ Zod validation failed for hover metrics", { error: parsed.error.message, payload });
         return { success: false, error: parsed.error.message };
       }
-      console.log("[AppHandler] ✅ Zod validation passed, calling updateHoverMetrics with:", parsed.data);
       OverlayController.updateHoverMetrics(parsed.data);
       return { success: true };
     } catch (error) {

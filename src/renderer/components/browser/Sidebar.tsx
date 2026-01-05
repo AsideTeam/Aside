@@ -144,7 +144,10 @@ export const Sidebar: React.FC = () => {
       {/* Sidebar overlay - Using Tailwind v4 */}
       <aside
         ref={sidebarRef}
-        style={{ pointerEvents: (isOpen || isLatched) ? 'auto' : 'none' }}
+        style={{ 
+          pointerEvents: (isOpen || isLatched) ? 'auto' : 'none',
+          width: '288px'
+        }}
         className={cn(
           // Base positioning and z-index
           'fixed top-0 left-0 h-full z-9999',
