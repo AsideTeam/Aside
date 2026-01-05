@@ -45,5 +45,7 @@ export function setupViewHandlers(registry: IpcRegistry): void {
     }
   })
 
+
+
   logger.info('[ViewHandler] Handlers setup completed')
 }

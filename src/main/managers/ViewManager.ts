@@ -52,6 +52,8 @@ export class ViewManager {
   private static lastReorderTarget: 'ui' | 'content' | null = null
   private static externalActiveBounds: { x: number; y: number; width: number; height: number } | null = null
 
+
+
   /**
    * ViewManager 초기화
    *
