@@ -49,70 +49,35 @@ export const ZenLayout: React.FC = () => {
     };
   }, [])
 
-  // Pinned 상태에서 실제 UI 크기를 측정해 CSS 변수/Bounds 계산을 일치시킨다.
-  // (하드코딩 값은 DPI/폰트/플랫폼에 따라 오차가 나서 잘림/과한 간격을 만든다)
+  // 1. Inset calculation & Bounds Sync
   useLayoutEffect(() => {
     const measure = () => {
-      // ⭐ data-interactive를 사용하여 hit zone이 아닌 실제 overlay 선택
-      const sidebarEl = document.querySelector('[data-overlay-zone="sidebar"][data-interactive]') as HTMLElement | null
-      const headerEl = document.querySelector('[data-overlay-zone="header"][data-interactive]') as HTMLElement | null
+      // Pinned 상태일 때만 실제 Inset을 적용함 (Floating/Open일 때는 0)
+      const left = sidebarLatched ? 288 : 0; // Sidebar w-72 = 288px
+      const top = headerLatched ? 56 : 0;    // Header h-14 = 56px
 
-      // ⚠️ 핵심: open이 아닌 latched만 확인! 
-      // open(hover)은 transform만 사용하므로 layout inset 불필요
-      const shouldInsetSidebar = sidebarLatched
-      const shouldInsetHeader = headerLatched
+      setPinnedInsets({ left, top });
+      
+      // Update native view bounds with explicit offsets
+      updateBounds({ left, top });
+    };
 
-      // 애니메이션 중 rect.right/bottom은 프레임마다 바뀌므로, 최종 크기를 offset 기반으로 계산한다.
-      const left = shouldInsetSidebar && sidebarEl ? Math.max(0, Math.round(sidebarEl.offsetWidth)) : 0
-      const top = shouldInsetHeader && headerEl ? Math.max(0, Math.round(headerEl.offsetHeight)) : 0
-
-      setPinnedInsets((prev) => {
-        if (prev.left === left && prev.top === top) return prev
-        return { left, top }
-      })
-    }
-
-    // 첫 페인트 이후 측정 (CSS transition/폰트 적용 레이스 방지)
-    const raf = window.requestAnimationFrame(measure)
-
-    // 윈도우 리사이즈에도 재측정
-    window.addEventListener('resize', measure)
+    measure();
+    
+    // Animation 완료 시점에 한 번 더 확실히 보정 (Transition이 300ms이므로 350ms 후)
+    const timer = setTimeout(measure, 350); 
+    
+    window.addEventListener('resize', measure);
     return () => {
-      window.cancelAnimationFrame(raf)
-      window.removeEventListener('resize', measure)
-    }
-  }, [headerLatched, sidebarLatched]) // ⚠️ open 제거!
-
-  // ⭐ 초기 마운트 시 bounds 계산 (디버깅 로그 제거)
-  useEffect(() => {
-    if (viewPlaceholderRef.current) {
-      updateBounds()
-    }
-  }, []) // 빈 의존성 = 마운트 시 1회만 (updateBounds 의도적 제외)
-
-  // ⭐ 단순화: pinned size 변경 시에만 bounds 재계산 (중복 제거)
-  useEffect(() => {
-    const raf = window.requestAnimationFrame(() => updateBounds())
-    return () => window.cancelAnimationFrame(raf)
-  }, [
-    pinnedInsets.left,
-    pinnedInsets.top,
-    headerLatched, // open 제거
-    sidebarLatched, // open 제거
-    updateBounds,
-  ])
-
-  useEffect(() => {
-    const onResize = () => updateBounds()
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [updateBounds])
+      window.removeEventListener('resize', measure);
+      clearTimeout(timer);
+    };
+  }, [headerLatched, sidebarLatched, updateBounds]);
 
   return (
     <div
       className={cn(
         'aside-overlay',
-        'drag-region', // ⭐ 전체 창 드래그 가능 (CSS 클래스)
         isFocused ? 'aside-window-focused' : 'aside-window-blurred',
         headerOpen ? 'aside-overlay--header-open' : '',
         sidebarOpen ? 'aside-overlay--sidebar-open' : '',
@@ -122,8 +87,9 @@ export const ZenLayout: React.FC = () => {
       )}
       style={
         {
-          '--aside-sidebar-pinned-width': `${pinnedInsets.left}px`,
-          '--aside-header-pinned-height': `${pinnedInsets.top}px`,
+          '--aside-sidebar-width': `${pinnedInsets.left}px`,
+          '--aside-header-height': `${pinnedInsets.top}px`,
+          pointerEvents: 'none', // ⚠️ CRITICAL: Let clicks pass through root
         } as React.CSSProperties
       }
     >
@@ -138,9 +104,6 @@ export const ZenLayout: React.FC = () => {
       {import.meta.env.DEV ? (
         <GapProbe enabled={sidebarLatched} placeholderRef={viewPlaceholderRef} insetLeft={pinnedInsets.left} />
       ) : null}
-
-      {/* Hit-test zones (Ghost 모드에서 elementFromPoint로 감지) */}
-      <div className="aside-hit-zone aside-hit-zone--sidebar" data-overlay-zone="sidebar" />
 
       <AsideHeader />
       <Sidebar />

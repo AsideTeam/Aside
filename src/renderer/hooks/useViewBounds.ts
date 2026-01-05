@@ -35,38 +35,35 @@ export const useViewBounds = (
   contentAreaRef: React.RefObject<HTMLDivElement | null>,
   options: UseViewBoundsOptions = {}
 ) => {
-  // NOTE: getBoundingClientRect()는 CSS px(DIP) 기반.
-  // Electron WebContentsView.setBounds 역시 DIP 기준이므로 기본 1을 사용.
   const { margin = 0, scaleFactor = 1 } = options;
   const margins = normalizeMargins(margin);
   const lastBoundsRef = useRef<ViewBounds | null>(null);
   const isDragging = useOverlayStore((s) => s.isDragging)
 
-  const updateBounds = useCallback(() => {
+  const updateBounds = useCallback((explicitOffsets?: { left: number, top: number }) => {
     // ⭐ 핵심: 드래그 중에는 bounds 업데이트를 완전히 차단 (Layout Thrashing 방지)
-    if (isDragging) {
-      return
-    }
+    if (isDragging) return;
 
-    if (!contentAreaRef.current || !window.electronAPI?.view) {
-      return
-    }
+    if (!contentAreaRef.current || !window.electronAPI?.view) return;
 
     try {
+      // 1. 명시적 오프셋이 있으면 그것을 사용 (CSS Transition 중 측정값 오차 방지)
+      // 2. 없으면 getBoundingClientRect로 측정 (Fallback)
       const rect = contentAreaRef.current.getBoundingClientRect();
 
-      // Safe-area 오프셋만 계산 (pinned sidebar/header 크기)
+      const left = explicitOffsets ? explicitOffsets.left : rect.x;
+      const top = explicitOffsets ? explicitOffsets.top : rect.y;
+
       const newBounds: ViewBounds = {
-        left: Math.round((rect.x + margins.left) * scaleFactor),
-        top: Math.round((rect.y + margins.top) * scaleFactor),
+        left: Math.round((left + margins.left) * scaleFactor),
+        top: Math.round((top + margins.top) * scaleFactor),
       };
 
       // 이전과 다를 때만 업데이트 (성능 최적화)
       if (!lastBoundsRef.current || !areBoundsEqual(lastBoundsRef.current, newBounds)) {
         const parsed = ViewResizeSchema.safeParse(newBounds)
-        if (!parsed.success) {
-          return
-        }
+        if (!parsed.success) return;
+        
         window.electronAPI.view.resize(parsed.data);
         lastBoundsRef.current = newBounds;
       }

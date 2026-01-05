@@ -83,29 +83,21 @@ export const Sidebar: React.FC = () => {
   // ⭐ Dynamic sidebar width measurement  
   useLayoutEffect(() => {
     const measureAndSend = async () => {
-      if (!sidebarRef.current) {
-        console.warn('[Sidebar] sidebarRef.current is null!')
-        return
-      }
+      if (!sidebarRef.current) return
       
-      const width = sidebarRef.current.offsetWidth
-      console.log(`[Sidebar] Measured width: ${width} (Threshold: 200)`)
+      const contentWidth = sidebarRef.current.offsetWidth
+      const hitZoneWidth = 96 // w-24
       
-      // ⚠️ 측정값이 유효하지 않거나 너무 작으면(HitZone 24px/96px 등) 전송하지 않음
-      // Sidebar는 w-72 (288px)이어야 함. 200px 미만은 무시.
-      if (width < 200) {
-        console.warn(`[Sidebar] Width ${width}px is below threshold (200px), skipping update.`)
-        return
-      }
-      
+      // Sidebar가 열려있거나 고정된 경우 전체 너비를 영역으로 사용, 닫힌 경우 핫존만 사용
+      const hoverWidth = (isOpen || isLatched) ? contentWidth : hitZoneWidth
+
       // Send to Main process for hover zone calculation
       try {
         const payload = {
-          sidebarRightPx: width,
+          sidebarRightPx: hoverWidth,
           dpr: window.devicePixelRatio,
           timestamp: Date.now(),
         }
-        console.log('[Sidebar] 📤 Sending payload:', JSON.stringify(payload))
         
         const response = await window.electronAPI.invoke('overlay:update-hover-metrics', payload) as { success: boolean; error?: string }
         
@@ -113,13 +105,10 @@ export const Sidebar: React.FC = () => {
           console.error('[Sidebar] ❌ Main process rejected metrics:', response.error)
           return
         }
-        
-        console.log('[Sidebar] ✅ Sent metrics successfully:', { sidebarRightPx: width })
       } catch (error) {
         console.error('[Sidebar] ❌ Failed to send hover metrics:', error)
       }
     }
-
     // Call immediately
     void measureAndSend()
     // And after delays to ensure DOM/CSS is ready
@@ -129,8 +118,15 @@ export const Sidebar: React.FC = () => {
     
     // Re-measure on window resize
     window.addEventListener('resize', measureAndSend)
-    return () => window.removeEventListener('resize', measureAndSend)
-  }, [])
+    
+    // Heartbeat: keep metrics fresh for Main process stale-guard
+    const heartbeat = setInterval(measureAndSend, 2000)
+    
+    return () => {
+      window.removeEventListener('resize', measureAndSend)
+      clearInterval(heartbeat)
+    }
+  }, [isOpen, isLatched]) // ⚠️ Re-measure when state changes!
 
   const handleSelectTab = (tabId: string) => {
     setTabs((prev) =>
@@ -145,14 +141,6 @@ export const Sidebar: React.FC = () => {
 
   return (
     <>
-      {/* Hit zone for hover detection - EXPANDED to 96px for better UX */}
-      <div
-        className="fixed top-0 left-0 w-24 h-full z-9998"
-        style={{ pointerEvents: 'auto' }}
-        data-overlay-zone="sidebar"
-        aria-hidden="true"
-      />
-      
       {/* Sidebar overlay - Using Tailwind v4 */}
       <aside
         ref={sidebarRef}
@@ -178,6 +166,7 @@ export const Sidebar: React.FC = () => {
           'drag-region select-none',
         )}
         data-overlay-zone="sidebar"
+        data-interactive="true"
       >
       {/* Pinned Tabs */}
       <div className="aside-pinned-area">

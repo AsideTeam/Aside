@@ -23,8 +23,14 @@
   top: 0;
   left: 0;
   z-index: var(--z-sidebar);
+}
+
+.drag-region {
   -webkit-app-region: drag;
   user-select: none;
+}
+
+.aside-sidebar {
   /* ⭐ 핵심: transform으로 왼쪽으로 숨김 (reflow 없음) */
   transform: translateX(-100%);
   /* 기본 상태: 마우스 이벤트 투과 (uiWindow의 setIgnoreMouseEvents가 제어) */
@@ -541,7 +547,26 @@
   width: 100%;
   height: 100vh;
   overflow: hidden;
-  /* Ensure z-index is correct if needed, but usually 0 is fine */
+  transition: all 0.3s ease-out; /* Smooth transition when pinning */
+  pointer-events: none; /* Let clicks pass through to native view */
+}
+
+/* Pinned state: Shift the frame to make room for Sidebar/Header */
+.aside-overlay--sidebar-pinned .aside-frame {
+  margin-left: var(--aside-sidebar-width, 0);
+  width: calc(100% - var(--aside-sidebar-width, 0));
+}
+
+.aside-overlay--header-pinned .aside-frame {
+  margin-top: var(--aside-header-height, 0);
+  height: calc(100vh - var(--aside-header-height, 0));
+}
+
+.aside-overlay--sidebar-pinned.aside-overlay--header-pinned .aside-frame {
+  margin-left: var(--aside-sidebar-width, 0);
+  margin-top: var(--aside-header-height, 0);
+  width: calc(100% - var(--aside-sidebar-width, 0));
+  height: calc(100vh - var(--aside-header-height, 0));
 }
 
 .aside-view-container {

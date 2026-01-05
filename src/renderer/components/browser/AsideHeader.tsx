@@ -35,21 +35,15 @@ export const AsideHeader: React.FC = () => {
       const height = headerRef.current.offsetHeight
       console.log(`[AsideHeader] Measured height: ${height} (Threshold: 40)`)
       
-      // ⚠️ 측정값이 유효하지 않거나 너무 작으면(HitZone 크기 등) 전송하지 않음
-      // Header는 최소 56px이어야 함. 40px 미만은 무시.
-      if (height < 40) {
-        console.warn(`[AsideHeader] Height ${height}px is below threshold (40px), skipping update.`)
-        return
-      }
+      const hoverHeight = 128
       
       // Send to Main process for hover zone calculation
       try {
         const payload = {
-          headerBottomPx: height,
+          headerBottomPx: hoverHeight,
           dpr: window.devicePixelRatio,
           timestamp: Date.now(),
         }
-        console.log('[AsideHeader] 📤 Sending payload:', JSON.stringify(payload))
         
         const response = await window.electronAPI.invoke('overlay:update-hover-metrics', payload) as { success: boolean; error?: string }
         
@@ -57,8 +51,6 @@ export const AsideHeader: React.FC = () => {
           console.error('[AsideHeader] ❌ Main process rejected metrics:', response.error)
           return
         }
-        
-        console.log('[AsideHeader] ✅ Sent metrics successfully:', { headerBottomPx: height })
       } catch (error) {
         console.error('[AsideHeader] ❌ Failed to send hover metrics:', error)
       }
@@ -73,26 +65,31 @@ export const AsideHeader: React.FC = () => {
     
     // Re-measure on window resize
     window.addEventListener('resize', measureAndSend)
-    return () => window.removeEventListener('resize', measureAndSend)
+
+    // Heartbeat: keep metrics fresh for Main process stale-guard
+    const heartbeat = setInterval(measureAndSend, 2000)
+
+    return () => {
+      window.removeEventListener('resize', measureAndSend)
+      clearInterval(heartbeat)
+    }
   }, [])
 
   return (
     <>
-      {/* Hit zone for hover detection - EXPANDED to 128px for much better UX */}
-      <div
-        className="fixed top-0 left-0 w-full h-32 z-9998 drag-region"
-        style={{ pointerEvents: 'auto' }}
-        data-overlay-zone="header"
-        aria-hidden="true"
-      />
+
       
       {/* Header overlay - Using Tailwind v4 with data attributes */}
       <div
         ref={headerRef}
-        style={{ pointerEvents: (isOpen || isHeaderLatched) ? 'auto' : 'none' }}
+        style={{ 
+          pointerEvents: (isOpen || isHeaderLatched) ? 'auto' : 'none',
+          left: isSidebarLatched ? 'var(--aside-sidebar-width)' : '0',
+          width: isSidebarLatched ? 'calc(100% - var(--aside-sidebar-width))' : '100%',
+        }}
         className={cn(
           // Base positioning and z-index
-          'fixed top-0 left-0 w-full z-9999',
+          'fixed top-0 z-9999',
           // Transform animation (GPU accelerated)
           'transition-transform duration-200 ease-out',
           // Default: hidden above screen
@@ -101,9 +98,8 @@ export const AsideHeader: React.FC = () => {
           isOpen && 'translate-y-0',
           // Pinned state: always visible
           isHeaderLatched && 'translate-y-0',
-          // Adjust for sidebar when pinned
-          isSidebarLatched && isHeaderLatched && 'left-(--size-sidebar-width)',
-          isSidebarLatched && isHeaderLatched && 'w-[calc(100%-var(--size-sidebar-width))]',
+          // Header should also have backdrop and shadow
+          'bg-transparent',
         )}
         data-overlay-zone="header"
         data-interactive="true"
@@ -126,8 +122,10 @@ export const AsideHeader: React.FC = () => {
                 'rounded-lg border-none bg-transparent',
                 'text-white/70 hover:bg-white/10',
                 'transition-all duration-150',
-                'disabled:opacity-30 disabled:cursor-not-allowed'
+                'disabled:opacity-30 disabled:cursor-not-allowed',
+                'no-drag' // ⚠️ Important for Electron interactivity
               )}
+              style={{ pointerEvents: 'auto' }} // ⚠️ Ensure it's clickable
               onClick={web.goBack}
               disabled={!web.canGoBack}
               title="뒤로"
@@ -140,8 +138,10 @@ export const AsideHeader: React.FC = () => {
                 'rounded-lg border-none bg-transparent',
                 'text-white/70 hover:bg-white/10',
                 'transition-all duration-150',
-                'disabled:opacity-30 disabled:cursor-not-allowed'
+                'disabled:opacity-30 disabled:cursor-not-allowed',
+                'no-drag'
               )}
+              style={{ pointerEvents: 'auto' }}
               onClick={web.goForward}
               disabled={!web.canGoForward}
               title="앞으로"
@@ -155,8 +155,10 @@ export const AsideHeader: React.FC = () => {
                 'text-white/70 hover:bg-white/10',
                 'transition-all duration-150',
                 'disabled:opacity-30 disabled:cursor-not-allowed',
+                'no-drag',
                 web.isLoading && 'animate-spin'
               )}
+              style={{ pointerEvents: 'auto' }}
               onClick={web.reload}
               disabled={web.isLoading}
               title="새로고침"
@@ -186,10 +188,12 @@ export const AsideHeader: React.FC = () => {
                 'flex items-center justify-center w-8 h-8',
                 'rounded-lg border-none',
                 'transition-all duration-150',
+                'no-drag',
                 isSidebarLatched 
                   ? 'bg-white/8 text-white' 
                   : 'bg-transparent text-white/70 hover:bg-white/10'
               )}
+              style={{ pointerEvents: 'auto' }}
               title={isSidebarLatched ? '사이드바 고정 해제 (Cmd/Ctrl+B)' : '사이드바 고정 (Cmd/Ctrl+B)'}
             >
               <PanelLeft className="w-4 h-4" />
@@ -200,10 +204,12 @@ export const AsideHeader: React.FC = () => {
                 'flex items-center justify-center w-8 h-8',
                 'rounded-lg border-none',
                 'transition-all duration-150',
+                'no-drag',
                 isHeaderLatched 
                   ? 'bg-white/8 text-white' 
                   : 'bg-transparent text-white/70 hover:bg-white/10'
               )}
+              style={{ pointerEvents: 'auto' }}
               title={isHeaderLatched ? '주소바 고정 해제 (Cmd/Ctrl+L)' : '주소바 고정 (Cmd/Ctrl+L)'}
             >
               <Pin className="w-4 h-4" />

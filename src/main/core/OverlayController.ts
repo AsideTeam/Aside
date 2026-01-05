@@ -16,6 +16,7 @@ import { BrowserWindow, WebContents, screen } from 'electron'
 import { logger } from '@main/utils/logger'
 import { overlayStore } from '@main/state/overlayStore'
 import { OverlayLatchChangedEventSchema } from '@shared/validation/schemas'
+import { ViewManager } from '@main/managers/ViewManager'
 
 // ===== Types =====
 type OverlayHoverMetrics = {
@@ -39,7 +40,7 @@ type AttachArgs = {
 
 // ===== Constants =====
 const TRACKING_INTERVAL_MS = 16 // ~60fps (hover 반응성)
-const MAX_METRICS_AGE_MS = 3000 // 3초
+const MAX_METRICS_AGE_MS = 10000 // 10초로 확대 (Liveness check용)
 const STATE_UPDATE_THROTTLE_MS = 16 // 기본 throttle (~60fps)
 const WINDOW_ADJUST_THROTTLE_MS = 80 // 이동/크기조절 중 throttle (과도한 jitter 방지)
 const WINDOW_ADJUST_DEBOUNCE_MS = 100 // 이동/크기조절 완료 debounce
@@ -66,6 +67,9 @@ export class OverlayController {
 
   // Prevent rapid open/close flicker near the edge hotzones.
   private static lastHeaderOpenedAt = 0
+  private static lastSidebarOpenedAt = 0
+  private static lastHeaderInZoneAt = 0
+  private static lastSidebarInZoneAt = 0
 
   /**
    * ⭐ Zen 방식: Window가 이동할 때 호출 (moved 이벤트)
@@ -97,36 +101,27 @@ export class OverlayController {
   }
 
   static updateHoverMetrics(metrics: OverlayHoverMetrics): void {
-    console.log('[OverlayController] Received metrics:', metrics)
     
     // Validation
     if (!Number.isFinite(metrics.dpr) || metrics.dpr <= 0 || !Number.isFinite(metrics.timestamp)) {
-      console.warn('[OverlayController] Invalid dpr or timestamp, skipping')
+      logger.warn('[OverlayController] Invalid dpr or timestamp, skipping')
       return
     }
 
-    if (!this.hoverMetrics) {
-      this.hoverMetrics = {
-        sidebarRightPx: 0,
-        headerBottomPx: 0,
-        titlebarHeightPx: 0,
-        dpr: metrics.dpr,
-        timestamp: metrics.timestamp
-      }
-      console.log('[OverlayController] Initialized hoverMetrics:', this.hoverMetrics)
+    const current = this.hoverMetrics
+    if (!current) {
+      this.hoverMetrics = { ...metrics, timestamp: metrics.timestamp || Date.now() }
+      logger.info('[OverlayController] Initial metrics received')
+      return
     }
 
-    const current = this.hoverMetrics
-
-    // Merge and clamp values
+    // Partial update
     if (metrics.sidebarRightPx !== undefined && Number.isFinite(metrics.sidebarRightPx)) {
       current.sidebarRightPx = Math.max(0, metrics.sidebarRightPx)
-      console.log('[OverlayController] ✅ Updated sidebarRightPx:', current.sidebarRightPx)
     }
-    
+
     if (metrics.headerBottomPx !== undefined && Number.isFinite(metrics.headerBottomPx)) {
       current.headerBottomPx = Math.max(0, metrics.headerBottomPx)
-      console.log('[OverlayController] ✅ Updated headerBottomPx:', current.headerBottomPx)
     }
 
     if (metrics.titlebarHeightPx !== undefined && Number.isFinite(metrics.titlebarHeightPx)) {
@@ -134,8 +129,9 @@ export class OverlayController {
     }
 
     current.dpr = metrics.dpr
+    current.timestamp = metrics.timestamp || Date.now()
     
-    console.log('[OverlayController] Final hoverMetrics:', this.hoverMetrics)
+    // logger.debug('[OverlayController] Hover metrics updated')
   }
 
   // Latch state (pinned)
@@ -334,18 +330,41 @@ export class OverlayController {
     const inSidebarZone = relativeX <= effectiveSidebarZoneRight
     const inHeaderZone = relativeY <= effectiveHeaderZoneBottom
 
-    let wantHeaderOpen = headerLatched || inHeaderZone
-    const wantSidebarOpen = sidebarLatched || inSidebarZone
+    // Hysteresis: prevent too fast flickering
+    const nowMs = Date.now()
+    if (inHeaderZone) this.lastHeaderInZoneAt = nowMs
+    if (inSidebarZone) this.lastSidebarInZoneAt = nowMs
 
-    // Hysteresis: once opened, keep the header open briefly to avoid “never visible” flicker.
+    // Determine intended states with hysteresis
+    let finalHeaderOpen = headerLatched || inHeaderZone
+    let finalSidebarOpen = sidebarLatched || inSidebarZone
+
+    const minOpenMs = 400
+    const closeDelayMs = 250
+
+    // Header hysteresis
     if (!headerLatched) {
-      const nowMs = Date.now()
-      if (wantHeaderOpen) {
+      if (finalHeaderOpen) {
         this.lastHeaderOpenedAt = nowMs
-      } else {
-        const minOpenMs = 200
-        if (this.currentState.headerOpen && nowMs - this.lastHeaderOpenedAt < minOpenMs) {
-          wantHeaderOpen = true
+      } else if (this.currentState.headerOpen) {
+        // Keep open if within min duration or grace period
+        const isStayingOpen = nowMs - this.lastHeaderOpenedAt < minOpenMs
+        const isWithinGracePeriod = nowMs - this.lastHeaderInZoneAt < closeDelayMs
+        if (isStayingOpen || isWithinGracePeriod) {
+          finalHeaderOpen = true
+        }
+      }
+    }
+
+    // Sidebar hysteresis
+    if (!sidebarLatched) {
+      if (finalSidebarOpen) {
+        this.lastSidebarOpenedAt = nowMs
+      } else if (this.currentState.sidebarOpen) {
+        const isStayingOpen = nowMs - this.lastSidebarOpenedAt < minOpenMs
+        const isWithinGracePeriod = nowMs - this.lastSidebarInZoneAt < closeDelayMs
+        if (isStayingOpen || isWithinGracePeriod) {
+          finalSidebarOpen = true
         }
       }
     }
@@ -363,8 +382,16 @@ export class OverlayController {
           headerZoneBottom,
         },
         zones: { inSidebarZone, inHeaderZone },
-        state: { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen },
+        state: { headerOpen: finalHeaderOpen, sidebarOpen: finalSidebarOpen },
       })
+    }
+
+    // ⭐ Interactivity: 마우스가 UI 영역에 있으면 UI를 상단으로, 아니면 컨텐츠를 상단으로
+    // 그래야 WebContentsView(구글 등)의 클릭이 막히지 않음.
+    if (inHeaderZone || inSidebarZone) {
+      ViewManager.ensureUITopmost()
+    } else {
+      ViewManager.ensureContentTopmost()
     }
 
     // Throttle state updates
@@ -373,13 +400,13 @@ export class OverlayController {
     const throttleMs = isAdjusting ? WINDOW_ADJUST_THROTTLE_MS : STATE_UPDATE_THROTTLE_MS
     
     const shouldUpdate = 
-      this.currentState.headerOpen !== wantHeaderOpen ||
-      this.currentState.sidebarOpen !== wantSidebarOpen
+      this.currentState.headerOpen !== finalHeaderOpen ||
+      this.currentState.sidebarOpen !== finalSidebarOpen
 
     // ⭐ State 변경이 필요하고 throttle 시간이 지났거나 강제 업데이트(lastStateUpdateTime=0)인 경우
     if (shouldUpdate && (timeSinceLastUpdate >= throttleMs || this.lastStateUpdateTime === 0)) {
       this.lastStateUpdateTime = now
-      this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen }
+      this.currentState = { headerOpen: finalHeaderOpen, sidebarOpen: finalSidebarOpen }
       this.broadcastOverlayState(this.currentState)
       // customButtonsOnHover가 자동으로 traffic lights를 관리함
     }

@@ -49,6 +49,7 @@ export class ViewManager {
   private static contentWindow: BrowserWindow | null = null
   private static uiWebContents: WebContents | null = null
   private static isInitializing = false
+  private static lastReorderTarget: 'ui' | 'content' | null = null
   private static externalActiveBounds: { x: number; y: number; width: number; height: number } | null = null
 
   /**
@@ -643,26 +644,47 @@ export class ViewManager {
    * - UI View의 배경이 투명(#00000000)하므로 Web Content를 가리지 않음
    * - UI 요소(헤더, 사이드바)만 Web Content 위에 overlay됨
    */
-  private static ensureUITopmost(): void {
-    if (!this.contentWindow || !this.uiWebContents) return
+  /**
+   * UI View를 최상단(Z-Order top)으로 이동
+   */
+  static ensureUITopmost(): void {
+    if (!this.contentWindow || !this.uiWebContents || this.lastReorderTarget === 'ui') return
 
     try {
       const contentView = this.contentWindow.getContentView()
       const uiId = this.uiWebContents.id
       
-      // children 배열에서 UI View 찾기
       const uiView = contentView.children.find(child => {
         const maybe = child as unknown as { webContents?: { id?: number } }
         return maybe.webContents?.id === uiId
       })
 
       if (uiView) {
-        // addChildView는 이미 있는 뷰를 다시 추가하면 맨 뒤(최상위)로 이동시킴
         contentView.addChildView(uiView as WebContentsView)
-        logger.info('[ViewManager] Reordered UI view to top (transparent overlay mode)')
+        this.lastReorderTarget = 'ui'
+        // logger.debug('[ViewManager] UI View → TOP')
       }
     } catch (error) {
       logger.error('[ViewManager] Failed to reorder UI view', error)
+    }
+  }
+
+  /**
+   * Content View(웹탭)를 최상단으로 이동하여 클릭 가능하게 함
+   */
+  static ensureContentTopmost(): void {
+    if (!this.contentWindow || !this.activeTabId || this.lastReorderTarget === 'content') return
+
+    try {
+      const tabData = this.tabs.get(this.activeTabId)
+      if (!tabData) return
+
+      const contentView = this.contentWindow.getContentView()
+      contentView.addChildView(tabData.view)
+      this.lastReorderTarget = 'content'
+      // logger.debug('[ViewManager] Content View → TOP (Interactivity enabled)')
+    } catch (error) {
+      logger.error('[ViewManager] Failed to reorder content view', error)
     }
   }
 
