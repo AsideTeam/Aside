@@ -7,7 +7,7 @@
  * - 하단: 액션 버튼
  */
 
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect, useRef } from 'react';
 import {
   Plus,
   X,
@@ -17,6 +17,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { useOverlayStore } from '@renderer/lib/overlayStore'
+import { cn } from '@renderer/styles'
 
 interface Tab {
   id: string;
@@ -52,6 +53,7 @@ const INITIAL_TABS: Tab[] = [
 export const Sidebar: React.FC = () => {
   const [tabs, setTabs] = useState<Tab[]>(INITIAL_TABS);
   const isOpen = useOverlayStore((s) => s.sidebarOpen)
+  const isLatched = useOverlayStore((s) => s.sidebarLatched)
 
   const handleAddTab = () => {
     const newTab: Tab = {
@@ -67,6 +69,69 @@ export const Sidebar: React.FC = () => {
     ]);
   };
 
+  const sidebarRef = useRef<HTMLDivElement>(null)
+
+  // 🔍 Component mount/unmount tracking
+  useLayoutEffect(() => {
+    const instanceId = Math.random().toString(36).substring(7)
+    console.log(`[Sidebar-${instanceId}] 🟢 MOUNTED`)
+    return () => {
+      console.log(`[Sidebar-${instanceId}] 🔴 UNMOUNTED`)
+    }
+  }, [])
+
+  // ⭐ Dynamic sidebar width measurement  
+  useLayoutEffect(() => {
+    const measureAndSend = async () => {
+      if (!sidebarRef.current) {
+        console.warn('[Sidebar] sidebarRef.current is null!')
+        return
+      }
+      
+      const width = sidebarRef.current.offsetWidth
+      console.log(`[Sidebar] Measured width: ${width} (Threshold: 200)`)
+      
+      // ⚠️ 측정값이 유효하지 않거나 너무 작으면(HitZone 24px/96px 등) 전송하지 않음
+      // Sidebar는 w-72 (288px)이어야 함. 200px 미만은 무시.
+      if (width < 200) {
+        console.warn(`[Sidebar] Width ${width}px is below threshold (200px), skipping update.`)
+        return
+      }
+      
+      // Send to Main process for hover zone calculation
+      try {
+        const payload = {
+          sidebarRightPx: width,
+          dpr: window.devicePixelRatio,
+          timestamp: Date.now(),
+        }
+        console.log('[Sidebar] 📤 Sending payload:', JSON.stringify(payload))
+        
+        const response = await window.electronAPI.invoke('overlay:update-hover-metrics', payload) as { success: boolean; error?: string }
+        
+        if (!response.success) {
+          console.error('[Sidebar] ❌ Main process rejected metrics:', response.error)
+          return
+        }
+        
+        console.log('[Sidebar] ✅ Sent metrics successfully:', { sidebarRightPx: width })
+      } catch (error) {
+        console.error('[Sidebar] ❌ Failed to send hover metrics:', error)
+      }
+    }
+
+    // Call immediately
+    void measureAndSend()
+    // And after delays to ensure DOM/CSS is ready
+    setTimeout(() => void measureAndSend(), 100)
+    setTimeout(() => void measureAndSend(), 300)
+    setTimeout(() => void measureAndSend(), 500)
+    
+    // Re-measure on window resize
+    window.addEventListener('resize', measureAndSend)
+    return () => window.removeEventListener('resize', measureAndSend)
+  }, [])
+
   const handleSelectTab = (tabId: string) => {
     setTabs((prev) =>
       prev.map((t) => ({ ...t, isActive: t.id === tabId }))
@@ -78,10 +143,42 @@ export const Sidebar: React.FC = () => {
     setTabs((prev) => prev.filter((t) => t.id !== tabId));
   };
 
-  const sidebarClass = isOpen ? 'aside-sidebar aside-sidebar--open' : 'aside-sidebar'
-
   return (
-    <aside className={sidebarClass} data-overlay-zone="sidebar">
+    <>
+      {/* Hit zone for hover detection - EXPANDED to 96px for better UX */}
+      <div
+        className="fixed top-0 left-0 w-24 h-full z-9998"
+        style={{ pointerEvents: 'auto' }}
+        data-overlay-zone="sidebar"
+        aria-hidden="true"
+      />
+      
+      {/* Sidebar overlay - Using Tailwind v4 */}
+      <aside
+        ref={sidebarRef}
+        style={{ pointerEvents: (isOpen || isLatched) ? 'auto' : 'none' }}
+        className={cn(
+          // Base positioning and z-index
+          'fixed top-0 left-0 h-full z-9999',
+          'w-72', // Increased from w-64 (256px) to w-72 (288px) for better UX
+          // Background and border
+          'bg-linear-to-b from-gray-900 to-gray-800',
+          'border-r border-white/10',
+          // Text styling
+          'text-white text-sm',
+          // Transform animation(GPU accelerated)
+          'transition-transform duration-300 ease-out',
+          // Default: hidden to the left
+          '-translate-x-full',
+          // Open state: slide in
+          isOpen && 'translate-x-0',
+          // Pinned state: always visible
+          isLatched && 'translate-x-0',
+          // Draggable
+          'drag-region select-none',
+        )}
+        data-overlay-zone="sidebar"
+      >
       {/* Pinned Tabs */}
       <div className="aside-pinned-area">
         <div className="aside-pinned-grid">
@@ -161,6 +258,7 @@ export const Sidebar: React.FC = () => {
           <Settings size={18} />
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 };

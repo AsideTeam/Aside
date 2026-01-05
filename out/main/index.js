@@ -253,9 +253,9 @@ const OverlayContentPointerEventSchema = z.object({
   timestamp: z.number()
 });
 const OverlayHoverMetricsSchema = z.object({
-  sidebarRightPx: z.number().finite(),
-  headerBottomPx: z.number().finite(),
-  titlebarHeightPx: z.number().finite(),
+  sidebarRightPx: z.number().finite().optional(),
+  headerBottomPx: z.number().finite().optional(),
+  titlebarHeightPx: z.number().finite().optional(),
   dpr: z.number().positive().finite(),
   timestamp: z.number()
 });
@@ -320,10 +320,10 @@ function validateOrThrow(schema, data) {
   }
   return result.data;
 }
-const TRACKING_INTERVAL_MS = 50;
+const TRACKING_INTERVAL_MS = 16;
 const MAX_METRICS_AGE_MS = 3e3;
-const STATE_UPDATE_THROTTLE_MS = 50;
-const WINDOW_ADJUST_THROTTLE_MS = 150;
+const STATE_UPDATE_THROTTLE_MS = 16;
+const WINDOW_ADJUST_THROTTLE_MS = 80;
 const WINDOW_ADJUST_DEBOUNCE_MS = 100;
 class OverlayController {
   // ===== Window References =====
@@ -338,20 +338,11 @@ class OverlayController {
   // ===== Flags =====
   static isWindowMoving = false;
   static isWindowResizing = false;
-  static lastWindowButtonsVisible = null;
   // ===== Timers & Tracking =====
   static hoverTrackingTimer = null;
   static lastStateUpdateTime = 0;
   // Prevent rapid open/close flicker near the edge hotzones.
   static lastHeaderOpenedAt = 0;
-  static setMacWindowButtonsVisible(visible) {
-    if (process.platform !== "darwin" || this.lastWindowButtonsVisible === visible) return;
-    try {
-      this.uiWindow?.setWindowButtonVisibility(visible);
-      this.lastWindowButtonsVisible = visible;
-    } catch {
-    }
-  }
   /**
    * ⭐ Zen 방식: Window가 이동할 때 호출 (moved 이벤트)
    * Main Process가 window 위치를 즉시 업데이트하여 좌표계 불일치 해결
@@ -378,11 +369,35 @@ class OverlayController {
     }
   }
   static updateHoverMetrics(metrics) {
-    if (!Number.isFinite(metrics.sidebarRightPx) || !Number.isFinite(metrics.headerBottomPx) || !Number.isFinite(metrics.titlebarHeightPx) || !Number.isFinite(metrics.dpr) || metrics.dpr <= 0 || !Number.isFinite(metrics.timestamp)) return;
-    metrics.sidebarRightPx = Math.max(0, metrics.sidebarRightPx);
-    metrics.headerBottomPx = Math.max(0, metrics.headerBottomPx);
-    metrics.titlebarHeightPx = Math.max(0, metrics.titlebarHeightPx);
-    this.hoverMetrics = metrics;
+    console.log("[OverlayController] Received metrics:", metrics);
+    if (!Number.isFinite(metrics.dpr) || metrics.dpr <= 0 || !Number.isFinite(metrics.timestamp)) {
+      console.warn("[OverlayController] Invalid dpr or timestamp, skipping");
+      return;
+    }
+    if (!this.hoverMetrics) {
+      this.hoverMetrics = {
+        sidebarRightPx: 0,
+        headerBottomPx: 0,
+        titlebarHeightPx: 0,
+        dpr: metrics.dpr,
+        timestamp: metrics.timestamp
+      };
+      console.log("[OverlayController] Initialized hoverMetrics:", this.hoverMetrics);
+    }
+    const current = this.hoverMetrics;
+    if (metrics.sidebarRightPx !== void 0 && Number.isFinite(metrics.sidebarRightPx)) {
+      current.sidebarRightPx = Math.max(0, metrics.sidebarRightPx);
+      console.log("[OverlayController] ✅ Updated sidebarRightPx:", current.sidebarRightPx);
+    }
+    if (metrics.headerBottomPx !== void 0 && Number.isFinite(metrics.headerBottomPx)) {
+      current.headerBottomPx = Math.max(0, metrics.headerBottomPx);
+      console.log("[OverlayController] ✅ Updated headerBottomPx:", current.headerBottomPx);
+    }
+    if (metrics.titlebarHeightPx !== void 0 && Number.isFinite(metrics.titlebarHeightPx)) {
+      current.titlebarHeightPx = Math.max(0, metrics.titlebarHeightPx);
+    }
+    current.dpr = metrics.dpr;
+    console.log("[OverlayController] Final hoverMetrics:", this.hoverMetrics);
   }
   // Latch state (pinned)
   static getHeaderLatched() {
@@ -515,8 +530,8 @@ class OverlayController {
     const relativeY = Math.max(0, Math.floor(mouseY - bounds.y));
     const { headerLatched, sidebarLatched } = overlayStore.getState();
     const metrics = this.hoverMetrics;
-    const sidebarZoneRight = metrics ? Math.floor(metrics.sidebarRightPx) : 0;
-    const headerZoneBottom = metrics ? Math.floor(metrics.headerBottomPx + metrics.titlebarHeightPx) : 0;
+    const sidebarZoneRight = Math.floor(metrics?.sidebarRightPx ?? 0);
+    const headerZoneBottom = Math.floor((metrics?.headerBottomPx ?? 0) + (metrics?.titlebarHeightPx ?? 0));
     const effectiveSidebarZoneRight = Math.min(Math.max(0, sidebarZoneRight), bounds.width);
     const effectiveHeaderZoneBottom = Math.min(Math.max(0, headerZoneBottom), bounds.height);
     const inSidebarZone = relativeX <= effectiveSidebarZoneRight;
@@ -557,7 +572,6 @@ class OverlayController {
       this.lastStateUpdateTime = now;
       this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen };
       this.broadcastOverlayState(this.currentState);
-      this.setMacWindowButtonsVisible(wantHeaderOpen);
     }
   }
   /**
@@ -573,7 +587,6 @@ class OverlayController {
     if (this.currentState.headerOpen !== newState.headerOpen || this.currentState.sidebarOpen !== newState.sidebarOpen) {
       this.currentState = newState;
       this.broadcastOverlayState(newState);
-      this.setMacWindowButtonsVisible(newState.headerOpen);
     }
   }
   static broadcastOverlayState(state) {
@@ -672,9 +685,11 @@ class MainWindow {
         minWidth: 800,
         minHeight: 600,
         frame: false,
-        // macOS: Hidden Titlebar (Arc/Zen 스타일)
+        // macOS: customButtonsOnHover (Arc/Zen 스타일)
+        // - Native traffic lights가 hover 시에만 자동으로 나타남
+        // - 커스텀 버튼 대신 진짜 macOS 신호등 사용
         ...isMacOS ? {
-          titleBarStyle: "hidden",
+          titleBarStyle: "customButtonsOnHover",
           trafficLightPosition: macTrafficLights
         } : {},
         // 단일 윈도우 모드에서는 투명 윈도우가 “아무것도 안 보이는” 상태를 만들기 쉽다.
@@ -682,7 +697,9 @@ class MainWindow {
         // 따라서 macOS에서도 기본은 불투명으로 유지한다.
         transparent: false,
         hasShadow: false,
-        backgroundColor: "#1a1a1a",
+        // theme.css --color-bg-primary: rgb(3, 7, 18)
+        // Native view resize 지연으로 생기는 빈 영역(white flash)을 테마 배경색으로 숨긴다.
+        backgroundColor: "#030712",
         // 바닥창 위에 붙어서 같이 움직이도록
         webPreferences: {
           preload: join(__dirname, "../preload/index.cjs"),
@@ -702,6 +719,7 @@ class MainWindow {
           webSecurity: true
         }
       });
+      this.uiOverlayView.setBackgroundColor("#00000000");
       logger.info("[MainWindow] Windows created", {
         width,
         height,
@@ -721,12 +739,6 @@ class MainWindow {
         try {
           if (didShow) return;
           if (!this.uiWindow) return;
-          if (isMacOS) {
-            try {
-              this.uiWindow.setWindowButtonVisibility(false);
-            } catch {
-            }
-          }
           this.uiWindow.show();
           this.uiWindow.focus();
           OverlayController.attach({
@@ -1003,6 +1015,7 @@ class ViewManager {
       this.switchTab(homeTabId);
       this.layout();
       logger.info("[ViewManager] Layout applied");
+      this.ensureUITopmost();
       this.dumpContentViewTree("after-layout");
       logger.info("[ViewManager] Initialization completed");
     } catch (error) {
@@ -1054,6 +1067,7 @@ class ViewManager {
       } catch {
       }
       contentView.addChildView(view);
+      this.ensureUITopmost();
       this.dumpContentViewTree("after-add-tab-view");
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
       await view.webContents.loadURL(url);
@@ -1415,6 +1429,28 @@ class ViewManager {
       }
     });
     logger.info("[ViewManager] Tab event listeners attached", { tabId });
+  }
+  /**
+   * UI WebContents가 항상 최상위(마지막 인덱스)에 오도록 보장
+   * - UI View의 배경이 투명(#00000000)하므로 Web Content를 가리지 않음
+   * - UI 요소(헤더, 사이드바)만 Web Content 위에 overlay됨
+   */
+  static ensureUITopmost() {
+    if (!this.contentWindow || !this.uiWebContents) return;
+    try {
+      const contentView = this.contentWindow.getContentView();
+      const uiId = this.uiWebContents.id;
+      const uiView = contentView.children.find((child) => {
+        const maybe = child;
+        return maybe.webContents?.id === uiId;
+      });
+      if (uiView) {
+        contentView.addChildView(uiView);
+        logger.info("[ViewManager] Reordered UI view to top (transparent overlay mode)");
+      }
+    } catch (error) {
+      logger.error("[ViewManager] Failed to reorder UI view", error);
+    }
   }
   static dumpContentViewTree(reason) {
     if (!this.contentWindow) return;
@@ -2073,10 +2109,14 @@ function setupAppHandlers(registry2) {
   });
   registry2.handle(IPC_CHANNELS.OVERLAY.UPDATE_HOVER_METRICS, async (_event, payload) => {
     try {
+      console.log("[AppHandler] Received payload:", JSON.stringify(payload));
       const parsed = OverlayHoverMetricsSchema.safeParse(payload);
       if (!parsed.success) {
+        console.error("[AppHandler] ❌ Zod validation failed:", parsed.error.message);
+        console.error("[AppHandler] Payload was:", payload);
         return { success: false, error: parsed.error.message };
       }
+      console.log("[AppHandler] ✅ Zod validation passed, calling updateHoverMetrics with:", parsed.data);
       OverlayController.updateHoverMetrics(parsed.data);
       return { success: true };
     } catch (error) {

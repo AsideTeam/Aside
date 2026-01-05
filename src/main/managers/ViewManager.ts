@@ -97,6 +97,9 @@ export class ViewManager {
       this.layout()
       logger.info('[ViewManager] Layout applied')
 
+      // ⭐ UI 뷰를 최상위로 올려 Overlay 보장 (투명도 설정 후 안전)
+      this.ensureUITopmost()
+
       this.dumpContentViewTree('after-layout')
 
       logger.info('[ViewManager] Initialization completed')
@@ -167,7 +170,10 @@ export class ViewManager {
         // ignore
       }
 
-      contentView.addChildView(view)  // topmost로 추가
+      contentView.addChildView(view)  // 탭을 먼저 추가
+
+      // ⭐ UI 뷰를 다시 최상위로 (탭 위로) 이동 (투명도 설정 후 안전)
+      this.ensureUITopmost()
 
       this.dumpContentViewTree('after-add-tab-view')
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
@@ -630,6 +636,34 @@ export class ViewManager {
     })
 
     logger.info('[ViewManager] Tab event listeners attached', { tabId })
+  }
+
+  /**
+   * UI WebContents가 항상 최상위(마지막 인덱스)에 오도록 보장
+   * - UI View의 배경이 투명(#00000000)하므로 Web Content를 가리지 않음
+   * - UI 요소(헤더, 사이드바)만 Web Content 위에 overlay됨
+   */
+  private static ensureUITopmost(): void {
+    if (!this.contentWindow || !this.uiWebContents) return
+
+    try {
+      const contentView = this.contentWindow.getContentView()
+      const uiId = this.uiWebContents.id
+      
+      // children 배열에서 UI View 찾기
+      const uiView = contentView.children.find(child => {
+        const maybe = child as unknown as { webContents?: { id?: number } }
+        return maybe.webContents?.id === uiId
+      })
+
+      if (uiView) {
+        // addChildView는 이미 있는 뷰를 다시 추가하면 맨 뒤(최상위)로 이동시킴
+        contentView.addChildView(uiView as WebContentsView)
+        logger.info('[ViewManager] Reordered UI view to top (transparent overlay mode)')
+      }
+    } catch (error) {
+      logger.error('[ViewManager] Failed to reorder UI view', error)
+    }
   }
 
   private static dumpContentViewTree(reason: string): void {

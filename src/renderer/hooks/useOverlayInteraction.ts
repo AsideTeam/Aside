@@ -25,9 +25,9 @@ export function useOverlayInteraction(): void {
     // focus가 false로 전환되면 Main이 자동으로 닫아주므로 별도 처리 불필요
     // Main의 global mouse tracking이 모든 hover-in/out을 처리
 
-    let rafId: number | null = null
     let stopped = false
     let forceUpdateRequested = false // ⭐ 강제 업데이트 플래그
+    let timerId: number | null = null
 
     // ⭐ Zen 방식: window:resized 이벤트 리스너 추가 (즉시 metrics 재측정)
     const handleWindowResized = () => {
@@ -44,13 +44,11 @@ export function useOverlayInteraction(): void {
       if (stopped) return
 
       const now = Date.now()
-      // ⭐ Zen 방식: forceUpdate 요청 시 throttle 무시
-      const shouldThrottle = !forceUpdateRequested && (now - lastSentAtRef.current < 100)
-      if (shouldThrottle) {
-        rafId = window.requestAnimationFrame(measureAndSend)
-        return
-      }
-      forceUpdateRequested = false // 플래그 리셋
+      // ⭐ interval 기반이지만, 과도한 IPC를 막기 위해 최소 간격을 둔다
+      const minIntervalMs = 50
+      const shouldThrottle = !forceUpdateRequested && now - lastSentAtRef.current < minIntervalMs
+      if (shouldThrottle) return
+      forceUpdateRequested = false
 
       const sidebarEl = document.querySelector('.aside-sidebar') as HTMLElement | null
       const headerEl = document.querySelector('.aside-header') as HTMLElement | null
@@ -104,15 +102,16 @@ export function useOverlayInteraction(): void {
             // ignore
           })
       }
-
-      rafId = window.requestAnimationFrame(measureAndSend)
     }
 
-    rafId = window.requestAnimationFrame(measureAndSend)
+    // rAF는 occlusion에서 1fps로 떨어질 수 있으므로 interval을 사용한다.
+    timerId = window.setInterval(measureAndSend, 33) // ~30fps
+    // 초기 1회는 즉시
+    measureAndSend()
 
     return () => {
       stopped = true
-      if (rafId !== null) window.cancelAnimationFrame(rafId)
+      if (timerId !== null) window.clearInterval(timerId)
       // ⭐ cleanup: window:resized 리스너 제거
       try {
         window.electronAPI?.off?.('window:resized', handleWindowResized)

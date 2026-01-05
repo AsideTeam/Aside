@@ -68,9 +68,9 @@ export const OverlayContentPointerEventSchema = z.object({
  * - 좌표계: Renderer viewport 기준(px/CSSpx). Main에서는 window bounds 기준 relativeX/Y와 직접 비교.
  */
 export const OverlayHoverMetricsSchema = z.object({
-  sidebarRightPx: z.number().finite(),
-  headerBottomPx: z.number().finite(),
-  titlebarHeightPx: z.number().finite(),
+  sidebarRightPx: z.number().finite().optional(),
+  headerBottomPx: z.number().finite().optional(),
+  titlebarHeightPx: z.number().finite().optional(),
   dpr: z.number().positive().finite(),
   timestamp: z.number(),
 })

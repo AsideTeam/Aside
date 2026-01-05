@@ -25,13 +25,12 @@
   z-index: var(--z-sidebar);
   -webkit-app-region: drag;
   user-select: none;
-  transform: translateX(calc(-1 * var(--size-sidebar-width) - 8px));
-  opacity: 0;
+  /* ⭐ 핵심: transform으로 왼쪽으로 숨김 (reflow 없음) */
+  transform: translateX(-100%);
   /* 기본 상태: 마우스 이벤트 투과 (uiWindow의 setIgnoreMouseEvents가 제어) */
   pointer-events: none;
-  transition:
-    transform var(--duration-slow) ease,
-    opacity var(--duration-fast) ease;
+  transition: transform var(--duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
 }
 
 /* overlay-mode에서도 배경 유지 (투명하지 않음) */
@@ -45,8 +44,8 @@
 
 /* 오버레이: 열릴 때만 화면에 나타남 */
 .aside-sidebar--open {
+  /* ⭐ 열릴 때: transform을 0으로 되돌려 화면에 표시 */
   transform: translateX(0);
-  opacity: 1;
   /* Electron의 setUIInteractivity(true)와 함께 작동 */
   pointer-events: auto;
 }
@@ -54,8 +53,7 @@
 /* Sidebar pinned: transform 합성으로 인한 경계 퍼짐(seam 착시) 방지.
    pinned는 “항상 노출” 상태이므로 open 클래스 여부와 무관하게 화면에 고정한다. */
 .aside-overlay--sidebar-pinned .aside-sidebar {
-  transform: none;
-  opacity: 1;
+  transform: translateX(0);
   transition: none;
   pointer-events: auto;
 }
@@ -368,27 +366,27 @@
   position: fixed;
   top: 0;
   left: 0;
+  /* ⭐ 핵심: transform으로 위로 숨김 (reflow 없음) */
   transform: translateY(-100%);
-  opacity: 0;
   /* 기본 상태: 마우스 이벤트 투과 */
   pointer-events: none;
   z-index: calc(var(--z-sidebar) + 1);
   transition:
-    transform 0.2s ease,
-    opacity 0.2s ease;
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   /* 헤더 전체는 drag하지 않음 - 상단만 drag */
   -webkit-app-region: no-drag;
   width: 100%;
   max-width: none;
+  will-change: transform;
 }
 
 /* Header pinned (Chrome-style top bar) */
 .aside-header--pinned {
   top: 0;
   left: 0;
-  transform: none;
   width: 100%;
   padding: 0;
+  transform: translateY(0);
 }
 
 /* L-Shape: 사이드바 pinned면 헤더는 옆에서 시작 (겹침 방지) */
@@ -398,13 +396,12 @@
 }
 
 .aside-header--pinned.aside-header--open {
-  transform: none;
-  opacity: 1;
+  transform: translateY(0);
 }
 
 .aside-header--open {
+  /* ⭐ 열릴 때: transform을 0으로 되돌려 화면에 표시 */
   transform: translateY(0);
-  opacity: 1;
   /* Electron의 setUIInteractivity(true)와 함께 작동 */
   pointer-events: auto;
 }
@@ -523,14 +520,12 @@
    포커스가 없을 때는 오버레이 UI를 CSS에서 강제로 비활성화/숨김 처리한다. */
 .aside-window-blurred .aside-header {
   pointer-events: none;
-  opacity: 0;
-  transform: translateX(-50%) translateY(-100%);
+  transform: translateY(-100%);
 }
 
 .aside-window-blurred .aside-sidebar {
   pointer-events: none;
-  opacity: 0;
-  transform: translateX(calc(-1 * var(--size-sidebar-width) - 8px));
+  transform: translateX(-100%);
 }
 
 .aside-window-blurred .aside-header *,

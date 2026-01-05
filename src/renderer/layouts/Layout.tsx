@@ -29,7 +29,8 @@ export const ZenLayout: React.FC = () => {
   const headerLatched = useOverlayStore((s) => s.headerLatched)
   const sidebarLatched = useOverlayStore((s) => s.sidebarLatched)
 
-  // Pinned 상태에서 WebContentsView가 차지할 수 없는 safe-area(inset)를 측정한다.
+
+  // ⭐ Pinned 상태에서 WebContentsView가 차지할 수 없는 safe-area(inset)를 측정한다.
   // width/height가 아니라 실제 경계(right/bottom)를 쓰면 transform/서브픽셀/보더로 인한 오차에 강하다.
   const [pinnedInsets, setPinnedInsets] = useState<{ left: number; top: number }>({
     left: 0,
@@ -46,37 +47,24 @@ export const ZenLayout: React.FC = () => {
     return () => {
       document.documentElement.classList.remove('aside-overlay-mode');
     };
-  }, []);
+  }, [])
 
   // Pinned 상태에서 실제 UI 크기를 측정해 CSS 변수/Bounds 계산을 일치시킨다.
   // (하드코딩 값은 DPI/폰트/플랫폼에 따라 오차가 나서 잘림/과한 간격을 만든다)
   useLayoutEffect(() => {
     const measure = () => {
-      const sidebarEl = document.querySelector('.aside-sidebar') as HTMLElement | null
-      const headerEl = document.querySelector('.aside-header') as HTMLElement | null
-      const headerSurfaceEl = document.querySelector('.aside-header-surface') as HTMLElement | null
+      // ⭐ data-interactive를 사용하여 hit zone이 아닌 실제 overlay 선택
+      const sidebarEl = document.querySelector('[data-overlay-zone="sidebar"][data-interactive]') as HTMLElement | null
+      const headerEl = document.querySelector('[data-overlay-zone="header"][data-interactive]') as HTMLElement | null
 
-      const shouldInsetSidebar = sidebarOpen || sidebarLatched
-      const shouldInsetHeader = headerOpen || headerLatched
+      // ⚠️ 핵심: open이 아닌 latched만 확인! 
+      // open(hover)은 transform만 사용하므로 layout inset 불필요
+      const shouldInsetSidebar = sidebarLatched
+      const shouldInsetHeader = headerLatched
 
-      const sidebarRect = shouldInsetSidebar && sidebarEl ? sidebarEl.getBoundingClientRect() : null
-      const headerRect = shouldInsetHeader && headerEl ? headerEl.getBoundingClientRect() : null
-
-      // transform/animation 중에도 안정적으로 쓰도록 0으로 clamp
-      const measuredLeft = sidebarRect ? Math.max(0, Math.round(sidebarRect.right)) : 0
-      const measuredTop = headerRect ? Math.max(0, Math.round(headerRect.bottom)) : 0
-
-      // open 직후(transition 초반)에는 right/bottom이 0이 될 수 있으므로 width/height로 보정
-      const fallbackLeft = shouldInsetSidebar && sidebarEl ? Math.max(0, Math.round(sidebarEl.getBoundingClientRect().width)) : 0
-      const fallbackTop = shouldInsetHeader
-        ? Math.max(
-            0,
-            Math.round(headerSurfaceEl?.getBoundingClientRect().height ?? headerEl?.getBoundingClientRect().height ?? 44)
-          )
-        : 0
-
-      const left = shouldInsetSidebar ? Math.max(measuredLeft, fallbackLeft) : 0
-      const top = shouldInsetHeader ? Math.max(measuredTop, fallbackTop) : 0
+      // 애니메이션 중 rect.right/bottom은 프레임마다 바뀌므로, 최종 크기를 offset 기반으로 계산한다.
+      const left = shouldInsetSidebar && sidebarEl ? Math.max(0, Math.round(sidebarEl.offsetWidth)) : 0
+      const top = shouldInsetHeader && headerEl ? Math.max(0, Math.round(headerEl.offsetHeight)) : 0
 
       setPinnedInsets((prev) => {
         if (prev.left === left && prev.top === top) return prev
@@ -93,7 +81,7 @@ export const ZenLayout: React.FC = () => {
       window.cancelAnimationFrame(raf)
       window.removeEventListener('resize', measure)
     }
-  }, [headerOpen, sidebarOpen, headerLatched, sidebarLatched])
+  }, [headerLatched, sidebarLatched]) // ⚠️ open 제거!
 
   // ⭐ 초기 마운트 시 bounds 계산 (디버깅 로그 제거)
   useEffect(() => {
@@ -109,10 +97,8 @@ export const ZenLayout: React.FC = () => {
   }, [
     pinnedInsets.left,
     pinnedInsets.top,
-    headerOpen,
-    sidebarOpen,
-    headerLatched,
-    sidebarLatched,
+    headerLatched, // open 제거
+    sidebarLatched, // open 제거
     updateBounds,
   ])
 
@@ -141,14 +127,8 @@ export const ZenLayout: React.FC = () => {
         } as React.CSSProperties
       }
     >
-      {/* WebContentsView 자리(placeholder). latch 상태에서만 실제로 공간을 차지하도록 padding 처리 */}
-      <div
-        className={cn('aside-frame', 'no-drag')} // ⭐ WebContentsView 영역은 드래그 불가 (CSS 클래스)
-        style={{
-          paddingLeft: sidebarOpen || sidebarLatched ? 'var(--aside-sidebar-pinned-width)' : '0px',
-          paddingTop: headerOpen || headerLatched ? 'var(--aside-header-pinned-height)' : '0px',
-        } as React.CSSProperties}
-      >
+      {/* WebContentsView 자리(placeholder). ⭐ 항상 전체 화면을 차지하며, Header/Sidebar가 위에 overlay됨 */}
+      <div className={cn('aside-frame', 'no-drag')}>
         <div className="aside-view-container">
           <div ref={viewPlaceholderRef} className="aside-view-placeholder" />
         </div>
@@ -178,7 +158,7 @@ const GapProbe: React.FC<{
   useLayoutEffect(() => {
     if (!enabled) return
 
-    const sidebarEl = document.querySelector('.aside-sidebar') as HTMLElement | null
+    const sidebarEl = document.querySelector('[data-overlay-zone="sidebar"][data-interactive]') as HTMLElement | null
     const placeholderEl = placeholderRef.current
     if (!sidebarEl || !placeholderEl) return
 

@@ -89,10 +89,12 @@ export class MainWindow {
 
         frame: false,
 
-        // macOS: Hidden Titlebar (Arc/Zen 스타일)
+        // macOS: customButtonsOnHover (Arc/Zen 스타일)
+        // - Native traffic lights가 hover 시에만 자동으로 나타남
+        // - 커스텀 버튼 대신 진짜 macOS 신호등 사용
         ...(isMacOS
           ? {
-              titleBarStyle: 'hidden',
+              titleBarStyle: 'customButtonsOnHover',
               trafficLightPosition: macTrafficLights,
             }
           : {}),
@@ -101,7 +103,9 @@ export class MainWindow {
         // 따라서 macOS에서도 기본은 불투명으로 유지한다.
         transparent: false,
         hasShadow: false,
-        backgroundColor: '#1a1a1a',
+        // theme.css --color-bg-primary: rgb(3, 7, 18)
+        // Native view resize 지연으로 생기는 빈 영역(white flash)을 테마 배경색으로 숨긴다.
+        backgroundColor: '#030712',
 
         // 바닥창 위에 붙어서 같이 움직이도록
         webPreferences: {
@@ -129,6 +133,10 @@ export class MainWindow {
           webSecurity: true,
         },
       })
+      
+      // ⭐ 투명 배경 설정 (Electron WebContentsView 기본값은 흰색)
+      // 투명하지 않으면 아래에 있는 Guest WebContents(웹페이지)가 가려져서 안 보임
+      this.uiOverlayView.setBackgroundColor('#00000000')
 
       logger.info('[MainWindow] Windows created', {
         width,
@@ -156,15 +164,7 @@ export class MainWindow {
           if (didShow) return
           if (!this.uiWindow) return
 
-          if (isMacOS) {
-            try {
-              // OverlayController가 header open에 따라 토글한다.
-              this.uiWindow.setWindowButtonVisibility(false)
-            } catch {
-              // ignore
-            }
-          }
-
+          // customButtonsOnHover가 자동으로 traffic lights를 관리함
           this.uiWindow.show()
           this.uiWindow.focus()
 

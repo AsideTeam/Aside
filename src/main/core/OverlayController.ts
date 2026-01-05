@@ -19,9 +19,9 @@ import { OverlayLatchChangedEventSchema } from '@shared/validation/schemas'
 
 // ===== Types =====
 type OverlayHoverMetrics = {
-  sidebarRightPx: number
-  headerBottomPx: number
-  titlebarHeightPx: number
+  sidebarRightPx?: number
+  headerBottomPx?: number
+  titlebarHeightPx?: number
   dpr: number
   timestamp: number
 }
@@ -38,11 +38,11 @@ type AttachArgs = {
 }
 
 // ===== Constants =====
-const TRACKING_INTERVAL_MS = 50 // 20fps
+const TRACKING_INTERVAL_MS = 16 // ~60fps (hover 반응성)
 const MAX_METRICS_AGE_MS = 3000 // 3초
-const STATE_UPDATE_THROTTLE_MS = 50 // 기본 throttle (더 빠른 반응)
-const WINDOW_ADJUST_THROTTLE_MS = 150 // 이동/크기조절 중 throttle (더 빠른 반응)
-const WINDOW_ADJUST_DEBOUNCE_MS = 100 // 이동/크기조절 완료 debounce (더 빠른 반응)
+const STATE_UPDATE_THROTTLE_MS = 16 // 기본 throttle (~60fps)
+const WINDOW_ADJUST_THROTTLE_MS = 80 // 이동/크기조절 중 throttle (과도한 jitter 방지)
+const WINDOW_ADJUST_DEBOUNCE_MS = 100 // 이동/크기조절 완료 debounce
 
 export class OverlayController {
   // ===== Window References =====
@@ -59,7 +59,6 @@ export class OverlayController {
   // ===== Flags =====
   private static isWindowMoving = false
   private static isWindowResizing = false
-  private static lastWindowButtonsVisible: boolean | null = null
   
   // ===== Timers & Tracking =====
   private static hoverTrackingTimer: ReturnType<typeof setInterval> | null = null
@@ -67,16 +66,6 @@ export class OverlayController {
 
   // Prevent rapid open/close flicker near the edge hotzones.
   private static lastHeaderOpenedAt = 0
-
-  private static setMacWindowButtonsVisible(visible: boolean): void {
-    if (process.platform !== 'darwin' || this.lastWindowButtonsVisible === visible) return
-    
-    try {
-      // 단일 윈도우: header open 상태에 맞춰 traffic lights 표시를 토글한다.
-      this.uiWindow?.setWindowButtonVisibility(visible)
-      this.lastWindowButtonsVisible = visible
-    } catch { /* ignore */ }
-  }
 
   /**
    * ⭐ Zen 방식: Window가 이동할 때 호출 (moved 이벤트)
@@ -108,17 +97,45 @@ export class OverlayController {
   }
 
   static updateHoverMetrics(metrics: OverlayHoverMetrics): void {
+    console.log('[OverlayController] Received metrics:', metrics)
+    
     // Validation
-    if (!Number.isFinite(metrics.sidebarRightPx) || !Number.isFinite(metrics.headerBottomPx) ||
-        !Number.isFinite(metrics.titlebarHeightPx) || !Number.isFinite(metrics.dpr) ||
-        metrics.dpr <= 0 || !Number.isFinite(metrics.timestamp)) return
+    if (!Number.isFinite(metrics.dpr) || metrics.dpr <= 0 || !Number.isFinite(metrics.timestamp)) {
+      console.warn('[OverlayController] Invalid dpr or timestamp, skipping')
+      return
+    }
 
-    // Clamp to positive values
-    metrics.sidebarRightPx = Math.max(0, metrics.sidebarRightPx)
-    metrics.headerBottomPx = Math.max(0, metrics.headerBottomPx)
-    metrics.titlebarHeightPx = Math.max(0, metrics.titlebarHeightPx)
+    if (!this.hoverMetrics) {
+      this.hoverMetrics = {
+        sidebarRightPx: 0,
+        headerBottomPx: 0,
+        titlebarHeightPx: 0,
+        dpr: metrics.dpr,
+        timestamp: metrics.timestamp
+      }
+      console.log('[OverlayController] Initialized hoverMetrics:', this.hoverMetrics)
+    }
 
-    this.hoverMetrics = metrics
+    const current = this.hoverMetrics
+
+    // Merge and clamp values
+    if (metrics.sidebarRightPx !== undefined && Number.isFinite(metrics.sidebarRightPx)) {
+      current.sidebarRightPx = Math.max(0, metrics.sidebarRightPx)
+      console.log('[OverlayController] ✅ Updated sidebarRightPx:', current.sidebarRightPx)
+    }
+    
+    if (metrics.headerBottomPx !== undefined && Number.isFinite(metrics.headerBottomPx)) {
+      current.headerBottomPx = Math.max(0, metrics.headerBottomPx)
+      console.log('[OverlayController] ✅ Updated headerBottomPx:', current.headerBottomPx)
+    }
+
+    if (metrics.titlebarHeightPx !== undefined && Number.isFinite(metrics.titlebarHeightPx)) {
+      current.titlebarHeightPx = Math.max(0, metrics.titlebarHeightPx)
+    }
+
+    current.dpr = metrics.dpr
+    
+    console.log('[OverlayController] Final hoverMetrics:', this.hoverMetrics)
   }
 
   // Latch state (pinned)
@@ -307,10 +324,8 @@ export class OverlayController {
     const metrics = this.hoverMetrics
     
     // CSS logical pixels 그대로 사용 (DPR 변환 불필요)
-    const sidebarZoneRight = metrics ? Math.floor(metrics.sidebarRightPx) : 0
-    const headerZoneBottom = metrics
-      ? Math.floor(metrics.headerBottomPx + metrics.titlebarHeightPx)
-      : 0
+    const sidebarZoneRight = Math.floor(metrics?.sidebarRightPx ?? 0)
+    const headerZoneBottom = Math.floor((metrics?.headerBottomPx ?? 0) + (metrics?.titlebarHeightPx ?? 0))
 
     // Bounds를 넘지 않도록 clamp
     const effectiveSidebarZoneRight = Math.min(Math.max(0, sidebarZoneRight), bounds.width)
@@ -366,7 +381,7 @@ export class OverlayController {
       this.lastStateUpdateTime = now
       this.currentState = { headerOpen: wantHeaderOpen, sidebarOpen: wantSidebarOpen }
       this.broadcastOverlayState(this.currentState)
-      this.setMacWindowButtonsVisible(wantHeaderOpen)
+      // customButtonsOnHover가 자동으로 traffic lights를 관리함
     }
   }
 
@@ -388,9 +403,7 @@ export class OverlayController {
     ) {
       this.currentState = newState
       this.broadcastOverlayState(newState)
-
-      // macOS: header가 닫히면 traffic lights도 숨김
-      this.setMacWindowButtonsVisible(newState.headerOpen)
+      // customButtonsOnHover가 자동으로 traffic lights를 관리함
     }
   }
 

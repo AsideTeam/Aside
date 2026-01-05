@@ -185,11 +185,16 @@ export function setupAppHandlers(registry: IpcRegistry): void {
   // Renderer 실측 기반 hover metrics 업데이트
   registry.handle(IPC_CHANNELS.OVERLAY.UPDATE_HOVER_METRICS, async (_event, payload: unknown) => {
     try {
+      console.log('[AppHandler] Received payload:', JSON.stringify(payload))
+      
       const parsed = OverlayHoverMetricsSchema.safeParse(payload)
       if (!parsed.success) {
+        console.error('[AppHandler] ❌ Zod validation failed:', parsed.error.message)
+        console.error('[AppHandler] Payload was:', payload)
         return { success: false, error: parsed.error.message }
       }
 
+      console.log('[AppHandler] ✅ Zod validation passed, calling updateHoverMetrics with:', parsed.data)
       OverlayController.updateHoverMetrics(parsed.data)
       return { success: true }
     } catch (error) {
