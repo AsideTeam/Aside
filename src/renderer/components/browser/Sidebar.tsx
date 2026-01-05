@@ -54,6 +54,12 @@ export const Sidebar: React.FC = () => {
   const [tabs, setTabs] = useState<Tab[]>(INITIAL_TABS);
   const isOpen = useOverlayStore((s) => s.sidebarOpen)
   const isLatched = useOverlayStore((s) => s.sidebarLatched)
+  // ⭐ Header presence detection
+  const headerOpen = useOverlayStore((s) => s.headerOpen)
+  const headerLatched = useOverlayStore((s) => s.headerLatched)
+
+  // Push down if header is visible (floating or pinned)
+  const shouldPushDown = headerOpen || headerLatched
 
   const handleAddTab = () => {
     const newTab: Tab = {
@@ -146,7 +152,9 @@ export const Sidebar: React.FC = () => {
         ref={sidebarRef}
         style={{ 
           pointerEvents: (isOpen || isLatched) ? 'auto' : 'none',
-          width: '288px'
+          width: '288px',
+          top: shouldPushDown ? '56px' : '0',
+          height: shouldPushDown ? 'calc(100% - 56px)' : '100%',
         }}
         className={cn(
           // Base positioning and z-index
@@ -157,8 +165,10 @@ export const Sidebar: React.FC = () => {
           'border-r border-white/10',
           // Text styling
           'text-white text-sm',
-          // Transform animation(GPU accelerated)
-          'transition-transform duration-300 ease-out',
+          // Text styling
+          'text-white text-sm',
+          // Transform animation(GPU accelerated) + Top/Height transition
+          'transition-all duration-300 ease-out',
           // Default: hidden to the left
           '-translate-x-full',
           // Open state: slide in

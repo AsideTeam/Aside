@@ -88,8 +88,8 @@ export const AsideHeader: React.FC = () => {
           width: isSidebarLatched ? 'calc(100% - var(--aside-sidebar-width))' : '100%',
         }}
         className={cn(
-          // Base positioning and z-index
-          'fixed top-0 z-9999',
+          // Base positioning and z-index - Header must be ABOVE Sidebar (9999)
+          'fixed top-0 z-[10000]',
           // Transform animation (GPU accelerated)
           'transition-transform duration-200 ease-out',
           // Default: hidden above screen
