@@ -10,7 +10,7 @@
 
 /* ===== 1. ICON SECTION (Favicon Grid) ===== */
 .sidebar-icon-section {
-  padding: 12px;
+  padding: 16px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   -webkit-app-region: no-drag;
 }
@@ -18,34 +18,36 @@
 .sidebar-icon-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 12px; /* Increased spacing */
   width: 100%;
 }
 
 .sidebar-icon-item {
-  aspect-ratio: 1;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  aspect-ratio: 3 / 2; /* Rounded rectangle instead of square */
+  border-radius: 16px; /* Larger radius for Arc look */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 0;
+  padding: 12px;
   overflow: hidden;
   position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .sidebar-icon-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.15);
-  transform: translateY(-2px);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.02);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .sidebar-icon-item:active {
-  transform: translateY(0) scale(0.97);
+  transform: scale(0.98);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .sidebar-icon-img {

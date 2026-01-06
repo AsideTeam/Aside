@@ -373,6 +373,33 @@ export class ViewManager {
   }
 
   /**
+   * 탭 순서 변경 (드래그앤드롭)
+   */
+  static reorderTab(tabId: string, targetId: string): void {
+    const allTabs = Array.from(this.tabs.entries())
+    const fromIndex = allTabs.findIndex(([id]) => id === tabId)
+    const toIndex = allTabs.findIndex(([id]) => id === targetId)
+
+    if (fromIndex === -1 || toIndex === -1) {
+      logger.warn('[ViewManager] Invalid tab IDs for reorder', { tabId, targetId })
+      return
+    }
+
+    // Reorder array
+    const [movedTab] = allTabs.splice(fromIndex, 1)
+    allTabs.splice(toIndex, 0, movedTab)
+
+    // Recreate Map with new order
+    this.tabs.clear()
+    allTabs.forEach(([id, data]) => {
+      this.tabs.set(id, data)
+    })
+
+    logger.info('[ViewManager] Tab reordered', { tabId, targetId, fromIndex, toIndex })
+    this.syncToRenderer()
+  }
+
+  /**
    * 탭 복제 (같은 URL로 새 탭 생성)
    */
   static async duplicateTab(tabId: string): Promise<string> {
@@ -733,7 +760,17 @@ export class ViewManager {
       }
     })
 
+    // Intercept new window requests (target="_blank", window.open, etc.)
+    // Create new tab instead of new BrowserWindow
+    view.webContents.setWindowOpenHandler(({ url }) => {
+      logger.info('[ViewManager] Intercepted window.open', { url })
+      // Create new tab asynchronously
+      void this.createTab(url)
+      return { action: 'deny' } // Prevent default new window behavior
+    })
+
     // Favicon 변경 (실시간)
+
     view.webContents.on('page-favicon-updated', (_event, favicons) => {
       const tabData = this.tabs.get(tabId)
       if (tabData && favicons.length > 0) {

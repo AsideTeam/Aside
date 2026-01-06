@@ -391,6 +391,8 @@ const IPC_CHANNELS = {
     CLOSE_ALL: "tab:close-all",
     /** 닫은 탭 복원 */
     RESTORE: "tab:restore",
+    /** 섹션 간 이동 (Icon/Space/Tab) */
+    MOVE_SECTION: "tab:move-section",
     /** [Event] 탭 목록 업데이트 (Main → Renderer) */
     UPDATED: "tabs:updated"
   },
@@ -689,6 +691,26 @@ class ViewManager {
     this.syncToRenderer();
   }
   /**
+   * 탭 순서 변경 (드래그앤드롭)
+   */
+  static reorderTab(tabId, targetId) {
+    const allTabs = Array.from(this.tabs.entries());
+    const fromIndex = allTabs.findIndex(([id]) => id === tabId);
+    const toIndex = allTabs.findIndex(([id]) => id === targetId);
+    if (fromIndex === -1 || toIndex === -1) {
+      logger.warn("[ViewManager] Invalid tab IDs for reorder", { tabId, targetId });
+      return;
+    }
+    const [movedTab] = allTabs.splice(fromIndex, 1);
+    allTabs.splice(toIndex, 0, movedTab);
+    this.tabs.clear();
+    allTabs.forEach(([id, data]) => {
+      this.tabs.set(id, data);
+    });
+    logger.info("[ViewManager] Tab reordered", { tabId, targetId, fromIndex, toIndex });
+    this.syncToRenderer();
+  }
+  /**
    * 탭 복제 (같은 URL로 새 탭 생성)
    */
   static async duplicateTab(tabId) {
@@ -977,6 +999,11 @@ class ViewManager {
           });
         }
       }
+    });
+    view.webContents.setWindowOpenHandler(({ url }) => {
+      logger.info("[ViewManager] Intercepted window.open", { url });
+      void this.createTab(url);
+      return { action: "deny" };
     });
     view.webContents.on("page-favicon-updated", (_event, favicons) => {
       const tabData = this.tabs.get(tabId);
@@ -2375,6 +2402,32 @@ function setupTabHandlers(registry2) {
       return { success: true };
     } catch (error) {
       logger.error("[TabHandler] tab:reload failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  registry2.handle(IPC_CHANNELS.TAB.REORDER, async (_event, input) => {
+    try {
+      const { tabId, targetId } = input;
+      logger.info("[TabHandler] tab:reorder requested", { tabId, targetId });
+      ViewManager.reorderTab(tabId, targetId);
+      return { success: true };
+    } catch (error) {
+      logger.error("[TabHandler] tab:reorder failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  registry2.handle(IPC_CHANNELS.TAB.MOVE_SECTION, async (_event, input) => {
+    try {
+      const { tabId, section } = input;
+      logger.info("[TabHandler] tab:move-section requested", { tabId, section });
+      if (section === "icon" || section === "space") {
+        ViewManager.setPinned(tabId, true);
+      } else {
+        ViewManager.setPinned(tabId, false);
+      }
+      return { success: true };
+    } catch (error) {
+      logger.error("[TabHandler] tab:move-section failed:", error);
       return { success: false, error: String(error) };
     }
   });

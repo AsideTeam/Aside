@@ -162,5 +162,40 @@ export function setupTabHandlers(registry: IpcRegistry): void {
     }
   })
 
+  // tab:reorder - 탭 순서 변경 (드래그앤드롭)
+  registry.handle(IPC_CHANNELS.TAB.REORDER, async (_event, input: unknown) => {
+    try {
+      const { tabId, targetId } = input as { tabId: string; targetId: string }
+      logger.info('[TabHandler] tab:reorder requested', { tabId, targetId })
+      
+      ViewManager.reorderTab(tabId, targetId)
+      
+      return { success: true }
+    } catch (error) {
+      logger.error('[TabHandler] tab:reorder failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // tab:move-section - 탭을 다른 섹션으로 이동 (Icon/Space/Tab)
+  registry.handle(IPC_CHANNELS.TAB.MOVE_SECTION, async (_event, input: unknown) => {
+    try {
+      const { tabId, section } = input as { tabId: string; section: 'icon' | 'space' | 'tab' }
+      logger.info('[TabHandler] tab:move-section requested', { tabId, section })
+      
+      // Section에 따라 pinned 상태 변경
+      if (section === 'icon' || section === 'space') {
+        ViewManager.setPinned(tabId, true)
+      } else {
+        ViewManager.setPinned(tabId, false)
+      }
+      
+      return { success: true }
+    } catch (error) {
+      logger.error('[TabHandler] tab:move-section failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
   logger.info('[TabHandler] Handlers setup completed')
 }

@@ -88,6 +88,8 @@ export const IPC_CHANNELS = {
     CLOSE_ALL: 'tab:close-all',
     /** 닫은 탭 복원 */
     RESTORE: 'tab:restore',
+    /** 섹션 간 이동 (Icon/Space/Tab) */
+    MOVE_SECTION: 'tab:move-section',
     /** [Event] 탭 목록 업데이트 (Main → Renderer) */
     UPDATED: 'tabs:updated',
   },
