@@ -782,15 +782,11 @@ class ViewManager {
             return;
         }
       }
-      const loadPromise = tabData.view.webContents.loadURL(url);
-      await Promise.race([
-        loadPromise,
-        new Promise(
-          (_, reject) => setTimeout(() => reject(new Error("loadURL timeout")), 3e4)
-        )
-      ]);
+      void tabData.view.webContents.loadURL(url).catch((err) => {
+        logger.error("[ViewManager] loadURL error", { url, error: err });
+      });
       tabData.url = url;
-      logger.info("[ViewManager] URL loading started", { tabId: this.activeTabId, url });
+      logger.info("[ViewManager] Navigate started", { url });
       this.syncToRenderer();
     } catch (error) {
       logger.error("[ViewManager] Navigate failed:", { error, url });

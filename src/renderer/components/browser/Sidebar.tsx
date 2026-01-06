@@ -13,6 +13,7 @@ import { Plus, Download, Settings, MoreHorizontal, Globe, X } from 'lucide-react
 import { useOverlayStore } from '@renderer/lib/overlayStore'
 import { cn } from '@renderer/styles'
 import { useTabs } from '@renderer/hooks'
+import { getFaviconUrl } from '@renderer/lib/faviconUtils'
 
 // Sample icon data (will be dynamic later)
 const ICON_APPS = [
@@ -78,7 +79,11 @@ export const Sidebar: React.FC = () => {
               onClick={() => void createTab(app.url)}
               title={app.name}
             >
-              <span className="text-2xl">{app.icon}</span>
+              <img 
+                src={getFaviconUrl(app.url)} 
+                alt={app.name}
+                className="w-8 h-8 object-contain rounded-md"
+              />
             </button>
           ))}
         </div>
@@ -135,7 +140,7 @@ export const Sidebar: React.FC = () => {
         {/* Tab List */}
         <div className="sidebar-tab-list">
           {normalTabs.map((tab: unknown) => {
-            const t = tab as { id: string; title?: string; favicon?: string }
+            const t = tab as { id: string; title?: string; favicon?: string; url: string }
             const isActive = t.id === activeTabId
             return (
               <div
@@ -148,11 +153,11 @@ export const Sidebar: React.FC = () => {
               >
                 <div className="sidebar-tab-left">
                   <div className="sidebar-tab-favicon">
-                    {t.favicon ? (
-                      <img src={t.favicon} alt="" className="w-3 h-3 object-contain" />
-                    ) : (
-                      <Globe size={12} />
-                    )}
+                    <img 
+                      src={getFaviconUrl(t.url, t.favicon)} 
+                      alt="" 
+                      className="w-3 h-3 object-contain rounded-sm"
+                    />
                   </div>
                   <span className="sidebar-tab-title">{t.title || 'Loading...'}</span>
                 </div>

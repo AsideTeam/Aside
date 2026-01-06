@@ -494,21 +494,13 @@ export class ViewManager {
         }
       }
 
-      // 일반 URL 로드
-      // ⚠️ loadURL()은 완료를 기다리지 않음 (fire-and-forget)
-      // 결과는 did-finish-load / did-fail-load 이벤트로 감지
-      const loadPromise = tabData.view.webContents.loadURL(url)
-      
-      // 최대 30초 타임아웃으로 대기
-      await Promise.race([
-        loadPromise,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('loadURL timeout')), 30000)
-        ),
-      ])
+      // 일반 URL 로드 (fire-and-forget)
+      void tabData.view.webContents.loadURL(url).catch((err) => {
+        logger.error('[ViewManager] loadURL error', { url, error: err })
+      })
       
       tabData.url = url
-      logger.info('[ViewManager] URL loading started', { tabId: this.activeTabId, url })
+      logger.info('[ViewManager] Navigate started', { url })
       this.syncToRenderer()
     } catch (error) {
       logger.error('[ViewManager] Navigate failed:', { error, url })
