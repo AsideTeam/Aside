@@ -313,6 +313,22 @@ const TabSwitchSchema = z.object({
 });
 z.object({});
 z.object({});
+z.object({
+  tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9-]+$/, "Invalid Tab ID format")
+});
+z.object({
+  tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9-]+$/, "Invalid Tab ID format"),
+  pinned: z.boolean()
+});
+z.object({
+  tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9-]+$/, "Invalid Tab ID format"),
+  newIndex: z.number().int().nonnegative()
+});
+z.object({
+  tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9-]+$/, "Invalid Tab ID format")
+});
+z.object({});
+z.object({});
 function validateOrThrow(schema, data) {
   const result = schema.safeParse(data);
   if (!result.success) {
@@ -363,6 +379,18 @@ const IPC_CHANNELS = {
     FORWARD: "tab:forward",
     /** 새로고침 */
     RELOAD: "tab:reload",
+    /** 탭 복제 (현재 URL과 같은 새 탭 생성) */
+    DUPLICATE: "tab:duplicate",
+    /** 탭 고정/해제 (Space 섹션에 표시) */
+    PIN: "tab:pin",
+    /** 탭 순서 변경 */
+    REORDER: "tab:reorder",
+    /** 다른 탭 모두 닫기 */
+    CLOSE_OTHERS: "tab:close-others",
+    /** 모든 탭 닫기 */
+    CLOSE_ALL: "tab:close-all",
+    /** 닫은 탭 복원 */
+    RESTORE: "tab:restore",
     /** [Event] 탭 목록 업데이트 (Main → Renderer) */
     UPDATED: "tabs:updated"
   },
@@ -427,6 +455,9 @@ class ViewManager {
   static isInitializing = false;
   static lastReorderTarget = null;
   static externalActiveBounds = null;
+  // NEW: Recently closed tabs for undo
+  static recentlyClosed = [];
+  static MAX_RECENT_CLOSED = 10;
   /**
    * ViewManager 초기화
    *
@@ -500,7 +531,9 @@ class ViewManager {
         view,
         url,
         title: "New Tab",
-        isActive: false
+        isActive: false,
+        isPinned: false
+        // Default: not pinned
       };
       this.tabs.set(tabId, tabData);
       const contentView = this.contentWindow.getContentView();
@@ -514,9 +547,11 @@ class ViewManager {
       this.ensureUITopmost();
       this.dumpContentViewTree("after-add-tab-view");
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-      await view.webContents.loadURL(url);
       this.setupTabEvents(tabId, view);
-      logger.info("[ViewManager] Tab created", { tabId, url });
+      void view.webContents.loadURL(url).catch((err) => {
+        logger.error("[ViewManager] Failed to load URL in tab", { tabId, url, error: err });
+      });
+      logger.info("[ViewManager] Tab created (loading in background)", { tabId, url });
       return tabId;
     } catch (error) {
       logger.error("[ViewManager] Tab creation failed:", error);
@@ -590,6 +625,16 @@ class ViewManager {
       return;
     }
     try {
+      this.recentlyClosed.push({
+        id: tabData.id,
+        url: tabData.url,
+        title: tabData.title,
+        timestamp: Date.now(),
+        isPinned: tabData.isPinned
+      });
+      if (this.recentlyClosed.length > this.MAX_RECENT_CLOSED) {
+        this.recentlyClosed.shift();
+      }
       if (this.contentWindow) {
         this.contentWindow.getContentView().removeChildView(tabData.view);
       }
@@ -615,11 +660,13 @@ class ViewManager {
    * @returns 모든 탭 메타데이터 (뷰 객체 제외)
    */
   static getTabs() {
-    return Array.from(this.tabs.values()).map(({ id, url, title, isActive }) => ({
+    return Array.from(this.tabs.values()).map(({ id, url, title, isActive, isPinned, favicon }) => ({
       id,
       url,
       title,
-      isActive
+      isActive,
+      isPinned,
+      favicon
     }));
   }
   /**
@@ -627,6 +674,79 @@ class ViewManager {
    */
   static getActiveTabId() {
     return this.activeTabId;
+  }
+  /**
+   * 탭 고정/해제 (Space 섹션에 표시)
+   */
+  static setPinned(tabId, pinned) {
+    const tab = this.tabs.get(tabId);
+    if (!tab) {
+      logger.warn("[ViewManager] Tab not found for pin", { tabId });
+      return;
+    }
+    tab.isPinned = pinned;
+    logger.info("[ViewManager] Tab pin status changed", { tabId, pinned });
+    this.syncToRenderer();
+  }
+  /**
+   * 탭 복제 (같은 URL로 새 탭 생성)
+   */
+  static async duplicateTab(tabId) {
+    const tab = this.tabs.get(tabId);
+    if (!tab) {
+      throw new Error("Tab not found");
+    }
+    const newTabId = await this.createTab(tab.url);
+    logger.info("[ViewManager] Tab duplicated", { originalId: tabId, newId: newTabId });
+    return newTabId;
+  }
+  /**
+   * 다른 탭 모두 닫기
+   */
+  static closeOtherTabs(keepTabId) {
+    const tabsToClose = Array.from(this.tabs.keys()).filter((id) => id !== keepTabId);
+    for (const tabId of tabsToClose) {
+      this.closeTab(tabId);
+    }
+    logger.info("[ViewManager] Closed other tabs", { kept: keepTabId, closed: tabsToClose.length });
+  }
+  /**
+   * 모든 탭 닫기 (최소 1개는 유지)
+   */
+  static closeAllTabs() {
+    const allTabIds = Array.from(this.tabs.keys());
+    for (const tabId of allTabIds) {
+      this.closeTab(tabId);
+    }
+    if (this.tabs.size === 0) {
+      void this.createTab("https://www.google.com");
+    }
+    logger.info("[ViewManager] Closed all tabs");
+  }
+  /**
+   * 닫은 탭 복원 (가장 최근)
+   */
+  static async restoreClosedTab() {
+    if (this.recentlyClosed.length === 0) {
+      logger.warn("[ViewManager] No recently closed tabs to restore");
+      return null;
+    }
+    const closedTab = this.recentlyClosed.pop();
+    if (!closedTab) {
+      return null;
+    }
+    const newTabId = await this.createTab(closedTab.url);
+    if (closedTab.isPinned) {
+      this.setPinned(newTabId, true);
+    }
+    logger.info("[ViewManager] Restored closed tab", { url: closedTab.url, newId: newTabId });
+    return newTabId;
+  }
+  /**
+   * Get recently closed tabs list
+   */
+  static getRecentlyClosed() {
+    return [...this.recentlyClosed];
   }
   /**
    * 현재 활성 탭에서 URL 이동
@@ -860,6 +980,14 @@ class ViewManager {
             timestamp: Date.now()
           });
         }
+      }
+    });
+    view.webContents.on("page-favicon-updated", (_event, favicons) => {
+      const tabData = this.tabs.get(tabId);
+      if (tabData && favicons.length > 0) {
+        tabData.favicon = favicons[0];
+        logger.debug("[ViewManager] Tab favicon updated", { tabId, favicon: favicons[0] });
+        this.syncToRenderer();
       }
     });
     view.webContents.on("did-finish-load", () => {

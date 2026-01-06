@@ -1,126 +1,257 @@
 /**
- * Sidebar CSS - Arc Browser Style
+ * Sidebar CSS - Redesigned Layout
  * 
- * 구조:
- * 1. Favicon Bar (상단 고정)
- * 2. Scrollable Area (Space + Active Tabs)
- * 3. Footer (Download + Add)
+ * Structure:
+ * 1. Icon Section (Favicon Grid 3x3, max 12)
+ * 2. Space (Frequent tabs)
+ * 3. Tab (Default new tabs)
+ * 4. Footer (Download + Settings)
  */
 
-/* ===== FAVICON BAR ===== */
-.sidebar-favicon-section {
-  padding: 8px;
+/* ===== 1. ICON SECTION (Favicon Grid) ===== */
+.sidebar-icon-section {
+  padding: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
   -webkit-app-region: no-drag;
 }
 
-.sidebar-favicon-bar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
+.sidebar-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
   width: 100%;
 }
 
-.sidebar-favicon {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+.sidebar-icon-item {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0;
-  color: inherit;
-  flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
 }
 
-.sidebar-favicon:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.1);
-  transform: scale(1.05);
+.sidebar-icon-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.sidebar-favicon:active {
-  transform: scale(0.95);
+.sidebar-icon-item:active {
+  transform: translateY(0) scale(0.97);
 }
 
-.sidebar-favicon-img {
-  width: 20px;
-  height: 20px;
-  border-radius: 3px;
+.sidebar-icon-img {
+  width: 32px;
+  height: 32px;
   object-fit: contain;
 }
 
-.sidebar-favicon-placeholder {
+.sidebar-icon-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(156, 163, 175, 0.5);
+}
+
+/* ===== 2. SPACE SECTION (Frequent Tabs) ===== */
+.sidebar-space-section {
+  padding: 8px 12px 12px;
+}
+
+.sidebar-space-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  margin-bottom: 4px;
+}
+
+.sidebar-space-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(107, 114, 128, 1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-space-menu {
+  opacity: 0;
   width: 20px;
   height: 20px;
-  border-radius: 3px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: rgba(107, 114, 128, 1);
+  cursor: pointer;
+  transition: opacity 0.15s ease;
 }
 
-/* ===== SCROLLABLE AREA ===== */
-.sidebar-scroll-area {
-  padding: 0 8px;
+.sidebar-space-header:hover .sidebar-space-menu {
+  opacity: 1;
+}
+
+.sidebar-space-menu:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(209, 213, 219, 1);
+}
+
+.sidebar-space-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 2px;
 }
 
-.sidebar-scroll-area::-webkit-scrollbar {
+.sidebar-space-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-space-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-space-item--active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-space-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(156, 163, 175, 1);
+}
+
+.sidebar-space-item--active .sidebar-space-icon {
+  color: rgba(96, 165, 250, 1);
+}
+
+.sidebar-space-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(209, 213, 219, 1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.sidebar-space-item--active .sidebar-space-text {
+  color: white;
+}
+
+/* ===== 3. TAB SECTION (Default Tabs) ===== */
+.sidebar-tab-section {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 12px;
+  margin-bottom: 8px;
+}
+
+.sidebar-tab-section::-webkit-scrollbar {
   width: 4px;
 }
 
-.sidebar-scroll-area::-webkit-scrollbar-track {
+.sidebar-tab-section::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.sidebar-scroll-area::-webkit-scrollbar-thumb {
+.sidebar-tab-section::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 2px;
 }
 
-.sidebar-scroll-area::-webkit-scrollbar-thumb:hover {
+.sidebar-tab-section::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
 }
 
-/* ===== SPACE SECTION (고정 탭) ===== */
-.sidebar-space-section {
-  padding: 12px 4px;
+.sidebar-tab-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  margin: 12px 0;
 }
 
-.sidebar-space-items {
+.sidebar-new-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: rgba(156, 163, 175, 1);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-new-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(209, 213, 219, 1);
+}
+
+.sidebar-new-tab-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+.sidebar-new-tab:hover .sidebar-new-tab-icon {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-tab-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
-/* ===== ACTIVE TABS SECTION ===== */
-.sidebar-active-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 4px;
-}
-
-/* ===== TAB 아이템 기본 스타일 ===== */
 .sidebar-tab-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
   -webkit-app-region: no-drag;
+  group: tab-item;
 }
 
 .sidebar-tab-item:hover {
@@ -128,61 +259,61 @@
 }
 
 .sidebar-tab-item--active {
-  background: white;
-  color: black;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
-.sidebar-tab-item--active:hover {
-  background: white;
-}
-
-.sidebar-tab-item-left {
+.sidebar-tab-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   overflow: hidden;
   flex: 1;
 }
 
-.sidebar-tab-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 3px;
+.sidebar-tab-favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  background: rgba(59, 130, 246, 0.2);
-  font-size: 12px;
+  background: rgba(96, 165, 250, 0.15);
+  color: rgba(96, 165, 250, 1);
 }
 
-.sidebar-tab-item--active .sidebar-tab-icon {
-  background: rgba(59, 130, 246, 0.3);
+.sidebar-tab-item--active .sidebar-tab-favicon {
+  background: rgba(96, 165, 250, 0.25);
+  color: rgba(147, 197, 253, 1);
 }
 
 .sidebar-tab-title {
   font-size: 13px;
   font-weight: 500;
+  color: rgba(209, 213, 219, 1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.sidebar-tab-item--active .sidebar-tab-title {
+  color: white;
+}
+
 .sidebar-tab-close {
   opacity: 0;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
   background: transparent;
   border: none;
+  color: rgba(156, 163, 175, 1);
   cursor: pointer;
-  color: inherit;
   transition: all 0.15s ease;
-  margin-left: 4px;
   flex-shrink: 0;
 }
 
@@ -195,109 +326,32 @@
 }
 
 .sidebar-tab-close:hover {
-  background: rgba(0, 0, 0, 0.1);
-  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  color: rgba(239, 68, 68, 1);
 }
 
-.sidebar-tab-item--active .sidebar-tab-close:hover {
-  background: rgba(0, 0, 0, 0.1);
-}
-
-/* ===== NEW TAB BUTTON ===== */
-.sidebar-new-tab-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: rgba(209, 213, 219, 1);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  transition: all 0.15s ease;
-  text-align: left;
-  -webkit-app-region: no-drag;
-}
-
-.sidebar-new-tab-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: white;
-}
-
-.sidebar-new-tab-btn:active {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.sidebar-new-tab-icon {
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  flex-shrink: 0;
-}
-
-.sidebar-new-tab-btn:hover .sidebar-new-tab-icon {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-/* ===== TABS LIST ===== */
-.sidebar-tabs-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sidebar-empty-state {
-  padding: 24px 16px;
-  text-align: center;
-  font-size: 12px;
-  color: rgba(107, 114, 128, 1);
-}
-
-/* ===== DIVIDER ===== */
-.sidebar-divider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 8px;
-  -webkit-app-region: no-drag;
-}
-
-.sidebar-divider-line {
-  flex: 1;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.sidebar-divider-text {
-  font-size: 10px;
-  color: rgba(107, 114, 128, 1);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-}
-
-/* ===== FOOTER ===== */
+/* ===== 4. FOOTER (Download + Settings) ===== */
 .sidebar-footer {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 12px 8px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   background: rgba(14, 15, 17, 1);
   -webkit-app-region: no-drag;
 }
 
+.sidebar-footer-left,
+.sidebar-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .sidebar-footer-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -317,151 +371,26 @@
 
 .sidebar-footer-btn:active {
   background: rgba(255, 255, 255, 0.08);
-}
-
-.sidebar-footer-btn--add {
-  margin-left: auto;
-}
-
-/* ===== SECTION HEADER ===== */
-.sidebar-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  -webkit-app-region: no-drag;
-}
-
-.sidebar-section-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(107, 114, 128, 1);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.sidebar-section-menu {
-  opacity: 0;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  background: transparent;
-  border: none;
-  color: rgba(107, 114, 128, 1);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.sidebar-section-header:hover .sidebar-section-menu {
-  opacity: 1;
-}
-
-.sidebar-section-menu:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(209, 213, 219, 1);
-}
-
-/* ===== PINNED TAB ITEM ===== */
-.sidebar-pinned-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  user-select: none;
-  -webkit-app-region: no-drag;
-}
-
-.sidebar-pinned-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.sidebar-pinned-item--active {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.sidebar-pinned-item-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-  flex: 1;
-}
-
-.sidebar-pinned-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: rgba(107, 114, 128, 1);
-}
-
-.sidebar-pinned-item--active .sidebar-pinned-icon {
-  color: rgba(59, 130, 246, 1);
-}
-
-.sidebar-pinned-title {
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sidebar-pinned-delete {
-  opacity: 0;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  background: transparent;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  margin-left: 4px;
-  flex-shrink: 0;
-}
-
-.sidebar-pinned-item:hover .sidebar-pinned-delete {
-  opacity: 1;
-}
-
-.sidebar-pinned-delete:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: rgba(239, 68, 68, 1);
+  transform: scale(0.95);
 }
 
 /* ===== RESPONSIVE ===== */
 @media (prefers-reduced-motion: reduce) {
-  .sidebar-favicon,
+  .sidebar-icon-item,
+  .sidebar-space-item,
   .sidebar-tab-item,
-  .sidebar-new-tab-btn,
-  .sidebar-footer-btn,
-  .sidebar-tab-close,
-  .sidebar-pinned-delete {
+  .sidebar-new-tab,
+  .sidebar-footer-btn {
     transition: none;
   }
 }
 
-@media (max-width: 320px) {
-  .sidebar-favicon {
-    width: 28px;
-    height: 28px;
-  }
+/* Utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 
-  .sidebar-favicon-img {
-    width: 18px;
-    height: 18px;
-  }
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

@@ -33,7 +33,10 @@ interface TabData {
   url: string
   title: string
   isActive: boolean
+  isPinned: boolean // NEW: For Space section
+  favicon?: string // NEW: Favicon URL
 }
+
 
 /**
  * ViewManager 싱글톤
@@ -51,6 +54,10 @@ export class ViewManager {
   private static isInitializing = false
   private static lastReorderTarget: 'ui' | 'content' | null = null
   private static externalActiveBounds: { x: number; y: number; width: number; height: number } | null = null
+  
+  // NEW: Recently closed tabs for undo
+  private static recentlyClosed: Array<{ id: string; url: string; title: string; timestamp: number; isPinned: boolean }> = []
+  private static readonly MAX_RECENT_CLOSED = 10
 
 
 
@@ -156,6 +163,7 @@ export class ViewManager {
         url,
         title: 'New Tab',
         isActive: false,
+        isPinned: false, // Default: not pinned
       }
 
       this.tabs.set(tabId, tabData)
@@ -181,13 +189,16 @@ export class ViewManager {
       this.dumpContentViewTree('after-add-tab-view')
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
 
-      // Step 5: URL 로드
-      await view.webContents.loadURL(url)
-
-      // Step 6: 이벤트 리스너 설정
+      // Step 5: 이벤트 리스너 설정 (URL 로드 전에 설정하여 이벤트 누락 방지)
       this.setupTabEvents(tabId, view)
 
-      logger.info('[ViewManager] Tab created', { tabId, url })
+      // Step 6: URL 로드 (비동기, 기다리지 않음 - 속도 최적화)
+      // 페이지가 로드되면 이벤트 리스너가 title/favicon을 자동 업데이트
+      void view.webContents.loadURL(url).catch((err) => {
+        logger.error('[ViewManager] Failed to load URL in tab', { tabId, url, error: err })
+      })
+
+      logger.info('[ViewManager] Tab created (loading in background)', { tabId, url })
 
       return tabId
     } catch (error) {
@@ -282,7 +293,20 @@ export class ViewManager {
     }
 
     try {
-      // WebContentsView 제거
+      // Save to recently closed (for undo)
+      this.recentlyClosed.push({
+        id: tabData.id,
+        url: tabData.url,
+        title: tabData.title,
+        timestamp: Date.now(),
+        isPinned: tabData.isPinned,
+      })
+      // Keep only last MAX_RECENT_CLOSED items
+      if (this.recentlyClosed.length > this.MAX_RECENT_CLOSED) {
+        this.recentlyClosed.shift()
+      }
+
+      // WebContents View 제거
       // ⚠️ Electron 39: contentView는 게터 메서드로 변경됨
       if (this.contentWindow) {
         this.contentWindow.getContentView().removeChildView(tabData.view)
@@ -316,11 +340,13 @@ export class ViewManager {
    * @returns 모든 탭 메타데이터 (뷰 객체 제외)
    */
   static getTabs(): Array<Omit<TabData, 'view'>> {
-    return Array.from(this.tabs.values()).map(({ id, url, title, isActive }) => ({
+    return Array.from(this.tabs.values()).map(({ id, url, title, isActive, isPinned, favicon }) => ({
       id,
       url,
       title,
       isActive,
+      isPinned,
+      favicon,
     }))
   }
 
@@ -329,6 +355,96 @@ export class ViewManager {
    */
   static getActiveTabId(): string | null {
     return this.activeTabId
+  }
+
+  /**
+   * 탭 고정/해제 (Space 섹션에 표시)
+   */
+  static setPinned(tabId: string, pinned: boolean): void {
+    const tab = this.tabs.get(tabId)
+    if (!tab) {
+      logger.warn('[ViewManager] Tab not found for pin', { tabId })
+      return
+    }
+
+    tab.isPinned = pinned
+    logger.info('[ViewManager] Tab pin status changed', { tabId, pinned })
+    this.syncToRenderer()
+  }
+
+  /**
+   * 탭 복제 (같은 URL로 새 탭 생성)
+   */
+  static async duplicateTab(tabId: string): Promise<string> {
+    const tab = this.tabs.get(tabId)
+    if (!tab) {
+      throw new Error('Tab not found')
+    }
+
+    const newTabId = await this.createTab(tab.url)
+    logger.info('[ViewManager] Tab duplicated', { originalId: tabId, newId: newTabId })
+    return newTabId
+  }
+
+  /**
+   * 다른 탭 모두 닫기
+   */
+  static closeOtherTabs(keepTabId: string): void {
+    const tabsToClose = Array.from(this.tabs.keys()).filter(id => id !== keepTabId)
+    for (const tabId of tabsToClose) {
+      this.closeTab(tabId)
+    }
+    logger.info('[ViewManager] Closed other tabs', { kept: keepTabId, closed: tabsToClose.length })
+  }
+
+  /**
+   * 모든 탭 닫기 (최소 1개는 유지)
+   */
+  static closeAllTabs(): void {
+    const allTabIds = Array.from(this.tabs.keys())
+    
+    // Close all tabs
+    for (const tabId of allTabIds) {
+      this.closeTab(tabId)
+    }
+
+    // Create one new tab if none remain
+    if (this.tabs.size === 0) {
+      void this.createTab('https://www.google.com')
+    }
+    
+    logger.info('[ViewManager] Closed all tabs')
+  }
+
+  /**
+   * 닫은 탭 복원 (가장 최근)
+   */
+  static async restoreClosedTab(): Promise<string | null> {
+    if (this.recentlyClosed.length === 0) {
+      logger.warn('[ViewManager] No recently closed tabs to restore')
+      return null
+    }
+
+    const closedTab = this.recentlyClosed.pop()
+    if (!closedTab) {
+      return null
+    }
+    const newTabId = await this.createTab(closedTab.url)
+    
+    // Restore pinned status
+    if (closedTab.isPinned) {
+      this.setPinned(newTabId, true)
+    }
+
+    logger.info('[ViewManager] Restored closed tab', { url: closedTab.url, newId: newTabId })
+    return newTabId
+  }
+
+  /**
+   * Get recently closed tabs list
+   */
+  static getRecentlyClosed(): Array<{ id: string; url: string; title: string; timestamp: number; isPinned: boolean }> {
+    return [...this.recentlyClosed]
   }
 
   /**
@@ -622,6 +738,16 @@ export class ViewManager {
             timestamp: Date.now(),
           })
         }
+      }
+    })
+
+    // Favicon 변경 (실시간)
+    view.webContents.on('page-favicon-updated', (_event, favicons) => {
+      const tabData = this.tabs.get(tabId)
+      if (tabData && favicons.length > 0) {
+        tabData.favicon = favicons[0] // Use first favicon
+        logger.debug('[ViewManager] Tab favicon updated', { tabId, favicon: favicons[0] })
+        this.syncToRenderer()
       }
     })
 

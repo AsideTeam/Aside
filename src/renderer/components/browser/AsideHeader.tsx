@@ -2,7 +2,7 @@ import React, { useLayoutEffect, useRef } from 'react'
 import { AddressBar } from './AddressBar'
 import { Pin, PanelLeft, ChevronLeft, ChevronRight, RotateCw } from 'lucide-react'
 import { useOverlayStore } from '@renderer/lib/overlayStore'
-import { useWebContents, useWindowSize } from '@renderer/hooks'
+import { useWebContents, useWindowSize, useTabs } from '@renderer/hooks'
 import { cn } from '@renderer/styles'
 
 export const AsideHeader: React.FC = () => {
@@ -13,8 +13,17 @@ export const AsideHeader: React.FC = () => {
   const toggleSidebarLatch = useOverlayStore((s) => s.toggleSidebarLatch)
   
   const web = useWebContents()
+  const { tabs, activeTabId } = useTabs()
+  const activeTab = tabs.find(t => t.id === activeTabId)
   const { width: windowWidth } = useWindowSize()
   const headerRef = useRef<HTMLDivElement>(null)
+
+  // Navigate handler
+  const handleNavigate = async (url: string) => {
+    if (!activeTabId) return
+    await window.electronAPI?.invoke('tab:navigate', { tabId: activeTabId, url })
+  }
+
 
 
   // ⭐ Dynamic header height measurement
@@ -163,6 +172,8 @@ export const AsideHeader: React.FC = () => {
           {/* 2. Address bar (center) - Shrunk to 40% width */}
           <div className="flex-1 flex justify-center items-center mx-3">
             <AddressBar 
+              currentUrl={activeTab?.url}
+              onNavigate={handleNavigate}
               wrapperClassName="z-10 w-[40%]" 
               inputClassName={cn(
                 'w-full h-8 px-3',

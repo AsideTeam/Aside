@@ -175,6 +175,54 @@ export const TabListSchema = z.object({})
 
 export const TabActiveSchema = z.object({})
 
+// New tab operations
+export const TabDuplicateSchema = z.object({
+  tabId: z
+    .string()
+    .min(1, 'Tab ID cannot be empty')
+    .max(64, 'Tab ID too long')
+    .regex(/^tab-[a-zA-Z0-9-]+$/, 'Invalid Tab ID format'),
+})
+
+export type TabDuplicateInput = z.infer<typeof TabDuplicateSchema>
+
+export const TabPinSchema = z.object({
+  tabId: z
+    .string()
+    .min(1, 'Tab ID cannot be empty')
+    .max(64, 'Tab ID too long')
+    .regex(/^tab-[a-zA-Z0-9-]+$/, 'Invalid Tab ID format'),
+  pinned: z.boolean(),
+})
+
+export type TabPinInput = z.infer<typeof TabPinSchema>
+
+export const TabReorderSchema = z.object({
+  tabId: z
+    .string()
+    .min(1, 'Tab ID cannot be empty')
+    .max(64, 'Tab ID too long')
+    .regex(/^tab-[a-zA-Z0-9-]+$/, 'Invalid Tab ID format'),
+  newIndex: z.number().int().nonnegative(),
+})
+
+export type TabReorderInput = z.infer<typeof TabReorderSchema>
+
+export const TabCloseOthersSchema = z.object({
+  tabId: z
+    .string()
+    .min(1, 'Tab ID cannot be empty')
+    .max(64, 'Tab ID too long')
+    .regex(/^tab-[a-zA-Z0-9-]+$/, 'Invalid Tab ID format'),
+})
+
+export type TabCloseOthersInput = z.infer<typeof TabCloseOthersSchema>
+
+export const TabCloseAllSchema = z.object({})
+
+export const TabRestoreSchema = z.object({})
+
+
 /**
  * 검증 오류 처리 헬퍼
  */

@@ -6,7 +6,10 @@ export interface Tab {
   title: string
   url: string
   isActive: boolean
+  isPinned?: boolean
+  favicon?: string
 }
+
 
 export function useTabs() {
   const [tabs, setTabs] = useState<Tab[]>([])
@@ -58,7 +61,8 @@ export function useTabs() {
   }, [fetchTabs])
 
   const createTab = async (url?: string) => {
-    await window.electronAPI?.invoke(IPC_CHANNELS.TAB.CREATE, url)
+    const targetUrl = url || 'https://www.google.com'
+    await window.electronAPI?.invoke(IPC_CHANNELS.TAB.CREATE, { url: targetUrl })
   }
 
   const closeTab = async (tabId: string) => {

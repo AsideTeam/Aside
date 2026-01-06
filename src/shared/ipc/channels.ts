@@ -76,6 +76,18 @@ export const IPC_CHANNELS = {
     FORWARD: 'tab:forward',
     /** 새로고침 */
     RELOAD: 'tab:reload',
+    /** 탭 복제 (현재 URL과 같은 새 탭 생성) */
+    DUPLICATE: 'tab:duplicate',
+    /** 탭 고정/해제 (Space 섹션에 표시) */
+    PIN: 'tab:pin',
+    /** 탭 순서 변경 */
+    REORDER: 'tab:reorder',
+    /** 다른 탭 모두 닫기 */
+    CLOSE_OTHERS: 'tab:close-others',
+    /** 모든 탭 닫기 */
+    CLOSE_ALL: 'tab:close-all',
+    /** 닫은 탭 복원 */
+    RESTORE: 'tab:restore',
     /** [Event] 탭 목록 업데이트 (Main → Renderer) */
     UPDATED: 'tabs:updated',
   },
