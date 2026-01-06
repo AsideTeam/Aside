@@ -30,7 +30,7 @@ export function AddressBar({
 
   // URLBar만 렌더 (입력창)
   return (
-    <form onSubmit={handleSubmit} className={cn(wrapperClassName)}>
+    <form onSubmit={handleSubmit} className={cn('drag-region', wrapperClassName)}>
       <input
         type="text"
         value={inputValue}
@@ -38,6 +38,7 @@ export function AddressBar({
         placeholder="주소 입력..."
         className={cn(
           'w-full px-3 py-0.5 bg-transparent text-sm focus:outline-none transition-colors placeholder:text-gray-500',
+          'no-drag', // Allow text selection/input, prevent dragging
           inputClassName,
         )}
         style={{ height: '32px' }}

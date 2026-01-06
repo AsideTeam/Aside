@@ -971,11 +971,7 @@ class OverlayController {
   // ===== Timers & Tracking =====
   static hoverTrackingTimer = null;
   static lastStateUpdateTime = 0;
-  // Prevent rapid open/close flicker near the edge hotzones.
-  static lastHeaderOpenedAt = 0;
-  static lastSidebarOpenedAt = 0;
-  static lastHeaderInZoneAt = 0;
-  static lastSidebarInZoneAt = 0;
+  // (Removed: no longer using hysteresis timestamps)
   /**
    * ⭐ Zen 방식: Window가 이동할 때 호출 (moved 이벤트)
    * Main Process가 window 위치를 즉시 업데이트하여 좌표계 불일치 해결
@@ -1155,65 +1151,55 @@ class OverlayController {
     const relativeY = Math.max(0, Math.floor(mouseY - bounds.y));
     const { headerLatched, sidebarLatched } = overlayStore.getState();
     const metrics = this.hoverMetrics;
-    const sidebarZoneRight = Math.floor(metrics?.sidebarRightPx ?? 0);
-    const headerZoneBottom = Math.floor((metrics?.headerBottomPx ?? 0) + (metrics?.titlebarHeightPx ?? 0));
-    const effectiveSidebarZoneRight = Math.min(Math.max(0, sidebarZoneRight), bounds.width);
-    const effectiveHeaderZoneBottom = Math.min(Math.max(0, headerZoneBottom), bounds.height);
-    let effectiveInSidebarZone = relativeX <= effectiveSidebarZoneRight;
-    const effectiveInHeaderZone = relativeY <= effectiveHeaderZoneBottom;
-    if (effectiveInSidebarZone && effectiveInHeaderZone) {
-      if (!headerLatched || !sidebarLatched) {
-        effectiveInSidebarZone = false;
-      }
-    }
-    const nowMs = Date.now();
-    if (effectiveInHeaderZone) this.lastHeaderInZoneAt = nowMs;
-    if (effectiveInSidebarZone) this.lastSidebarInZoneAt = nowMs;
-    let finalHeaderOpen = headerLatched || effectiveInHeaderZone;
-    let finalSidebarOpen = sidebarLatched || effectiveInSidebarZone;
-    const minOpenMs = 400;
-    const closeDelayMs = 250;
-    if (!headerLatched) {
-      if (finalHeaderOpen) {
-        this.lastHeaderOpenedAt = nowMs;
-      } else if (this.currentState.headerOpen) {
-        const isStayingOpen = nowMs - this.lastHeaderOpenedAt < minOpenMs;
-        const isWithinGracePeriod = nowMs - this.lastHeaderInZoneAt < closeDelayMs;
-        if (isStayingOpen || isWithinGracePeriod) {
-          finalHeaderOpen = true;
-        }
-      }
-    }
+    const EDGE_THRESHOLD = 3;
+    const sidebarWidth = metrics?.sidebarRightPx ?? 288;
+    const headerHeight = metrics?.headerBottomPx ?? 56;
+    let shouldOpenSidebar = false;
+    let shouldCloseSidebar = false;
     if (!sidebarLatched) {
-      if (finalSidebarOpen) {
-        this.lastSidebarOpenedAt = nowMs;
-      } else if (this.currentState.sidebarOpen) {
-        const isStayingOpen = nowMs - this.lastSidebarOpenedAt < minOpenMs;
-        const isWithinGracePeriod = nowMs - this.lastSidebarInZoneAt < closeDelayMs;
-        if (isStayingOpen || isWithinGracePeriod) {
-          finalSidebarOpen = true;
-        }
+      if (relativeX <= EDGE_THRESHOLD) {
+        shouldOpenSidebar = true;
+      }
+      if (this.currentState.sidebarOpen && relativeX > sidebarWidth) {
+        shouldCloseSidebar = true;
       }
     }
+    let shouldOpenHeader = false;
+    let shouldCloseHeader = false;
+    if (!headerLatched) {
+      if (relativeY <= EDGE_THRESHOLD) {
+        shouldOpenHeader = true;
+      }
+      if (this.currentState.headerOpen && relativeY > headerHeight) {
+        shouldCloseHeader = true;
+      }
+    }
+    if (shouldOpenSidebar && shouldOpenHeader) {
+      shouldOpenSidebar = false;
+    }
+    const finalSidebarOpen = sidebarLatched || (shouldOpenSidebar || this.currentState.sidebarOpen && !shouldCloseSidebar);
+    const finalHeaderOpen = headerLatched || (shouldOpenHeader || this.currentState.headerOpen && !shouldCloseHeader);
     if (Math.random() < 0.02) {
-      logger.debug("[OverlayController] Coordinate Debug", {
+      logger.debug("[OverlayController] State Debug", {
         mouse: { screenX: mouseX, screenY: mouseY, relativeX, relativeY },
         bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
-        metrics: {
-          sidebarRightPx: metrics?.sidebarRightPx,
-          headerBottomPx: metrics?.headerBottomPx,
-          titlebarHeightPx: metrics?.titlebarHeightPx,
-          sidebarZoneRight,
-          headerZoneBottom
+        dimensions: {
+          sidebarWidth,
+          headerHeight,
+          edgeThreshold: EDGE_THRESHOLD
         },
-        zones: {
-          inSidebarZone: effectiveInSidebarZone,
-          inHeaderZone: effectiveInHeaderZone
+        triggers: {
+          shouldOpenSidebar,
+          shouldCloseSidebar,
+          shouldOpenHeader,
+          shouldCloseHeader
         },
         state: { headerOpen: finalHeaderOpen, sidebarOpen: finalSidebarOpen }
       });
     }
-    if (effectiveInHeaderZone || effectiveInSidebarZone) {
+    const mouseInSidebar = finalSidebarOpen && relativeX <= sidebarWidth;
+    const mouseInHeader = finalHeaderOpen && relativeY <= headerHeight;
+    if (mouseInSidebar || mouseInHeader) {
       ViewManager.ensureUITopmost();
     } else {
       ViewManager.ensureContentTopmost();

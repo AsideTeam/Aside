@@ -65,11 +65,7 @@ export class OverlayController {
   private static hoverTrackingTimer: ReturnType<typeof setInterval> | null = null
   private static lastStateUpdateTime = 0
 
-  // Prevent rapid open/close flicker near the edge hotzones.
-  private static lastHeaderOpenedAt = 0
-  private static lastSidebarOpenedAt = 0
-  private static lastHeaderInZoneAt = 0
-  private static lastSidebarInZoneAt = 0
+  // (Removed: no longer using hysteresis timestamps)
 
   /**
    * ⭐ Zen 방식: Window가 이동할 때 호출 (moved 이벤트)
@@ -319,89 +315,84 @@ export class OverlayController {
     // - 따라서 DPR 변환 불필요!
     const metrics = this.hoverMetrics
     
-    // CSS logical pixels 그대로 사용 (DPR 변환 불필요)
-    const sidebarZoneRight = Math.floor(metrics?.sidebarRightPx ?? 0)
-    const headerZoneBottom = Math.floor((metrics?.headerBottomPx ?? 0) + (metrics?.titlebarHeightPx ?? 0))
-
-    // Bounds를 넘지 않도록 clamp
-    const effectiveSidebarZoneRight = Math.min(Math.max(0, sidebarZoneRight), bounds.width)
-    const effectiveHeaderZoneBottom = Math.min(Math.max(0, headerZoneBottom), bounds.height)
-
-    let effectiveInSidebarZone = relativeX <= effectiveSidebarZoneRight
-    const effectiveInHeaderZone = relativeY <= effectiveHeaderZoneBottom
-
-    // ⭐ Mutual Exclusion: Top-Left Corner(Intersection) 처리
-    // 두 영역이 겹치는 위치에서 둘 다 Floating(Hover) 상태로 열리는 것을 방지.
-    // 사용자 입장에서 왼쪽 위 구석은 교통 제어(Traffic Lights) 및 내비게이션 영역이므로 헤더를 우선함.
-    if (effectiveInSidebarZone && effectiveInHeaderZone) {
-      if (!headerLatched || !sidebarLatched) {
-        // 어느 하나라도 Floating 상태라면 헤더 영역 우선 (사이드바 영역에서 배제)
-        effectiveInSidebarZone = false
-      }
-    }
-
-    // Hysteresis: prevent too fast flickering
-    const nowMs = Date.now()
-    if (effectiveInHeaderZone) this.lastHeaderInZoneAt = nowMs
-    if (effectiveInSidebarZone) this.lastSidebarInZoneAt = nowMs
-
-    // Determine intended states with hysteresis
-    let finalHeaderOpen = headerLatched || effectiveInHeaderZone
-    let finalSidebarOpen = sidebarLatched || effectiveInSidebarZone
-
-    const minOpenMs = 400
-    const closeDelayMs = 250
-
-    // Header hysteresis
-    if (!headerLatched) {
-      if (finalHeaderOpen) {
-        this.lastHeaderOpenedAt = nowMs
-      } else if (this.currentState.headerOpen) {
-        // Keep open if within min duration or grace period
-        const isStayingOpen = nowMs - this.lastHeaderOpenedAt < minOpenMs
-        const isWithinGracePeriod = nowMs - this.lastHeaderInZoneAt < closeDelayMs
-        if (isStayingOpen || isWithinGracePeriod) {
-          finalHeaderOpen = true
-        }
-      }
-    }
-
-    // Sidebar hysteresis
+    // ⭐ UNIFIED STATE LOGIC (Edge-based opening, Bounds-based closing)
+    const EDGE_THRESHOLD = 3 // Mouse must be within 3px of edge to trigger opening
+    
+    // Get component dimensions for close detection
+    const sidebarWidth = metrics?.sidebarRightPx ?? 288 // Sidebar width when open
+    const headerHeight = metrics?.headerBottomPx ?? 56 // Header height when open
+    
+    // ===== SIDEBAR STATE =====
+    // Open: Mouse at left edge (relativeX <= EDGE_THRESHOLD)
+    // Close: Mouse leaves sidebar area (relativeX > sidebarWidth)
+    let shouldOpenSidebar = false
+    let shouldCloseSidebar = false
+    
     if (!sidebarLatched) {
-      if (finalSidebarOpen) {
-        this.lastSidebarOpenedAt = nowMs
-      } else if (this.currentState.sidebarOpen) {
-        const isStayingOpen = nowMs - this.lastSidebarOpenedAt < minOpenMs
-        const isWithinGracePeriod = nowMs - this.lastSidebarInZoneAt < closeDelayMs
-        if (isStayingOpen || isWithinGracePeriod) {
-          finalSidebarOpen = true
-        }
+      // Opening trigger: At left window edge
+      if (relativeX <= EDGE_THRESHOLD) {
+        shouldOpenSidebar = true
+      }
+      
+      // Closing trigger: Left sidebar area
+      if (this.currentState.sidebarOpen && relativeX > sidebarWidth) {
+        shouldCloseSidebar = true
       }
     }
+    
+    // ===== HEADER STATE =====
+    // Open: Mouse at top edge (relativeY <= EDGE_THRESHOLD)
+    // Close: Mouse leaves header area (relativeY > headerHeight)
+    let shouldOpenHeader = false
+    let shouldCloseHeader = false
+    
+    if (!headerLatched) {
+      // Opening trigger: At top window edge
+      if (relativeY <= EDGE_THRESHOLD) {
+        shouldOpenHeader = true
+      }
+      
+      // Closing trigger: Left header area
+      if (this.currentState.headerOpen && relativeY > headerHeight) {
+        shouldCloseHeader = true
+      }
+    }
+    
+    // ===== MUTUAL EXCLUSION =====
+    // If both would open at the same time (top-left corner), prioritize header
+    if (shouldOpenSidebar && shouldOpenHeader) {
+      shouldOpenSidebar = false
+    }
 
-    // ⭐ DEBUG: 좌표 변환 확인
+    // ===== FINAL STATE CALCULATION =====
+    const finalSidebarOpen = sidebarLatched || (shouldOpenSidebar || (this.currentState.sidebarOpen && !shouldCloseSidebar))
+    const finalHeaderOpen = headerLatched || (shouldOpenHeader || (this.currentState.headerOpen && !shouldCloseHeader))
+
+    // ⭐ DEBUG: Edge-based state logic
     if (Math.random() < 0.02) { // 2% 확률로 로깅
-      logger.debug('[OverlayController] Coordinate Debug', {
+      logger.debug('[OverlayController] State Debug', {
         mouse: { screenX: mouseX, screenY: mouseY, relativeX, relativeY },
         bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
-        metrics: {
-          sidebarRightPx: metrics?.sidebarRightPx,
-          headerBottomPx: metrics?.headerBottomPx,
-          titlebarHeightPx: metrics?.titlebarHeightPx,
-          sidebarZoneRight,
-          headerZoneBottom,
+        dimensions: {
+          sidebarWidth,
+          headerHeight,
+          edgeThreshold: EDGE_THRESHOLD,
         },
-        zones: { 
-          inSidebarZone: effectiveInSidebarZone, 
-          inHeaderZone: effectiveInHeaderZone 
+        triggers: { 
+          shouldOpenSidebar,
+          shouldCloseSidebar,
+          shouldOpenHeader,
+          shouldCloseHeader
         },
         state: { headerOpen: finalHeaderOpen, sidebarOpen: finalSidebarOpen },
       })
     }
 
-    // ⭐ Interactivity: 마우스가 UI 영역에 있으면 UI를 상단으로, 아니면 컨텐츠를 상단으로
-    // 그래야 WebContentsView(구글 등)의 클릭이 막히지 않음.
-    if (effectiveInHeaderZone || effectiveInSidebarZone) {
+    // ⭐ INTERACTIVITY: UI topmost when mouse in open components, otherwise content topmost
+    const mouseInSidebar = finalSidebarOpen && relativeX <= sidebarWidth
+    const mouseInHeader = finalHeaderOpen && relativeY <= headerHeight
+    
+    if (mouseInSidebar || mouseInHeader) {
       ViewManager.ensureUITopmost()
     } else {
       ViewManager.ensureContentTopmost()

@@ -8,11 +8,11 @@
  * 4. Footer - 다운로드 + 추가 옵션
  */
 
-import React, { useLayoutEffect, useRef } from 'react'
+import React, { useRef } from 'react'
 import { Plus, Download } from 'lucide-react'
 import { useOverlayStore } from '@renderer/lib/overlayStore'
 import { cn } from '@renderer/styles'
-import { useTabs } from '@renderer/hooks/useTabs'
+import { useTabs } from '@renderer/hooks'
 
 import {
   PinnedAppsGrid,
@@ -30,11 +30,11 @@ export const Sidebar: React.FC = () => {
   const headerLatched = useOverlayStore((s) => s.headerLatched)
 
   // Separate pinned (Space) vs normal (Active) tabs
-  const pinnedTabs = tabs.filter((t) => {
+  const pinnedTabs = tabs.filter((t: unknown) => {
     const tab = t as unknown as { isPinned?: boolean }
     return Boolean(tab.isPinned)
   })
-  const normalTabs = tabs.filter((t) => {
+  const normalTabs = tabs.filter((t: unknown) => {
     const tab = t as unknown as { isPinned?: boolean }
     return !tab.isPinned
   })
@@ -42,41 +42,7 @@ export const Sidebar: React.FC = () => {
   const shouldPushDown = headerOpen || headerLatched
   const sidebarRef = useRef<HTMLDivElement>(null)
 
-  // Dynamic width measurement for overlay hover zones
-  useLayoutEffect(() => {
-    const measureAndSend = async () => {
-      if (!sidebarRef.current) return
 
-      const contentWidth = sidebarRef.current.offsetWidth
-      const hitZoneWidth = 96
-      const hoverWidth = isOpen || isLatched ? contentWidth : hitZoneWidth
-
-      try {
-        const payload = {
-          sidebarRightPx: hoverWidth,
-          dpr: window.devicePixelRatio,
-          timestamp: Date.now(),
-        }
-        await window.electronAPI.invoke('overlay:update-hover-metrics', payload)
-      } catch (error) {
-        console.error('[Sidebar] Failed to send hover metrics:', error)
-      }
-    }
-
-    void measureAndSend()
-    const timers = [100, 300, 500].map((t) =>
-      setTimeout(() => void measureAndSend(), t)
-    )
-
-    window.addEventListener('resize', measureAndSend)
-    const heartbeat = setInterval(measureAndSend, 2000)
-
-    return () => {
-      window.removeEventListener('resize', measureAndSend)
-      clearInterval(heartbeat)
-      timers.forEach(clearTimeout)
-    }
-  }, [isOpen, isLatched])
 
   return (
     <aside
@@ -96,7 +62,7 @@ export const Sidebar: React.FC = () => {
         'transition-all duration-300 ease-out',
         '-translate-x-full',
         (isOpen || isLatched) && 'translate-x-0',
-        'drag-region select-none',
+        'select-none', // Removed drag-region
         'flex flex-col'
       )}
       data-overlay-zone="sidebar"
@@ -120,15 +86,15 @@ export const Sidebar: React.FC = () => {
           <section className="sidebar-space-section">
             <SectionHeader title="Space" />
             <div className="sidebar-space-items">
-              {pinnedTabs.map((tab) => (
+              {pinnedTabs.map((tab: unknown) => (
                 <PinnedTabItem
-                  key={tab.id}
-                  id={tab.id}
-                  title={tab.title || 'Untitled'}
+                  key={(tab as unknown as { id: string }).id}
+                  id={(tab as unknown as { id: string }).id}
+                  title={(tab as unknown as { title?: string }).title || 'Untitled'}
                   type="bookmark"
-                  isActive={tab.id === activeTabId}
-                  onSelect={() => switchTab(tab.id)}
-                  onDelete={() => closeTab(tab.id)}
+                  isActive={(tab as unknown as { id: string }).id === activeTabId}
+                  onSelect={() => switchTab((tab as unknown as { id: string }).id)}
+                  onDelete={() => closeTab((tab as unknown as { id: string }).id)}
                 />
               ))}
             </div>
@@ -155,14 +121,14 @@ export const Sidebar: React.FC = () => {
           {/* Active Tabs List */}
           <div className="sidebar-tabs-list">
             {normalTabs.length > 0 ? (
-              normalTabs.map((tab) => (
+              normalTabs.map((tab: unknown) => (
                 <TabListItem
-                  key={tab.id}
-                  id={tab.id}
-                  title={tab.title || 'Untitled'}
-                  isActive={tab.id === activeTabId}
-                  onSelect={() => switchTab(tab.id)}
-                  onClose={() => closeTab(tab.id)}
+                  key={(tab as unknown as { id: string }).id}
+                  id={(tab as unknown as { id: string }).id}
+                  title={(tab as unknown as { title?: string }).title || 'Untitled'}
+                  isActive={(tab as unknown as { id: string }).id === activeTabId}
+                  onSelect={() => switchTab((tab as unknown as { id: string }).id)}
+                  onClose={() => closeTab((tab as unknown as { id: string }).id)}
                 />
               ))
             ) : (

@@ -2,7 +2,7 @@ import React, { useLayoutEffect, useRef } from 'react'
 import { AddressBar } from './AddressBar'
 import { Pin, PanelLeft, ChevronLeft, ChevronRight, RotateCw } from 'lucide-react'
 import { useOverlayStore } from '@renderer/lib/overlayStore'
-import { useWebContents } from '@renderer/hooks'
+import { useWebContents, useWindowSize } from '@renderer/hooks'
 import { cn } from '@renderer/styles'
 
 export const AsideHeader: React.FC = () => {
@@ -13,16 +13,9 @@ export const AsideHeader: React.FC = () => {
   const toggleSidebarLatch = useOverlayStore((s) => s.toggleSidebarLatch)
   
   const web = useWebContents()
+  const { width: windowWidth } = useWindowSize()
   const headerRef = useRef<HTMLDivElement>(null)
 
-  // 🔍 Component mount/unmount tracking
-  useLayoutEffect(() => {
-    const instanceId = Math.random().toString(36).substring(7)
-    console.log(`[AsideHeader-${instanceId}] 🟢 MOUNTED`)
-    return () => {
-      console.log(`[AsideHeader-${instanceId}] 🔴 UNMOUNTED`)
-    }
-  }, [])
 
   // ⭐ Dynamic header height measurement
   useLayoutEffect(() => {
@@ -73,7 +66,7 @@ export const AsideHeader: React.FC = () => {
       window.removeEventListener('resize', measureAndSend)
       clearInterval(heartbeat)
     }
-  }, [])
+  }, [windowWidth])
 
   return (
     <>
@@ -89,7 +82,7 @@ export const AsideHeader: React.FC = () => {
         }}
         className={cn(
           // Base positioning and z-index - Header must be ABOVE Sidebar (9999)
-          'fixed top-0 z-[10000]',
+          'fixed top-0 z-10000',
           // Transform animation (GPU accelerated)
           'transition-transform duration-200 ease-out',
           // Default: hidden above screen
@@ -110,7 +103,7 @@ export const AsideHeader: React.FC = () => {
           'border border-white/10 bg-[rgb(3,7,18)]',
           'backdrop-blur-xl',
           'shadow-lg shadow-black/10',
-          'drag-region' // Entire surface is draggable
+          'drag-region' // ← Entire surface is draggable
         )}>
           {/* Native macOS traffic lights appear automatically on hover (customButtonsOnHover) */}
 
@@ -167,18 +160,20 @@ export const AsideHeader: React.FC = () => {
             </button>
           </div>
 
-          {/* 2. Address bar (center) */}
-          <AddressBar 
-            wrapperClassName="flex-1 min-w-0 mx-3 z-10" 
-            inputClassName={cn(
-              'flex-1 min-w-0 w-full h-8 px-3',
-              'border-none bg-transparent',
-              'text-white text-sm text-center outline-none',
-              'placeholder:text-white/30',
-              'focus:bg-white/5',
-              'no-drag'
-            )}
-          />
+          {/* 2. Address bar (center) - Shrunk to 40% width */}
+          <div className="flex-1 flex justify-center items-center mx-3">
+            <AddressBar 
+              wrapperClassName="z-10 w-[40%]" 
+              inputClassName={cn(
+                'w-full h-8 px-3',
+                'border-none bg-transparent',
+                'text-white text-sm text-center outline-none',
+                'placeholder:text-white/30',
+                'focus:bg-white/5'
+                // no-drag removed to allow window dragging via address bar
+              )}
+            />
+          </div>
 
           {/* 3. Action buttons (right) */}
           <div className="flex items-center gap-3 z-10 no-drag">
