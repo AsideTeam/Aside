@@ -80,8 +80,6 @@ export const IPC_CHANNELS = {
     DUPLICATE: 'tab:duplicate',
     /** 탭 고정/해제 (Space 섹션에 표시) */
     PIN: 'tab:pin',
-    /** 탭 순서 변경 */
-    REORDER: 'tab:reorder',
     /** 다른 탭 모두 닫기 */
     CLOSE_OTHERS: 'tab:close-others',
     /** 모든 탭 닫기 */
@@ -90,6 +88,10 @@ export const IPC_CHANNELS = {
     RESTORE: 'tab:restore',
     /** 섹션 간 이동 (Icon/Space/Tab) */
     MOVE_SECTION: 'tab:move-section',
+    /** 같은 섹션 내 탭 순서 변경 (Request: tabId, position) */
+    REORDER: 'tab:reorder',
+    /** Icon 순서 변경 (Request: fromIndex, toIndex) */
+    REORDER_ICON: 'tab:reorder-icon',
     /** [Event] 탭 목록 업데이트 (Main → Renderer) */
     UPDATED: 'tabs:updated',
   },

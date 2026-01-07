@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SettingsLayout } from '../layouts/SettingsLayout';
-import { SettingRow } from '../components/settings/SettingRow';
+import { SettingRow } from '../components/Settings/SettingRow';
 import { useSetting } from '../hooks/useSetting';
 import { logger } from '../lib/logger';
 import { tokens, cn } from '@renderer/styles';

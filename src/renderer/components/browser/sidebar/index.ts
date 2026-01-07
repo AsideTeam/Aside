@@ -2,6 +2,10 @@
  * Sidebar sub-components index
  */
 
+export { Sidebar } from './Sidebar'
+export * as SidebarDnd from './dnd'
+export type { SidebarSection, SidebarTabItem } from './types'
+
 export { PinnedAppsGrid } from './PinnedAppsGrid'
 export { SectionHeader } from './SectionHeader'
 export { PinnedTabItem } from './PinnedTabItem'

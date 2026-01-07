@@ -19,7 +19,7 @@
  */
 
 import { join } from 'node:path'
-import { Env } from './Env'
+import { Env } from './env'
 import { logger } from '@main/utils/logger'
 
 /**

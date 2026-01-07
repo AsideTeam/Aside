@@ -171,6 +171,9 @@ const electronAPI = {
       'tab:back',
       'tab:forward',
       'tab:reload',
+      'tab:reorder',
+      'tab:reorder-icon',
+      'tab:move-section',
       
       // Settings
       'settings:get-all',

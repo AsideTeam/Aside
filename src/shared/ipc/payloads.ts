@@ -224,3 +224,52 @@ export type WindowMaximizeRequest = Record<string, never>
  * 페이로드 없음
  */
 export type WindowCloseRequest = Record<string, never>
+
+/**
+ * 채널: IPC_CHANNELS.TAB.MOVE_SECTION
+ * 방향: Renderer → Main
+ * 설명: 탭을 다른 섹션(Icon/Space/Tab)으로 이동
+ *
+ * @param tabId - 이동할 탭의 ID
+ * @param targetType - 목표 섹션 ('icon' | 'space' | 'tab')
+ *
+ * 예:
+ *   { tabId: "tab-123", targetType: "space" }
+ */
+export interface TabMoveSectionRequest {
+  tabId: string
+  targetType: 'icon' | 'space' | 'tab'
+}
+
+/**
+ * 채널: IPC_CHANNELS.TAB.REORDER
+ * 방향: Renderer → Main
+ * 설명: 같은 섹션 내에서 탭의 위치 변경
+ *
+ * @param tabId - 이동할 탭의 ID
+ * @param position - 새로운 위치 (0부터 시작)
+ *
+ * 예:
+ *   { tabId: "tab-123", position: 2 }
+ */
+export interface TabReorderRequest {
+  tabId: string
+  position: number
+}
+
+/**
+ * 채널: IPC_CHANNELS.TAB.REORDER_ICON
+ * 방향: Renderer → Main
+ * 설명: Icon 섹션의 고정 앱 순서 변경
+ *
+ * @param fromIndex - 원본 인덱스
+ * @param toIndex - 목표 인덱스
+ *
+ * 예:
+ *   { fromIndex: 0, toIndex: 2 }
+ */
+export interface TabReorderIconRequest {
+  fromIndex: number
+  toIndex: number
+}
+

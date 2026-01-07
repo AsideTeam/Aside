@@ -22,6 +22,9 @@ import {
   TabCreateSchema,
   TabCloseSchema,
   TabSwitchSchema,
+  TabMoveSectionSchema,
+  TabReorderWithinSectionSchema,
+  TabReorderIconSchema,
   validateOrThrow,
 } from '@shared/validation/schemas'
 
@@ -165,10 +168,10 @@ export function setupTabHandlers(registry: IpcRegistry): void {
   // tab:reorder - 탭 순서 변경 (드래그앤드롭)
   registry.handle(IPC_CHANNELS.TAB.REORDER, async (_event, input: unknown) => {
     try {
-      const { tabId, targetId } = input as { tabId: string; targetId: string }
-      logger.info('[TabHandler] tab:reorder requested', { tabId, targetId })
+      const { tabId, position } = validateOrThrow(TabReorderWithinSectionSchema, input)
+      logger.info('[TabHandler] tab:reorder requested', { tabId, position })
       
-      ViewManager.reorderTab(tabId, targetId)
+      ViewManager.reorderTabWithinSection(tabId, position)
       
       return { success: true }
     } catch (error) {
@@ -177,18 +180,29 @@ export function setupTabHandlers(registry: IpcRegistry): void {
     }
   })
 
+  // tab:reorder-icon - Icon 섹션의 앱 순서 변경
+  registry.handle(IPC_CHANNELS.TAB.REORDER_ICON, async (_event, input: unknown) => {
+    try {
+      const { fromIndex, toIndex } = validateOrThrow(TabReorderIconSchema, input)
+      logger.info('[TabHandler] tab:reorder-icon requested', { fromIndex, toIndex })
+      
+      ViewManager.reorderIcon(fromIndex, toIndex)
+      
+      return { success: true }
+    } catch (error) {
+      logger.error('[TabHandler] tab:reorder-icon failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
   // tab:move-section - 탭을 다른 섹션으로 이동 (Icon/Space/Tab)
   registry.handle(IPC_CHANNELS.TAB.MOVE_SECTION, async (_event, input: unknown) => {
     try {
-      const { tabId, section } = input as { tabId: string; section: 'icon' | 'space' | 'tab' }
-      logger.info('[TabHandler] tab:move-section requested', { tabId, section })
+      const { tabId, targetType } = validateOrThrow(TabMoveSectionSchema, input)
+      logger.info('[TabHandler] tab:move-section requested', { tabId, targetType })
       
-      // Section에 따라 pinned 상태 변경
-      if (section === 'icon' || section === 'space') {
-        ViewManager.setPinned(tabId, true)
-      } else {
-        ViewManager.setPinned(tabId, false)
-      }
+      // targetType에 따라 상태 업데이트
+      ViewManager.moveTabToSection(tabId, targetType)
       
       return { success: true }
     } catch (error) {

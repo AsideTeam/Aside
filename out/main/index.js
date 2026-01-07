@@ -324,6 +324,18 @@ z.object({
   tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9-]+$/, "Invalid Tab ID format"),
   newIndex: z.number().int().nonnegative()
 });
+const TabMoveSectionSchema = z.object({
+  tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9-]+$/, "Invalid Tab ID format"),
+  targetType: z.enum(["icon", "space", "tab"])
+});
+const TabReorderWithinSectionSchema = z.object({
+  tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9-]+$/, "Invalid Tab ID format"),
+  position: z.number().int().nonnegative("Position must be non-negative")
+});
+const TabReorderIconSchema = z.object({
+  fromIndex: z.number().int().nonnegative(),
+  toIndex: z.number().int().nonnegative()
+});
 z.object({
   tabId: z.string().min(1, "Tab ID cannot be empty").max(64, "Tab ID too long").regex(/^tab-[a-zA-Z0-9-]+$/, "Invalid Tab ID format")
 });
@@ -335,6 +347,39 @@ function validateOrThrow(schema, data) {
     throw new Error(`Validation failed: ${result.error.message}`);
   }
   return result.data;
+}
+function applyLayout({
+  contentWindow,
+  tabs,
+  externalActiveBounds,
+  logger: logger2
+}) {
+  const { width, height } = contentWindow.getBounds();
+  const defaultBounds = {
+    x: 0,
+    y: 0,
+    width,
+    height: Math.max(0, height)
+  };
+  const activeBounds = externalActiveBounds ?? defaultBounds;
+  logger2.debug("[MAIN LAYOUT] Applying bounds:", {
+    contentWindow: { w: width, h: height },
+    externalBounds: externalActiveBounds,
+    finalBounds: activeBounds,
+    usingExternal: !!externalActiveBounds
+  });
+  for (const [, tabData] of tabs) {
+    if (tabData.isActive) {
+      if (tabData.url.startsWith("about:")) {
+        tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        logger2.debug("[ViewManager] Layout: hiding WebView for about page", { url: tabData.url });
+      } else {
+        tabData.view.setBounds(activeBounds);
+      }
+    } else {
+      tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    }
+  }
 }
 const IPC_CHANNELS = {
   // ===== APP 영역 =====
@@ -383,8 +428,6 @@ const IPC_CHANNELS = {
     DUPLICATE: "tab:duplicate",
     /** 탭 고정/해제 (Space 섹션에 표시) */
     PIN: "tab:pin",
-    /** 탭 순서 변경 */
-    REORDER: "tab:reorder",
     /** 다른 탭 모두 닫기 */
     CLOSE_OTHERS: "tab:close-others",
     /** 모든 탭 닫기 */
@@ -393,6 +436,10 @@ const IPC_CHANNELS = {
     RESTORE: "tab:restore",
     /** 섹션 간 이동 (Icon/Space/Tab) */
     MOVE_SECTION: "tab:move-section",
+    /** 같은 섹션 내 탭 순서 변경 (Request: tabId, position) */
+    REORDER: "tab:reorder",
+    /** Icon 순서 변경 (Request: fromIndex, toIndex) */
+    REORDER_ICON: "tab:reorder-icon",
     /** [Event] 탭 목록 업데이트 (Main → Renderer) */
     UPDATED: "tabs:updated"
   },
@@ -449,6 +496,176 @@ const IPC_CHANNELS = {
     DEBUG: "overlay:debug"
   }
 };
+function attachTabEvents({
+  tabId,
+  view,
+  getTabData,
+  getUiWebContents,
+  syncToRenderer,
+  createTab,
+  logger: logger2
+}) {
+  view.webContents.on("before-input-event", (_event, input) => {
+    try {
+      const uiWebContents = getUiWebContents();
+      if (!uiWebContents) return;
+      if (input.type !== "mouseDown" && input.type !== "mouseUp") return;
+      const payload = OverlayContentPointerEventSchema.parse({
+        kind: input.type,
+        timestamp: Date.now()
+      });
+      uiWebContents.send(IPC_CHANNELS.OVERLAY.CONTENT_POINTER, payload);
+    } catch {
+    }
+  });
+  view.webContents.on("page-title-updated", (_event, title) => {
+    const tabData = getTabData(tabId);
+    if (tabData) {
+      tabData.title = title;
+      logger2.info("[ViewManager] Tab title updated", { tabId, title });
+      syncToRenderer();
+    }
+  });
+  view.webContents.on("did-navigate", (_event, url) => {
+    const tabData = getTabData(tabId);
+    if (tabData) {
+      tabData.url = url;
+      logger2.info("[ViewManager] Tab URL changed", { tabId, url });
+      syncToRenderer();
+      const uiWebContents = getUiWebContents();
+      if (uiWebContents && tabData.isActive) {
+        uiWebContents.send("view:navigated", {
+          url,
+          canGoBack: view.webContents.navigationHistory.canGoBack(),
+          canGoForward: view.webContents.navigationHistory.canGoForward(),
+          timestamp: Date.now()
+        });
+      }
+    }
+  });
+  view.webContents.on("did-navigate-in-page", (_event, url) => {
+    const tabData = getTabData(tabId);
+    if (tabData) {
+      tabData.url = url;
+      syncToRenderer();
+      const uiWebContents = getUiWebContents();
+      if (uiWebContents && tabData.isActive) {
+        uiWebContents.send("view:navigated", {
+          url,
+          canGoBack: view.webContents.navigationHistory.canGoBack(),
+          canGoForward: view.webContents.navigationHistory.canGoForward(),
+          timestamp: Date.now()
+        });
+      }
+    }
+  });
+  view.webContents.setWindowOpenHandler(({ url }) => {
+    logger2.info("[ViewManager] Intercepted window.open", { url });
+    void createTab(url);
+    return { action: "deny" };
+  });
+  view.webContents.on("page-favicon-updated", (_event, favicons) => {
+    const tabData = getTabData(tabId);
+    if (tabData && favicons.length > 0) {
+      tabData.favicon = favicons[0];
+      logger2.debug("[ViewManager] Tab favicon updated", { tabId, favicon: favicons[0] });
+      syncToRenderer();
+    }
+  });
+  view.webContents.on("did-finish-load", () => {
+    const tabData = getTabData(tabId);
+    if (!tabData) return;
+    const uiWebContents = getUiWebContents();
+    if (uiWebContents && tabData.isActive) {
+      uiWebContents.send("view:loaded", {
+        url: view.webContents.getURL(),
+        timestamp: Date.now()
+      });
+    }
+  });
+  logger2.info("[ViewManager] Tab event listeners attached", { tabId });
+}
+function ensureUITopmost({
+  contentWindow,
+  uiWebContents,
+  lastReorderTarget,
+  setLastReorderTarget,
+  logger: logger2
+}) {
+  if (lastReorderTarget === "ui") return;
+  try {
+    const contentView = contentWindow.getContentView();
+    const uiId = uiWebContents.id;
+    const uiView = contentView.children.find((child) => {
+      const maybe = child;
+      return maybe.webContents?.id === uiId;
+    });
+    if (uiView) {
+      contentView.addChildView(uiView);
+      setLastReorderTarget("ui");
+    }
+  } catch (error) {
+    logger2.error("[ViewManager] Failed to reorder UI view", error);
+  }
+}
+function ensureContentTopmost({
+  contentWindow,
+  activeTabId,
+  tabs,
+  lastReorderTarget,
+  setLastReorderTarget,
+  logger: logger2
+}) {
+  if (lastReorderTarget === "content") return;
+  try {
+    const tabData = tabs.get(activeTabId);
+    if (!tabData) return;
+    const contentView = contentWindow.getContentView();
+    contentView.addChildView(tabData.view);
+    setLastReorderTarget("content");
+  } catch (error) {
+    logger2.error("[ViewManager] Failed to reorder content view", error);
+  }
+}
+function dumpContentViewTree({
+  reason,
+  contentWindow,
+  uiWebContents,
+  logger: logger2
+}) {
+  try {
+    const contentView = contentWindow.getContentView();
+    const uiId = uiWebContents?.id;
+    const children = contentView.children.map((child, index) => {
+      const ctor = child.constructor?.name;
+      const maybe = child;
+      const wcId = maybe.webContents?.id;
+      let bounds = null;
+      try {
+        bounds = child.getBounds?.() ?? null;
+      } catch {
+        bounds = null;
+      }
+      return {
+        index,
+        type: ctor ?? "Unknown",
+        isUiWebContents: uiId ? wcId === uiId : false,
+        webContentsId: wcId ?? null,
+        isContentRoot: false,
+        bounds
+      };
+    });
+    logger2.info("[ViewManager] ContentView tree", {
+      reason,
+      windowId: contentWindow.id,
+      uiWebContentsId: uiId ?? null,
+      childCount: children.length,
+      children
+    });
+  } catch (error) {
+    logger2.error("[ViewManager] Failed to dump content view tree", error);
+  }
+}
 class ViewManager {
   static tabs = /* @__PURE__ */ new Map();
   static activeTabId = null;
@@ -534,8 +751,9 @@ class ViewManager {
         url,
         title: "New Tab",
         isActive: false,
-        isPinned: false
+        isPinned: false,
         // Default: not pinned
+        isFavorite: false
       };
       this.tabs.set(tabId, tabData);
       const contentView = this.contentWindow.getContentView();
@@ -662,14 +880,20 @@ class ViewManager {
    * @returns 모든 탭 메타데이터 (뷰 객체 제외)
    */
   static getTabs() {
-    return Array.from(this.tabs.values()).map(({ id, url, title, isActive, isPinned, favicon }) => ({
+    return Array.from(this.tabs.values()).map(({ id, url, title, isActive, isPinned, isFavorite, favicon }) => ({
       id,
       url,
       title,
       isActive,
       isPinned,
+      isFavorite,
       favicon
     }));
+  }
+  static getTabSection(tab) {
+    if (tab.isFavorite) return "icon";
+    if (tab.isPinned) return "space";
+    return "tab";
   }
   /**
    * 활성 탭 ID 반환
@@ -687,6 +911,9 @@ class ViewManager {
       return;
     }
     tab.isPinned = pinned;
+    if (pinned) {
+      tab.isFavorite = false;
+    }
     logger.info("[ViewManager] Tab pin status changed", { tabId, pinned });
     this.syncToRenderer();
   }
@@ -708,6 +935,100 @@ class ViewManager {
       this.tabs.set(id, data);
     });
     logger.info("[ViewManager] Tab reordered", { tabId, targetId, fromIndex, toIndex });
+    this.syncToRenderer();
+  }
+  /**
+   * 같은 섹션 내에서 탭 순서 변경
+   * 
+   * @param tabId - 이동할 탭 ID
+   * @param position - 새로운 위치 (0부터 시작)
+   */
+  static reorderTabWithinSection(tabId, position) {
+    const tab = this.tabs.get(tabId);
+    if (!tab) {
+      logger.warn("[ViewManager] Tab not found for reorder", { tabId });
+      return;
+    }
+    const section = this.getTabSection(tab);
+    const sectionTabs = Array.from(this.tabs.entries()).filter(([_, data]) => {
+      return this.getTabSection(data) === section;
+    });
+    const currentIndex = sectionTabs.findIndex(([id]) => id === tabId);
+    if (currentIndex === -1 || position < 0 || position >= sectionTabs.length) {
+      logger.warn("[ViewManager] Invalid position for reorder", { tabId, position, sectionLength: sectionTabs.length });
+      return;
+    }
+    const [movedEntry] = sectionTabs.splice(currentIndex, 1);
+    sectionTabs.splice(position, 0, movedEntry);
+    const allTabs = Array.from(this.tabs.entries());
+    const newTabs = [];
+    const iconTabs = allTabs.filter(([_, data]) => this.getTabSection(data) === "icon");
+    const spaceTabs = allTabs.filter(([_, data]) => this.getTabSection(data) === "space");
+    const normalTabs = allTabs.filter(([_, data]) => this.getTabSection(data) === "tab");
+    const reorderedSectionTabs = sectionTabs;
+    switch (section) {
+      case "icon":
+        newTabs.push(...reorderedSectionTabs);
+        newTabs.push(...spaceTabs);
+        newTabs.push(...normalTabs);
+        break;
+      case "space":
+        newTabs.push(...iconTabs);
+        newTabs.push(...reorderedSectionTabs);
+        newTabs.push(...normalTabs);
+        break;
+      case "tab":
+        newTabs.push(...iconTabs);
+        newTabs.push(...spaceTabs);
+        newTabs.push(...reorderedSectionTabs);
+        break;
+    }
+    this.tabs.clear();
+    newTabs.forEach(([id, data]) => {
+      this.tabs.set(id, data);
+    });
+    logger.info("[ViewManager] Tab reordered within section", { tabId, position, currentIndex });
+    this.syncToRenderer();
+  }
+  /**
+   * Icon 섹션의 앱 순서 변경 (고정 앱 순서)
+   * 
+   * @param fromIndex - 원본 인덱스
+   * @param toIndex - 목표 인덱스
+   */
+  static reorderIcon(fromIndex, toIndex) {
+    logger.info("[ViewManager] Icon reordered", { fromIndex, toIndex });
+  }
+  /**
+   * 탭을 다른 섹션으로 이동 (Icon/Space/Tab)
+   * 
+   * @param tabId - 이동할 탭 ID
+   * @param targetType - 목표 섹션 ('icon' | 'space' | 'tab')
+   */
+  static moveTabToSection(tabId, targetType) {
+    const tab = this.tabs.get(tabId);
+    if (!tab) {
+      logger.warn("[ViewManager] Tab not found for move-section", { tabId });
+      return;
+    }
+    const previousType = this.getTabSection(tab);
+    switch (targetType) {
+      case "icon":
+        tab.isFavorite = true;
+        tab.isPinned = false;
+        logger.info("[ViewManager] Tab moved to icon section", { tabId, previousType });
+        break;
+      case "space":
+        tab.isFavorite = false;
+        tab.isPinned = true;
+        logger.info("[ViewManager] Tab moved to space section", { tabId, previousType });
+        break;
+      case "tab":
+        tab.isFavorite = false;
+        tab.isPinned = false;
+        logger.info("[ViewManager] Tab moved to tab section", { tabId, previousType });
+        break;
+    }
     this.syncToRenderer();
   }
   /**
@@ -897,32 +1218,12 @@ class ViewManager {
    */
   static layout() {
     if (!this.contentWindow) return;
-    const { width, height } = this.contentWindow.getBounds();
-    const defaultBounds = {
-      x: 0,
-      y: 0,
-      width,
-      height: Math.max(0, height)
-    };
-    const activeBounds = this.externalActiveBounds ?? defaultBounds;
-    logger.debug("[MAIN LAYOUT] Applying bounds:", {
-      contentWindow: { w: width, h: height },
-      externalBounds: this.externalActiveBounds,
-      finalBounds: activeBounds,
-      usingExternal: !!this.externalActiveBounds
+    applyLayout({
+      contentWindow: this.contentWindow,
+      tabs: this.tabs,
+      externalActiveBounds: this.externalActiveBounds,
+      logger
     });
-    for (const [, tabData] of this.tabs) {
-      if (tabData.isActive) {
-        if (tabData.url.startsWith("about:")) {
-          tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-          logger.debug("[ViewManager] Layout: hiding WebView for about page", { url: tabData.url });
-        } else {
-          tabData.view.setBounds(activeBounds);
-        }
-      } else {
-        tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-      }
-    }
   }
   /**
    * Renderer 프로세스에 탭 상태 동기화
@@ -949,81 +1250,15 @@ class ViewManager {
    * @param view - WebContentsView 인스턴스
    */
   static setupTabEvents(tabId, view) {
-    view.webContents.on("before-input-event", (_event, input) => {
-      try {
-        if (!this.uiWebContents) return;
-        if (input.type !== "mouseDown" && input.type !== "mouseUp") return;
-        const payload = OverlayContentPointerEventSchema.parse({
-          kind: input.type,
-          timestamp: Date.now()
-        });
-        this.uiWebContents.send(IPC_CHANNELS.OVERLAY.CONTENT_POINTER, payload);
-      } catch {
-      }
+    attachTabEvents({
+      tabId,
+      view,
+      getTabData: (id) => this.tabs.get(id),
+      getUiWebContents: () => this.uiWebContents,
+      syncToRenderer: () => this.syncToRenderer(),
+      createTab: (url) => this.createTab(url),
+      logger
     });
-    view.webContents.on("page-title-updated", (_event, title) => {
-      const tabData = this.tabs.get(tabId);
-      if (tabData) {
-        tabData.title = title;
-        logger.info("[ViewManager] Tab title updated", { tabId, title });
-        this.syncToRenderer();
-      }
-    });
-    view.webContents.on("did-navigate", (_event, url) => {
-      const tabData = this.tabs.get(tabId);
-      if (tabData) {
-        tabData.url = url;
-        logger.info("[ViewManager] Tab URL changed", { tabId, url });
-        this.syncToRenderer();
-        if (this.uiWebContents && tabData.isActive) {
-          this.uiWebContents.send("view:navigated", {
-            url,
-            canGoBack: view.webContents.navigationHistory.canGoBack(),
-            canGoForward: view.webContents.navigationHistory.canGoForward(),
-            timestamp: Date.now()
-          });
-        }
-      }
-    });
-    view.webContents.on("did-navigate-in-page", (_event, url) => {
-      const tabData = this.tabs.get(tabId);
-      if (tabData) {
-        tabData.url = url;
-        this.syncToRenderer();
-        if (this.uiWebContents && tabData.isActive) {
-          this.uiWebContents.send("view:navigated", {
-            url,
-            canGoBack: view.webContents.navigationHistory.canGoBack(),
-            canGoForward: view.webContents.navigationHistory.canGoForward(),
-            timestamp: Date.now()
-          });
-        }
-      }
-    });
-    view.webContents.setWindowOpenHandler(({ url }) => {
-      logger.info("[ViewManager] Intercepted window.open", { url });
-      void this.createTab(url);
-      return { action: "deny" };
-    });
-    view.webContents.on("page-favicon-updated", (_event, favicons) => {
-      const tabData = this.tabs.get(tabId);
-      if (tabData && favicons.length > 0) {
-        tabData.favicon = favicons[0];
-        logger.debug("[ViewManager] Tab favicon updated", { tabId, favicon: favicons[0] });
-        this.syncToRenderer();
-      }
-    });
-    view.webContents.on("did-finish-load", () => {
-      const tabData = this.tabs.get(tabId);
-      if (!tabData) return;
-      if (this.uiWebContents && tabData.isActive) {
-        this.uiWebContents.send("view:loaded", {
-          url: view.webContents.getURL(),
-          timestamp: Date.now()
-        });
-      }
-    });
-    logger.info("[ViewManager] Tab event listeners attached", { tabId });
   }
   /**
    * UI WebContents가 항상 최상위(마지막 인덱스)에 오도록 보장
@@ -1034,71 +1269,41 @@ class ViewManager {
    * UI View를 최상단(Z-Order top)으로 이동
    */
   static ensureUITopmost() {
-    if (!this.contentWindow || !this.uiWebContents || this.lastReorderTarget === "ui") return;
-    try {
-      const contentView = this.contentWindow.getContentView();
-      const uiId = this.uiWebContents.id;
-      const uiView = contentView.children.find((child) => {
-        const maybe = child;
-        return maybe.webContents?.id === uiId;
-      });
-      if (uiView) {
-        contentView.addChildView(uiView);
-        this.lastReorderTarget = "ui";
-      }
-    } catch (error) {
-      logger.error("[ViewManager] Failed to reorder UI view", error);
-    }
+    if (!this.contentWindow || !this.uiWebContents) return;
+    ensureUITopmost({
+      contentWindow: this.contentWindow,
+      uiWebContents: this.uiWebContents,
+      lastReorderTarget: this.lastReorderTarget,
+      setLastReorderTarget: (next) => {
+        this.lastReorderTarget = next;
+      },
+      logger
+    });
   }
   /**
    * Content View(웹탭)를 최상단으로 이동하여 클릭 가능하게 함
    */
   static ensureContentTopmost() {
-    if (!this.contentWindow || !this.activeTabId || this.lastReorderTarget === "content") return;
-    try {
-      const tabData = this.tabs.get(this.activeTabId);
-      if (!tabData) return;
-      const contentView = this.contentWindow.getContentView();
-      contentView.addChildView(tabData.view);
-      this.lastReorderTarget = "content";
-    } catch (error) {
-      logger.error("[ViewManager] Failed to reorder content view", error);
-    }
+    if (!this.contentWindow || !this.activeTabId) return;
+    ensureContentTopmost({
+      contentWindow: this.contentWindow,
+      activeTabId: this.activeTabId,
+      tabs: this.tabs,
+      lastReorderTarget: this.lastReorderTarget,
+      setLastReorderTarget: (next) => {
+        this.lastReorderTarget = next;
+      },
+      logger
+    });
   }
   static dumpContentViewTree(reason) {
     if (!this.contentWindow) return;
-    try {
-      const contentView = this.contentWindow.getContentView();
-      const uiId = this.uiWebContents?.id;
-      const children = contentView.children.map((child, index) => {
-        const ctor = child.constructor?.name;
-        const maybe = child;
-        const wcId = maybe.webContents?.id;
-        let bounds = null;
-        try {
-          bounds = child.getBounds?.() ?? null;
-        } catch {
-          bounds = null;
-        }
-        return {
-          index,
-          type: ctor ?? "Unknown",
-          isUiWebContents: uiId ? wcId === uiId : false,
-          webContentsId: wcId ?? null,
-          isContentRoot: false,
-          bounds
-        };
-      });
-      logger.info("[ViewManager] ContentView tree", {
-        reason,
-        windowId: this.contentWindow.id,
-        uiWebContentsId: uiId ?? null,
-        childCount: children.length,
-        children
-      });
-    } catch (error) {
-      logger.error("[ViewManager] Failed to dump content view tree", error);
-    }
+    dumpContentViewTree({
+      reason,
+      contentWindow: this.contentWindow,
+      uiWebContents: this.uiWebContents,
+      logger
+    });
   }
 }
 const TRACKING_INTERVAL_MS = 16;
@@ -2407,24 +2612,31 @@ function setupTabHandlers(registry2) {
   });
   registry2.handle(IPC_CHANNELS.TAB.REORDER, async (_event, input) => {
     try {
-      const { tabId, targetId } = input;
-      logger.info("[TabHandler] tab:reorder requested", { tabId, targetId });
-      ViewManager.reorderTab(tabId, targetId);
+      const { tabId, position } = validateOrThrow(TabReorderWithinSectionSchema, input);
+      logger.info("[TabHandler] tab:reorder requested", { tabId, position });
+      ViewManager.reorderTabWithinSection(tabId, position);
       return { success: true };
     } catch (error) {
       logger.error("[TabHandler] tab:reorder failed:", error);
       return { success: false, error: String(error) };
     }
   });
+  registry2.handle(IPC_CHANNELS.TAB.REORDER_ICON, async (_event, input) => {
+    try {
+      const { fromIndex, toIndex } = validateOrThrow(TabReorderIconSchema, input);
+      logger.info("[TabHandler] tab:reorder-icon requested", { fromIndex, toIndex });
+      ViewManager.reorderIcon(fromIndex, toIndex);
+      return { success: true };
+    } catch (error) {
+      logger.error("[TabHandler] tab:reorder-icon failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
   registry2.handle(IPC_CHANNELS.TAB.MOVE_SECTION, async (_event, input) => {
     try {
-      const { tabId, section } = input;
-      logger.info("[TabHandler] tab:move-section requested", { tabId, section });
-      if (section === "icon" || section === "space") {
-        ViewManager.setPinned(tabId, true);
-      } else {
-        ViewManager.setPinned(tabId, false);
-      }
+      const { tabId, targetType } = validateOrThrow(TabMoveSectionSchema, input);
+      logger.info("[TabHandler] tab:move-section requested", { tabId, targetType });
+      ViewManager.moveTabToSection(tabId, targetType);
       return { success: true };
     } catch (error) {
       logger.error("[TabHandler] tab:move-section failed:", error);

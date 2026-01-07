@@ -7,6 +7,8 @@
 
 import React from 'react'
 
+import { logger } from '@renderer/lib/logger'
+
 interface FaviconItem {
   id: string
   label: string
@@ -50,7 +52,7 @@ export const PinnedAppsGrid: React.FC<FaviconBarProps> = ({
     } else {
       window.electronAPI
         .tab.create(item.url)
-        .catch((err) => console.error('[FaviconBar] Failed to open:', err))
+        .catch((err) => logger.error('[PinnedAppsGrid] Failed to open', err))
     }
   }
 

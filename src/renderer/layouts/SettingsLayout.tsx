@@ -1,5 +1,5 @@
 import React from 'react';
-import { SettingsSidebar } from '../components/settings/SettingsSidebar';
+import { SettingsSidebar } from '../components/Settings/SettingsSidebar';
 import { tokens, cn } from '@renderer/styles';
 
 interface SettingsCategory {

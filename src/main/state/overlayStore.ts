@@ -60,6 +60,7 @@ export const overlayStore = createStore<MainOverlayStore>((set, get) => ({
 }))
 
 export const getMainOverlayState = (): MainOverlayState => {
-  const { focused, headerOpen, sidebarOpen, headerLatched, sidebarLatched } = overlayStore.getState()
-  return { focused, headerOpen, sidebarOpen, headerLatched, sidebarLatched }
+  const { focused, headerOpen, sidebarOpen, headerLatched, sidebarLatched, isDragging } =
+    overlayStore.getState()
+  return { focused, headerOpen, sidebarOpen, headerLatched, sidebarLatched, isDragging }
 }

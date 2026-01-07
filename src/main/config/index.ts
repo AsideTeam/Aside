@@ -6,5 +6,5 @@
  * - paths.ts: 파일 경로 설정
  */
 
-export { Env, validateEnv } from './Env'
-export { Paths } from './Paths'
+export { Env, validateEnv } from './env'
+export { Paths } from './paths'

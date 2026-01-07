@@ -208,6 +208,35 @@ export const TabReorderSchema = z.object({
 
 export type TabReorderInput = z.infer<typeof TabReorderSchema>
 
+export const TabMoveSectionSchema = z.object({
+  tabId: z
+    .string()
+    .min(1, 'Tab ID cannot be empty')
+    .max(64, 'Tab ID too long')
+    .regex(/^tab-[a-zA-Z0-9-]+$/, 'Invalid Tab ID format'),
+  targetType: z.enum(['icon', 'space', 'tab']),
+})
+
+export type TabMoveSectionInput = z.infer<typeof TabMoveSectionSchema>
+
+export const TabReorderWithinSectionSchema = z.object({
+  tabId: z
+    .string()
+    .min(1, 'Tab ID cannot be empty')
+    .max(64, 'Tab ID too long')
+    .regex(/^tab-[a-zA-Z0-9-]+$/, 'Invalid Tab ID format'),
+  position: z.number().int().nonnegative('Position must be non-negative'),
+})
+
+export type TabReorderWithinSectionInput = z.infer<typeof TabReorderWithinSectionSchema>
+
+export const TabReorderIconSchema = z.object({
+  fromIndex: z.number().int().nonnegative(),
+  toIndex: z.number().int().nonnegative(),
+})
+
+export type TabReorderIconInput = z.infer<typeof TabReorderIconSchema>
+
 export const TabCloseOthersSchema = z.object({
   tabId: z
     .string()

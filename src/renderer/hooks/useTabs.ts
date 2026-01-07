@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { IPC_CHANNELS } from '@shared/ipc/channels'
+import { logger } from '@renderer/lib/logger'
 
 export interface Tab {
   id: string
@@ -7,7 +8,34 @@ export interface Tab {
   url: string
   isActive: boolean
   isPinned?: boolean
+  isFavorite?: boolean
   favicon?: string
+}
+
+function isTab(value: unknown): value is Tab {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  return (
+    typeof v.id === 'string' &&
+    typeof v.url === 'string' &&
+    typeof v.title === 'string' &&
+    typeof v.isActive === 'boolean'
+  )
+}
+
+function isTabListResult(value: unknown): value is { success: boolean; tabs: Tab[] } {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  if (typeof v.success !== 'boolean') return false
+  if (!Array.isArray(v.tabs)) return false
+  return v.tabs.every(isTab)
+}
+
+function isTabsUpdatedPayload(value: unknown): value is { tabs: Tab[]; activeTabId: string | null } {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  if (!Array.isArray(v.tabs) || !v.tabs.every(isTab)) return false
+  return v.activeTabId === null || typeof v.activeTabId === 'string'
 }
 
 
@@ -19,19 +47,22 @@ export function useTabs() {
     if (!window.electronAPI) return
     try {
       // TabHandler returns { success: boolean, tabs: Tab[] }
-      const result = await window.electronAPI.invoke(IPC_CHANNELS.TAB.LIST) as { success: boolean; tabs: Tab[] }
-      
-      if (result && Array.isArray(result.tabs)) {
-        setTabs(result.tabs)
-        const active = result.tabs.find(t => t.isActive)
-        setActiveTabId(active ? active.id : null)
-      } else {
-        console.warn('[useTabs] Invalid tab list response:', result)
+      const result = await window.electronAPI.invoke(IPC_CHANNELS.TAB.LIST)
+
+      if (!isTabListResult(result)) {
+        logger.warn('[useTabs] Invalid tab:list response', { result })
         setTabs([])
+        setActiveTabId(null)
+        return
       }
+
+      setTabs(result.tabs)
+      const active = result.tabs.find((t) => t.isActive)
+      setActiveTabId(active ? active.id : null)
     } catch (err) {
-      console.error('[useTabs] Failed to fetch tabs', err)
+      logger.error('[useTabs] Failed to fetch tabs', err)
       setTabs([])
+      setActiveTabId(null)
     }
   }, [])
 
@@ -42,15 +73,13 @@ export function useTabs() {
 
     // IPC event receiver
     const handleTabsUpdated = (data: unknown) => {
-      // Data from ViewManager.syncToRenderer is { tabs: Tab[], activeTabId: string | null }
-      const payload = data as { tabs: Tab[]; activeTabId: string | null }
-      
-      if (payload && Array.isArray(payload.tabs)) {
-        setTabs(payload.tabs)
-        setActiveTabId(payload.activeTabId)
-      } else {
-        console.warn('[useTabs] Received invalid tabs update:', data)
+      if (!isTabsUpdatedPayload(data)) {
+        logger.warn('[useTabs] Received invalid tabs update', { data })
+        return
       }
+
+      setTabs(data.tabs)
+      setActiveTabId(data.activeTabId)
     }
 
     window.electronAPI.on(IPC_CHANNELS.TAB.UPDATED, handleTabsUpdated)

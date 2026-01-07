@@ -55,14 +55,26 @@ model AppSetting {
  * 세션 탭 (SessionTab)
  * 
  * 앱 시작 시 마지막 탭 상태 복구용
- * (MVP 단계에서는 구조만 잡아둠)
+ * 
+ * type: 'icon' | 'space' | 'tab'
+ * - icon: 고정 아이콘 (favicon으로 표시)
+ * - space: 핀된 탭 (스페이스 섹션)
+ * - tab: 일반 탭 (탭 섹션)
+ * 
+ * isFavorite: Icon 섹션에 나타나는지 여부
+ * isPinned: Space 섹션에 나타나는지 여부
  */
 model SessionTab {
   id        String   @id @default(cuid())
   url       String
   title     String?
+  favicon   String?
   isActive  Boolean  @default(false)
-  position  Int      @default(0)
+  type      String   @default("tab")      // 'icon' | 'space' | 'tab'
+  isFavorite Boolean @default(false)      // Icon 섹션 표시 여부
+  isPinned  Boolean  @default(false)      // Space 섹션 표시 여부
+  position  Int      @default(0)          // 섹션 내 순서
 
   @@index([isActive])
+  @@index([type])
 }
