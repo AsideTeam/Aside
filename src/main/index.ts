@@ -19,12 +19,24 @@ import { Env } from '@main/config'
 import { AppLifecycle } from '@main/core/lifecycle'
 import { SessionManager } from '@main/core/Session'
 import { UpdateService } from '@main/services/Update'
+import { SettingsStore } from '@main/services/SettingsStore'
 import { setupIPCHandlers, removeAllIPCHandlers } from '@main/handlers'
 import { setupProtocolHandlers, setupNavigationInterceptors } from '@main/handlers/ProtocolHandler'
 
 // 앱 이름 설정 (userData 경로 및 single instance lock에 영향을 줌)
 // dev는 별도 이름을 써서 프로덕션/다른 세션과 충돌을 피한다.
 app.name = Env.isDev ? 'aside-dev' : 'aside'
+
+// Chromium 로케일은 부팅 시점에만 안정적으로 적용된다.
+// (런타임에서 navigator.language/Intl 로케일을 완전히 바꾸는 건 안전하게 불가능에 가깝다)
+try {
+  const language = SettingsStore.getInstance().get('language')
+  const locale = language === 'ko' ? 'ko-KR' : language === 'ja' ? 'ja-JP' : 'en-US'
+  app.commandLine.appendSwitch('lang', locale)
+  logger.info('[Main] Chromium locale switch applied', { locale, language })
+} catch (error) {
+  logger.warn('[Main] Failed to apply Chromium locale switch', { error: String(error) })
+}
 
 // 프로토콜 핸들러 등록 (app.ready 전에 호출 필요)
 setupProtocolHandlers()

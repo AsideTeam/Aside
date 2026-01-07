@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { IPC_CHANNELS } from '@shared/ipc/channels'
 import { logger } from '@renderer/lib/logger'
+import { useAppSettings } from '@renderer/hooks/useAppSettings'
 
 export interface Tab {
   id: string
@@ -42,6 +43,7 @@ function isTabsUpdatedPayload(value: unknown): value is { tabs: Tab[]; activeTab
 export function useTabs() {
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
+  const { settings } = useAppSettings()
 
   const fetchTabs = useCallback(async () => {
     if (!window.electronAPI) return
@@ -90,7 +92,7 @@ export function useTabs() {
   }, [fetchTabs])
 
   const createTab = async (url?: string) => {
-    const targetUrl = url || 'https://www.google.com'
+    const targetUrl = url || settings?.homepage || 'https://www.google.com'
     await window.electronAPI?.invoke(IPC_CHANNELS.TAB.CREATE, { url: targetUrl })
   }
 

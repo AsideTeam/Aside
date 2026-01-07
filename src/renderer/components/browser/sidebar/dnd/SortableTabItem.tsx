@@ -39,7 +39,7 @@ export function SortableTabItem({
       className={cn(
         'sidebar-tab-item',
         isActive && 'sidebar-tab-item--active',
-        isOverlay && 'opacity-90 bg-[#2B2D31] shadow-xl scale-105 border border-white/10'
+        isOverlay && 'opacity-90 bg-(--color-bg-secondary) shadow-xl scale-105 border border-(--color-border-light)'
       )}
       {...attributes}
       {...listeners}

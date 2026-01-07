@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 
 import { logger } from '@renderer/lib/logger'
-import { useAppSettings } from './useAppSettings'
+import { useAppSettings } from '@renderer/hooks/useAppSettings'
 import type { SettingsSchema } from '@shared/types'
 
 function mapFontSize(fontSize: SettingsSchema['fontSize']): number {

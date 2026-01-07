@@ -36,13 +36,13 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   return (
     <div className={cn(
       'w-full px-3 py-3 rounded-lg',
-      'bg-white/8 hover:bg-white/12',
-      'border border-white/5',
+      'bg-(--color-bg-secondary) hover:bg-(--color-bg-tertiary)',
+      'border border-(--color-border-light)',
       'flex items-center justify-between gap-3',
       'transition-all duration-200'
     )}>
       {/* Left: Thumbnail */}
-      <div className="w-10 h-10 rounded-md bg-linear-to-br from-purple-500 to-pink-500 shrink-0 overflow-hidden flex items-center justify-center">
+      <div className="w-10 h-10 rounded-md bg-(--color-bg-tertiary) shrink-0 overflow-hidden flex items-center justify-center">
         {thumbnail ? (
           <img
             src={thumbnail}
@@ -50,16 +50,16 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             className="w-full h-full object-cover"
           />
         ) : (
-          <div className="w-full h-full bg-linear-to-br from-purple-600 to-pink-600" />
+          <div className="w-full h-full bg-(--color-bg-hover)" />
         )}
       </div>
 
       {/* Center: Info + Controls */}
       <div className="flex-1 min-w-0">
-        <div className="text-[12px] font-medium text-gray-200 truncate">
+        <div className="text-[12px] font-medium text-(--color-text-primary) truncate">
           {title}
         </div>
-        <div className="text-[11px] text-gray-500 truncate">
+        <div className="text-[11px] text-(--color-text-secondary) truncate">
           {artist}
         </div>
       </div>
@@ -70,8 +70,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           onClick={onPrevious}
           className={cn(
             'p-1.5 rounded-md',
-            'text-gray-500 hover:text-gray-300',
-            'hover:bg-white/10',
+            'text-(--color-text-secondary) hover:text-(--color-text-primary)',
+            'hover:bg-(--color-bg-hover)',
             'transition-colors'
           )}
           title="Previous"
@@ -83,8 +83,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           onClick={onPlayPause}
           className={cn(
             'p-1.5 rounded-md',
-            'text-gray-500 hover:text-white',
-            'hover:bg-white/10',
+            'text-(--color-text-secondary) hover:text-(--color-text-primary)',
+            'hover:bg-(--color-bg-hover)',
             'transition-colors'
           )}
           title={isPlaying ? 'Pause' : 'Play'}
@@ -96,8 +96,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           onClick={onNext}
           className={cn(
             'p-1.5 rounded-md',
-            'text-gray-500 hover:text-gray-300',
-            'hover:bg-white/10',
+            'text-(--color-text-secondary) hover:text-(--color-text-primary)',
+            'hover:bg-(--color-bg-hover)',
             'transition-colors'
           )}
           title="Next"
@@ -109,8 +109,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           onClick={onVolumeClick}
           className={cn(
             'p-1.5 rounded-md',
-            'text-gray-500 hover:text-gray-300',
-            'hover:bg-white/10',
+            'text-(--color-text-secondary) hover:text-(--color-text-primary)',
+            'hover:bg-(--color-bg-hover)',
             'transition-colors'
           )}
           title="Volume"

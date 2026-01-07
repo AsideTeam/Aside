@@ -1,4 +1,4 @@
-import { app, WebContentsView, screen, BrowserWindow, session, shell, ipcMain, protocol } from "electron";
+import { app, nativeTheme, WebContentsView, screen, BrowserWindow, session, webContents, shell, ipcMain, protocol } from "electron";
 import Store from "electron-store";
 import { existsSync, mkdirSync, appendFileSync, promises } from "node:fs";
 import path, { join, dirname } from "node:path";
@@ -889,6 +889,90 @@ class SettingsStore {
     return this.store.onDidAnyChange(callback);
   }
 }
+function toNativeThemeSource(theme) {
+  switch (theme) {
+    case "light":
+      return "light";
+    case "dark":
+      return "dark";
+    case "system":
+    default:
+      return "system";
+  }
+}
+async function withDebugger(webContents2, fn) {
+  if (webContents2.isDestroyed()) return;
+  try {
+    webContents2.debugger.attach("1.3");
+  } catch (error) {
+    logger.warn("[AppearanceService] Failed to attach debugger (CDP emulation disabled for this webContents)", {
+      id: webContents2.id,
+      error: String(error)
+    });
+    return;
+  }
+  try {
+    await fn();
+  } catch (error) {
+    logger.warn("[AppearanceService] CDP command failed", {
+      id: webContents2.id,
+      error: String(error)
+    });
+  } finally {
+    try {
+      webContents2.debugger.detach();
+    } catch {
+    }
+  }
+}
+class AppearanceService {
+  static initialized = false;
+  static unsubscribers = [];
+  static initialize() {
+    if (this.initialized) return;
+    this.initialized = true;
+    const store = SettingsStore.getInstance();
+    this.applyNativeTheme(store.get("theme"));
+    this.unsubscribers.push(
+      store.onChange("theme", (value) => {
+        const theme = value === "light" || value === "dark" || value === "system" ? value : store.get("theme");
+        this.applyNativeTheme(theme);
+      })
+    );
+  }
+  static applyNativeTheme(theme) {
+    try {
+      nativeTheme.themeSource = toNativeThemeSource(theme);
+      logger.info("[AppearanceService] Applied nativeTheme.themeSource", { themeSource: nativeTheme.themeSource });
+    } catch (error) {
+      logger.error("[AppearanceService] Failed to apply native theme", error);
+    }
+  }
+  static async applyToWebContents(webContents2) {
+    const store = SettingsStore.getInstance();
+    const theme = store.get("theme");
+    await withDebugger(webContents2, async () => {
+      if (theme === "system") {
+        await webContents2.debugger.sendCommand("Emulation.setEmulatedMedia", { media: "", features: [] });
+        return;
+      }
+      await webContents2.debugger.sendCommand("Emulation.setEmulatedMedia", {
+        media: "",
+        features: [{ name: "prefers-color-scheme", value: theme }]
+      });
+    });
+  }
+  static dispose() {
+    for (const unsub of this.unsubscribers) {
+      try {
+        unsub();
+      } catch {
+      }
+    }
+    this.unsubscribers = [];
+    this.initialized = false;
+  }
+}
 function ensureUITopmost({
   contentWindow,
   uiWebContents,
@@ -988,10 +1072,10 @@ class ViewManager {
     const clamped = Math.min(500, Math.max(25, percent));
     return clamped / 100;
   }
-  static applyPageZoomToWebContents(webContents, zoomSetting) {
+  static applyPageZoomToWebContents(webContents2, zoomSetting) {
     try {
       const factor = this.getZoomFactorFromSetting(zoomSetting);
-      webContents.setZoomFactor(factor);
+      webContents2.setZoomFactor(factor);
       logger.info("[ViewManager] Applied page zoom", { factor, zoomSetting });
     } catch (error) {
       logger.warn("[ViewManager] Failed to apply page zoom", { error: String(error), zoomSetting });
@@ -1034,11 +1118,31 @@ class ViewManager {
           this.applyPageZoomToAllTabs(zoomSetting);
         })
       );
+      this.settingsUnsubscribers.push(
+        settingsStore.onChange("theme", () => {
+          for (const tab of this.tabs.values()) {
+            void AppearanceService.applyToWebContents(tab.view.webContents);
+          }
+        })
+      );
+      this.settingsUnsubscribers.push(
+        settingsStore.onChange("language", () => {
+          for (const tab of this.tabs.values()) {
+            if (tab.url.startsWith("about:")) continue;
+            try {
+              tab.view.webContents.reload();
+            } catch (error) {
+              logger.warn("[ViewManager] Failed to reload tab after language change", { error: String(error) });
+            }
+          }
+        })
+      );
       this.dumpContentViewTree("after-initialize");
       this.contentWindow.on("resize", () => {
         this.layout();
       });
-      const homeTabId = await this.createTab("https://www.google.com");
+      const homepage = SettingsStore.getInstance().get("homepage");
+      const homeTabId = await this.createTab(homepage);
       logger.info("[ViewManager] Home tab created", { tabId: homeTabId });
       this.switchTab(homeTabId);
       this.layout();
@@ -1104,6 +1208,7 @@ class ViewManager {
       this.dumpContentViewTree("after-add-tab-view");
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
       this.setupTabEvents(tabId, view);
+      void AppearanceService.applyToWebContents(view.webContents);
       void view.webContents.loadURL(url).catch((err) => {
         logger.error("[ViewManager] Failed to load URL in tab", { tabId, url, error: err });
       });
@@ -1399,7 +1504,8 @@ class ViewManager {
       this.closeTab(tabId);
     }
     if (this.tabs.size === 0) {
-      void this.createTab("https://www.google.com");
+      const homepage = SettingsStore.getInstance().get("homepage");
+      void this.createTab(homepage);
     }
     logger.info("[ViewManager] Closed all tabs");
   }
@@ -1462,6 +1568,7 @@ class ViewManager {
             return;
         }
       }
+      void AppearanceService.applyToWebContents(tabData.view.webContents);
       void tabData.view.webContents.loadURL(url).catch((err) => {
         logger.error("[ViewManager] loadURL error", { url, error: err });
       });
@@ -1511,6 +1618,13 @@ class ViewManager {
    */
   static destroy() {
     logger.info("[ViewManager] Destroying all tabs...");
+    for (const unsub of this.settingsUnsubscribers) {
+      try {
+        unsub();
+      } catch {
+      }
+    }
+    this.settingsUnsubscribers = [];
     for (const [tabId] of this.tabs) {
       try {
         this.closeTab(tabId);
@@ -2558,6 +2672,7 @@ class AppLifecycle {
       logger.info("Step 4/8: Connecting to database...");
       await connectWithRetry(Paths.database());
       logger.info("Step 4/8: Database connected");
+      AppearanceService.initialize();
       logger.info("Step 5/8: Initializing ViewManager");
       const mainWindow = await MainWindow.create();
       const uiWebContents = MainWindow.getUiOverlayWebContents();
@@ -2597,6 +2712,7 @@ class AppLifecycle {
       logger.info("[AppLifecycle] Step 1/4: ViewManager destroyed");
       logger.info("[AppLifecycle] Step 1/4: Destroying ViewManager");
       UpdateService.cleanup();
+      AppearanceService.dispose();
       logger.info("[AppLifecycle] Step 2/4: Services cleaned up");
       await disconnectWithCleanup();
       logger.info("[AppLifecycle] Step 3/4: Database disconnected");
@@ -2615,6 +2731,58 @@ class AppLifecycle {
     throw new Error("AppLifecycle is a singleton. Do not instantiate.");
   }
 }
+class AdBlockService {
+  static adPatterns = [
+    // 공통 광고 네트워크
+    /ad[svertizing]*\.google\./i,
+    /ads\.g\.doubleclick\.net/i,
+    /googlesyndication\.com/i,
+    /adclick\./i,
+    /ads\.facebook\.com/i,
+    /ads\.linkedin\.com/i,
+    /ads\.twitter\.com/i,
+    /bat\.bing\.com/i,
+    /pagead\d+\.googlesyndication\.com/i,
+    /analytics\.google\.com/i
+  ];
+  /**
+   * AdBlock Service 초기화
+   */
+  static initialize() {
+    logger.info("[AdBlockService] Initializing with", {
+      patterns: this.adPatterns.length
+    });
+  }
+  /**
+   * URL이 광고인지 확인
+   *
+   * @param url - 확인할 URL
+   * @returns 광고이면 true
+   */
+  static isAdURL(url) {
+    try {
+      return this.adPatterns.some((pattern) => pattern.test(url));
+    } catch (error) {
+      logger.error("[AdBlockService] URL check failed:", error);
+      return false;
+    }
+  }
+  /**
+   * 패턴 추가
+   */
+  static addPattern(pattern) {
+    this.adPatterns.push(pattern);
+    logger.info("[AdBlockService] Pattern added", { pattern: pattern.source });
+  }
+  /**
+   * 패턴 초기화
+   */
+  static resetPatterns() {
+    this.adPatterns = [];
+    this.initialize();
+    logger.info("[AdBlockService] Patterns reset");
+  }
+}
 const CHROME_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 class SessionManager {
   /**
@@ -2629,19 +2797,124 @@ class SessionManager {
       }
       defaultSession.setUserAgent(CHROME_USER_AGENT);
       logger.info("[SessionManager] User-Agent set to Chrome");
-      if (Env.isDev) {
-        defaultSession.webRequest.onHeadersReceived((details, callback) => {
-          const isViteDev = details.url.startsWith("http://localhost:5173/");
-          if (!isViteDev) {
-            callback({});
-            return;
+      const settingsStore = SettingsStore.getInstance();
+      AdBlockService.initialize();
+      let doNotTrack = settingsStore.get("doNotTrack");
+      let blockAds = settingsStore.get("blockAds");
+      let blockThirdPartyCookies = settingsStore.get("blockThirdPartyCookies");
+      let language = settingsStore.get("language");
+      const languageHeader = () => {
+        switch (language) {
+          case "ko":
+            return "ko-KR,ko;q=0.9,en;q=0.8";
+          case "ja":
+            return "ja-JP,ja;q=0.9,en;q=0.8";
+          case "en":
+          default:
+            return "en-US,en;q=0.9";
+        }
+      };
+      const spellCheckerLanguages = () => {
+        switch (language) {
+          case "ko":
+            return ["ko-KR", "en-US"];
+          case "ja":
+            return ["ja-JP", "en-US"];
+          case "en":
+          default:
+            return ["en-US"];
+        }
+      };
+      const getTopLevelHost = (webContentsId) => {
+        if (typeof webContentsId !== "number") return null;
+        try {
+          const wc = webContents.fromId(webContentsId);
+          if (!wc) return null;
+          const url = wc.getURL();
+          if (!url) return null;
+          return new URL(url).hostname;
+        } catch {
+          return null;
+        }
+      };
+      const isThirdParty = (requestUrl, topLevelHost) => {
+        if (!topLevelHost) return false;
+        try {
+          const host = new URL(requestUrl).hostname;
+          return host !== topLevelHost;
+        } catch {
+          return false;
+        }
+      };
+      defaultSession.webRequest.onBeforeRequest((details, callback) => {
+        if (blockAds && AdBlockService.isAdURL(details.url)) {
+          callback({ cancel: true });
+          return;
+        }
+        callback({});
+      });
+      defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+        const requestHeaders = { ...details.requestHeaders ?? {} };
+        if (doNotTrack) {
+          requestHeaders["DNT"] = "1";
+        } else {
+          delete requestHeaders["DNT"];
+        }
+        requestHeaders["Accept-Language"] = languageHeader();
+        if (blockThirdPartyCookies) {
+          const topHost = getTopLevelHost(details.webContentsId);
+          if (isThirdParty(details.url, topHost)) {
+            delete requestHeaders["Cookie"];
+            delete requestHeaders["cookie"];
           }
-          const responseHeaders = details.responseHeaders ?? {};
+        }
+        callback({ requestHeaders });
+      });
+      try {
+        defaultSession.setSpellCheckerLanguages(spellCheckerLanguages());
+        logger.info("[SessionManager] Spellchecker languages set", { languages: spellCheckerLanguages() });
+      } catch (error) {
+        logger.warn("[SessionManager] Failed to set spellchecker languages", { error: String(error) });
+      }
+      settingsStore.onChange("doNotTrack", (v) => {
+        doNotTrack = typeof v === "boolean" ? v : settingsStore.get("doNotTrack");
+        logger.info("[SessionManager] doNotTrack changed", { doNotTrack });
+      });
+      settingsStore.onChange("blockAds", (v) => {
+        blockAds = typeof v === "boolean" ? v : settingsStore.get("blockAds");
+        logger.info("[SessionManager] blockAds changed", { blockAds });
+      });
+      settingsStore.onChange("blockThirdPartyCookies", (v) => {
+        blockThirdPartyCookies = typeof v === "boolean" ? v : settingsStore.get("blockThirdPartyCookies");
+        logger.info("[SessionManager] blockThirdPartyCookies changed", { blockThirdPartyCookies });
+      });
+      settingsStore.onChange("language", (v) => {
+        language = typeof v === "string" ? v : settingsStore.get("language");
+        logger.info("[SessionManager] language changed", { language });
+        try {
+          defaultSession.setSpellCheckerLanguages(spellCheckerLanguages());
+          logger.info("[SessionManager] Spellchecker languages updated", { languages: spellCheckerLanguages() });
+        } catch (error) {
+          logger.warn("[SessionManager] Failed to update spellchecker languages", { error: String(error) });
+        }
+      });
+      defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        const responseHeaders = { ...details.responseHeaders ?? {} };
+        if (blockThirdPartyCookies) {
+          const topHost = getTopLevelHost(details.webContentsId);
+          if (isThirdParty(details.url, topHost)) {
+            delete responseHeaders["Set-Cookie"];
+            delete responseHeaders["set-cookie"];
+          }
+        }
+        if (Env.isDev && details.url.startsWith("http://localhost:5173/")) {
           responseHeaders["Cache-Control"] = ["no-store"];
           delete responseHeaders["ETag"];
           delete responseHeaders["etag"];
-          callback({ responseHeaders });
-        });
+        }
+        callback({ responseHeaders });
+      });
+      if (Env.isDev) {
         logger.info("[SessionManager] Dev cache disabled for Vite (localhost:5173)");
       }
       defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
@@ -3694,6 +3967,14 @@ function setupNavigationInterceptors() {
   logger.info("[ProtocolHandler] Navigation interceptors setup completed");
 }
 app.name = Env.isDev ? "aside-dev" : "aside";
+try {
+  const language = SettingsStore.getInstance().get("language");
+  const locale = language === "ko" ? "ko-KR" : language === "ja" ? "ja-JP" : "en-US";
+  app.commandLine.appendSwitch("lang", locale);
+  logger.info("[Main] Chromium locale switch applied", { locale, language });
+} catch (error) {
+  logger.warn("[Main] Failed to apply Chromium locale switch", { error: String(error) });
+}
 setupProtocolHandlers();
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {

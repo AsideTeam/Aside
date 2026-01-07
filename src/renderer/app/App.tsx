@@ -3,8 +3,9 @@ import { ZenLayout } from '../layouts/Layout';
 import { BrowserPage } from '../pages/BrowserPage';
 import { tokens, cn } from '@renderer/styles';
 import { useApplyAppSettingsEffects } from '@renderer/hooks';
+import { AppSettingsProvider } from '@renderer/hooks/useAppSettings';
 
-export const App: React.FC = () => {
+const AppInner: React.FC = () => {
   useApplyAppSettingsEffects();
 
   // TODO: 설정에서 layout mode를 선택할 수 있도록 구현
@@ -21,11 +22,15 @@ export const App: React.FC = () => {
         tokens.colors.text.primary
       )}
     >
-      {layoutMode === 'zen' ? (
-        <ZenLayout />
-      ) : (
-        <BrowserPage />
-      )}
+      {layoutMode === 'zen' ? <ZenLayout /> : <BrowserPage />}
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <AppSettingsProvider>
+      <AppInner />
+    </AppSettingsProvider>
   );
 };

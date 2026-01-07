@@ -21,6 +21,7 @@ import { MainWindow } from '@main/core/window'
 import { ViewManager } from '@main/managers/ViewManager'
 import { UpdateService } from '@main/services/Update'
 import { connectWithRetry, disconnectWithCleanup } from '@main/database/connection'
+import { AppearanceService } from '@main/services/AppearanceService'
 
 /**
  * 애플리케이션 생명주기 상태
@@ -81,6 +82,9 @@ export class AppLifecycle {
       await connectWithRetry(Paths.database())
       logger.info('Step 4/8: Database connected')
 
+      // Appearance (nativeTheme) 초기화는 UI/콘텐츠 뷰 생성 전에 적용
+      AppearanceService.initialize()
+
       // Step 5: Managers 초기화
       logger.info('Step 5/8: Initializing ViewManager')
       const mainWindow = await MainWindow.create()
@@ -137,6 +141,7 @@ logger.info('[AppLifecycle] Step 1/4: Destroying ViewManager')
      
       // Step 2: Services 정리
       UpdateService.cleanup()  // ✅ Update 서비스 정리 (타이머 해제)
+      AppearanceService.dispose()
       logger.info('[AppLifecycle] Step 2/4: Services cleaned up')
 
       // Step 3: Database 연결 종료

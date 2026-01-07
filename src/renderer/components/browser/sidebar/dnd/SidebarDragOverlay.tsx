@@ -26,7 +26,7 @@ export function SidebarDragOverlay({
           const isIcon = Boolean(activeTab.isFavorite)
 
           return isIcon ? (
-            <button className="sidebar-icon-item opacity-90 scale-110 shadow-xl bg-[#2B2D31]">
+            <button className="sidebar-icon-item opacity-90 scale-110 shadow-xl bg-(--color-bg-secondary)">
               <img
                 src={getFaviconUrl(activeTab.url, activeTab.favicon)}
                 alt=""
@@ -34,7 +34,7 @@ export function SidebarDragOverlay({
               />
             </button>
           ) : (
-            <div className="sidebar-tab-item opacity-90 bg-[#2B2D31] shadow-xl scale-105 border border-white/10">
+            <div className="sidebar-tab-item opacity-90 bg-(--color-bg-secondary) shadow-xl scale-105 border border-(--color-border-light)">
               <div className="sidebar-tab-left">
                 <div className="sidebar-tab-favicon">
                   <img

@@ -26,7 +26,7 @@
 }
 
 .btn-danger {
-  @apply bg-(--color-danger) text-white hover:bg-(--color-danger-hover);
+  @apply bg-(--color-danger) text-(--color-on-danger) hover:bg-(--color-danger-hover);
 }
 
 /* Button Sizes */
@@ -88,7 +88,7 @@
 }
 
 .tab-active {
-  @apply bg-(--color-accent) text-white shadow-md;
+  @apply bg-(--color-accent) text-(--color-on-accent) shadow-md;
 }
 
 .tab-inactive {
@@ -104,11 +104,11 @@
 
 /* ===== AddressBar ===== */
 .address-bar {
-  @apply flex items-center gap-2 bg-white border-b border-(--color-border-light) px-4 py-3;
+  @apply flex items-center gap-2 bg-(--color-bg-secondary) border-b border-(--color-border-light) px-4 py-3;
 }
 
 .address-input {
-  @apply flex-1 px-3 py-2 border border-(--color-border-light) rounded bg-(--color-bg-input) focus:outline-none focus:ring-2 focus:ring-(--color-accent) focus:bg-white;
+  @apply flex-1 px-3 py-2 border border-(--color-border-light) rounded bg-(--color-bg-input) focus:outline-none focus:ring-2 focus:ring-(--color-accent) focus:bg-(--color-bg-secondary);
 }
 
 /* ===== Input Fields ===== */
@@ -118,7 +118,7 @@
 
 /* ===== Content Area ===== */
 .content-area {
-  @apply flex-1 relative bg-black overflow-hidden;
+  @apply flex-1 relative bg-(--color-bg-primary) overflow-hidden;
 }
 
 .content-placeholder {

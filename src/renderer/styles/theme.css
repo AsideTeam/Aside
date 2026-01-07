@@ -15,7 +15,7 @@
   --color-bg-secondary-rgb: 17, 24, 39; /* gray-900 (RGB only for rgba) */
   --color-bg-tertiary: rgb(31, 41, 55); /* gray-800 */
   --color-bg-hover: rgb(31, 41, 55); /* gray-800 */
-  --color-bg-input: rgb(243, 244, 246); /* gray-50 */
+  --color-bg-input: rgb(17, 24, 39); /* match dark surfaces */
 
   --color-text-primary: rgb(255, 255, 255);
   --color-text-secondary: rgb(156, 163, 175); /* gray-400 */
@@ -31,6 +31,9 @@
 
   --color-danger: rgb(239, 68, 68); /* red-500 */
   --color-danger-hover: rgb(220, 38, 38); /* red-600 */
+
+  --color-on-accent: rgb(255, 255, 255);
+  --color-on-danger: rgb(255, 255, 255);
 
   /* ===== Button Styles ===== */
   --button-primary-bg: rgb(37, 99, 235); /* blue-600 */
@@ -108,7 +111,7 @@
   --color-bg-secondary-rgb: 17, 24, 39;
   --color-bg-tertiary: rgb(31, 41, 55);
   --color-bg-hover: rgb(31, 41, 55);
-  --color-bg-input: rgb(243, 244, 246);
+  --color-bg-input: rgb(17, 24, 39);
 
   --color-text-primary: rgb(255, 255, 255);
   --color-text-secondary: rgb(156, 163, 175);
@@ -124,6 +127,9 @@
 
   --color-danger: rgb(239, 68, 68);
   --color-danger-hover: rgb(220, 38, 38);
+
+  --color-on-accent: rgb(255, 255, 255);
+  --color-on-danger: rgb(255, 255, 255);
 
   --button-primary-bg: rgb(37, 99, 235);
   --button-primary-bg-hover: rgb(29, 78, 216);
@@ -162,6 +168,9 @@
   --button-ghost-bg-hover: rgb(229, 231, 235);
   --button-ghost-text: rgb(107, 114, 128);
   --button-ghost-text-hover: rgb(17, 24, 39);
+
+  --color-on-accent: rgb(255, 255, 255);
+  --color-on-danger: rgb(255, 255, 255);
 }
 
 /* ===== RTL Support ===== */

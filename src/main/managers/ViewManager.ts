@@ -25,6 +25,7 @@ import type { TabData, TabSection } from './viewManager/types'
 import { applyLayout } from './viewManager/layout'
 import { attachTabEvents } from './viewManager/tabEvents'
 import { SettingsStore } from '@main/services/SettingsStore'
+import { AppearanceService } from '@main/services/AppearanceService'
 import {
   dumpContentViewTree,
   ensureContentTopmost as ensureContentTopmostImpl,
@@ -121,6 +122,31 @@ export class ViewManager {
         })
       )
 
+      // Theme / language changes should be reflected in existing WebContentsViews.
+      this.settingsUnsubscribers.push(
+        settingsStore.onChange('theme', () => {
+          for (const tab of this.tabs.values()) {
+            void AppearanceService.applyToWebContents(tab.view.webContents)
+          }
+        })
+      )
+
+      // Language (Accept-Language) is applied at the session layer.
+      // Most sites only pick it up on navigation/reload.
+      this.settingsUnsubscribers.push(
+        settingsStore.onChange('language', () => {
+          for (const tab of this.tabs.values()) {
+            // about:* pages are rendered by our UI; do not reload the underlying content.
+            if (tab.url.startsWith('about:')) continue
+            try {
+              tab.view.webContents.reload()
+            } catch (error) {
+              logger.warn('[ViewManager] Failed to reload tab after language change', { error: String(error) })
+            }
+          }
+        })
+      )
+
       this.dumpContentViewTree('after-initialize')
 
       // 윈도우 리사이즈 시 레이아웃 재계산
@@ -129,7 +155,8 @@ export class ViewManager {
       })
 
       // Step 1: 기본 탭 생성 (홈페이지)
-      const homeTabId = await this.createTab('https://www.google.com')
+      const homepage = SettingsStore.getInstance().get('homepage')
+      const homeTabId = await this.createTab(homepage)
       logger.info('[ViewManager] Home tab created', { tabId: homeTabId })
 
       // ✅ 기본 탭을 활성화하지 않으면 모든 뷰가 0x0으로 남아 "웹이 안 뜸"
@@ -228,6 +255,9 @@ export class ViewManager {
 
       // Step 5: 이벤트 리스너 설정 (URL 로드 전에 설정하여 이벤트 누락 방지)
       this.setupTabEvents(tabId, view)
+
+      // Apply appearance before initial navigation where possible.
+      void AppearanceService.applyToWebContents(view.webContents)
 
       // Step 6: URL 로드 (비동기, 기다리지 않음 - 속도 최적화)
       // 페이지가 로드되면 이벤트 리스너가 title/favicon을 자동 업데이트
@@ -607,7 +637,8 @@ export class ViewManager {
 
     // Create one new tab if none remain
     if (this.tabs.size === 0) {
-      void this.createTab('https://www.google.com')
+      const homepage = SettingsStore.getInstance().get('homepage')
+      void this.createTab(homepage)
     }
     
     logger.info('[ViewManager] Closed all tabs')
@@ -692,6 +723,7 @@ export class ViewManager {
       }
 
       // 일반 URL 로드 (fire-and-forget)
+      void AppearanceService.applyToWebContents(tabData.view.webContents)
       void tabData.view.webContents.loadURL(url).catch((err) => {
         logger.error('[ViewManager] loadURL error', { url, error: err })
       })
@@ -746,6 +778,15 @@ export class ViewManager {
    */
   static destroy(): void {
     logger.info('[ViewManager] Destroying all tabs...')
+
+    for (const unsub of this.settingsUnsubscribers) {
+      try {
+        unsub()
+      } catch {
+        // ignore
+      }
+    }
+    this.settingsUnsubscribers = []
 
     // 모든 탭 정리
     for (const [tabId] of this.tabs) {

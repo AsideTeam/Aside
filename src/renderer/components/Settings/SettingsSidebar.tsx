@@ -1,4 +1,5 @@
 import React from 'react';
+import { useI18n } from '@renderer/hooks/useI18n'
 
 interface SettingsCategory {
   id: string;
@@ -6,48 +7,64 @@ interface SettingsCategory {
   icon?: React.ReactNode;
 }
 
+import { Puzzle } from 'lucide-react';
+
 interface SettingsSidebarProps {
   categories: SettingsCategory[];
   activeCategory: string;
   onSelectCategory: (categoryId: string) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
 }
 
 export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   categories,
   activeCategory,
   onSelectCategory,
+  searchQuery,
+  onSearchChange,
 }) => {
+  const { t } = useI18n()
+
   return (
     <aside className="settings-sidebar">
-      <div className="px-6 py-8 mb-2">
-        <div className="flex items-center gap-4 text-xl font-medium text-[#E3E3E3] tracking-tight">
-          <div className="w-8 h-8 bg-contain bg-center bg-no-repeat" style={{ backgroundImage: 'url(/assets/icon.png)' }} />
-          <span>설정</span>
-        </div>
+      {/* Search at Top */}
+      <div className="settings-sidebar-search">
+        <input
+           type="text"
+           placeholder={t('settings.search.placeholder')}
+           className="zen-search-input"
+           value={searchQuery}
+           onChange={(e) => onSearchChange(e.target.value)}
+        />
       </div>
-      
-      <nav className="flex-1 overflow-y-auto px-0 py-2">
-        {categories.map((category) => {
+
+      {/* Navigation List */}
+      <nav className="settings-sidebar-nav">
+        {categories.filter(c => c.id !== 'extensions').map((category) => {
           const isActive = activeCategory === category.id;
           return (
             <button
               key={category.id}
               onClick={() => onSelectCategory(category.id)}
-              className={`settings-sidebar-item w-full group ${isActive ? 'active' : ''}`}
+              className={`settings-sidebar-item ${isActive ? 'active' : ''}`}
             >
-              <div className={`transition-colors duration-200 ${isActive ? "text-[#062E6F]" : "text-[#C4C7C5] group-hover:text-[#E3E3E3]"}`}>
-                {category.icon}
-              </div>
-              <span className="flex-1 text-left">{category.label}</span>
+              {category.icon}
+              <span>{category.label}</span>
             </button>
           );
         })}
       </nav>
 
-      <div className="p-6">
-        <div className="text-xs text-[#C4C7C5] text-center border-t border-[#444746] pt-4">
-          Aside Browser v0.1.0
-        </div>
+      {/* Bottom Actions (Extensions) */}
+      <div className="mt-auto pt-4 border-t border-[#2B2A33]">
+         <button
+            className={`settings-sidebar-item ${activeCategory === 'extensions' ? 'active' : ''}`}
+            onClick={() => onSelectCategory('extensions')}
+         >
+            <Puzzle className="w-5 h-5" />
+            <span>{t('category.extensions')}</span>
+         </button>
       </div>
     </aside>
   );
