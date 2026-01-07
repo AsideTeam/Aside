@@ -18,19 +18,9 @@ import { overlayStore } from '@main/state/overlayStore'
 import { OverlayLatchChangedEventSchema } from '@shared/validation/schemas'
 import { ViewManager } from '@main/managers/ViewManager'
 
-// ===== Types =====
-type OverlayHoverMetrics = {
-  sidebarRightPx?: number
-  headerBottomPx?: number
-  titlebarHeightPx?: number
-  dpr: number
-  timestamp: number
-}
-
-type OverlayState = {
-  headerOpen: boolean
-  sidebarOpen: boolean
-}
+import type { OverlayHoverMetrics, OverlayState } from './overlay/types'
+import { mergeHoverMetrics } from './overlay/hoverMetrics'
+import { computeEdgeOverlayState } from './overlay/stateCalc'
 
 type AttachArgs = {
   uiWindow: BrowserWindow
@@ -97,37 +87,16 @@ export class OverlayController {
   }
 
   static updateHoverMetrics(metrics: OverlayHoverMetrics): void {
-    
-    // Validation
-    if (!Number.isFinite(metrics.dpr) || metrics.dpr <= 0 || !Number.isFinite(metrics.timestamp)) {
+    const result = mergeHoverMetrics(this.hoverMetrics, metrics)
+    if (result.kind === 'invalid') {
       logger.warn('[OverlayController] Invalid dpr or timestamp, skipping')
       return
     }
 
-    const current = this.hoverMetrics
-    if (!current) {
-      this.hoverMetrics = { ...metrics, timestamp: metrics.timestamp || Date.now() }
+    this.hoverMetrics = result.next
+    if (result.kind === 'initial') {
       logger.info('[OverlayController] Initial metrics received')
-      return
     }
-
-    // Partial update
-    if (metrics.sidebarRightPx !== undefined && Number.isFinite(metrics.sidebarRightPx)) {
-      current.sidebarRightPx = Math.max(0, metrics.sidebarRightPx)
-    }
-
-    if (metrics.headerBottomPx !== undefined && Number.isFinite(metrics.headerBottomPx)) {
-      current.headerBottomPx = Math.max(0, metrics.headerBottomPx)
-    }
-
-    if (metrics.titlebarHeightPx !== undefined && Number.isFinite(metrics.titlebarHeightPx)) {
-      current.titlebarHeightPx = Math.max(0, metrics.titlebarHeightPx)
-    }
-
-    current.dpr = metrics.dpr
-    current.timestamp = metrics.timestamp || Date.now()
-    
-    // logger.debug('[OverlayController] Hover metrics updated')
   }
 
   // Latch state (pinned)
@@ -317,80 +286,32 @@ export class OverlayController {
     
     // ⭐ UNIFIED STATE LOGIC (Edge-based opening, Bounds-based closing)
     const EDGE_THRESHOLD = 3 // Mouse must be within 3px of edge to trigger opening
-    
-    // Get component dimensions for close detection
-    const sidebarWidth = metrics?.sidebarRightPx ?? 288 // Sidebar width when open
-    const headerHeight = metrics?.headerBottomPx ?? 56 // Header height when open
-    
-    // ===== SIDEBAR STATE =====
-    // Open: Mouse at left edge (relativeX <= EDGE_THRESHOLD)
-    // Close: Mouse leaves sidebar area (relativeX > sidebarWidth)
-    let shouldOpenSidebar = false
-    let shouldCloseSidebar = false
-    
-    if (!sidebarLatched) {
-      // Opening trigger: At left window edge
-      if (relativeX <= EDGE_THRESHOLD) {
-        shouldOpenSidebar = true
-      }
-      
-      // Closing trigger: Left sidebar area
-      if (this.currentState.sidebarOpen && relativeX > sidebarWidth) {
-        shouldCloseSidebar = true
-      }
-    }
-    
-    // ===== HEADER STATE =====
-    // Open: Mouse at top edge (relativeY <= EDGE_THRESHOLD)
-    // Close: Mouse leaves header area (relativeY > headerHeight)
-    let shouldOpenHeader = false
-    let shouldCloseHeader = false
-    
-    if (!headerLatched) {
-      // Opening trigger: At top window edge
-      if (relativeY <= EDGE_THRESHOLD) {
-        shouldOpenHeader = true
-      }
-      
-      // Closing trigger: Left header area
-      if (this.currentState.headerOpen && relativeY > headerHeight) {
-        shouldCloseHeader = true
-      }
-    }
-    
-    // ===== MUTUAL EXCLUSION =====
-    // If both would open at the same time (top-left corner), prioritize header
-    if (shouldOpenSidebar && shouldOpenHeader) {
-      shouldOpenSidebar = false
-    }
 
-    // ===== FINAL STATE CALCULATION =====
-    const finalSidebarOpen = sidebarLatched || (shouldOpenSidebar || (this.currentState.sidebarOpen && !shouldCloseSidebar))
-    const finalHeaderOpen = headerLatched || (shouldOpenHeader || (this.currentState.headerOpen && !shouldCloseHeader))
+    const calc = computeEdgeOverlayState({
+      relativeX,
+      relativeY,
+      currentState: this.currentState,
+      headerLatched,
+      sidebarLatched,
+      metrics,
+      edgeThreshold: EDGE_THRESHOLD,
+    })
 
-    // ⭐ DEBUG: Edge-based state logic
-    if (Math.random() < 0.02) { // 2% 확률로 로깅
+    const finalHeaderOpen = calc.nextState.headerOpen
+    const finalSidebarOpen = calc.nextState.sidebarOpen
+
+    if (Math.random() < 0.02) {
       logger.debug('[OverlayController] State Debug', {
         mouse: { screenX: mouseX, screenY: mouseY, relativeX, relativeY },
         bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
-        dimensions: {
-          sidebarWidth,
-          headerHeight,
-          edgeThreshold: EDGE_THRESHOLD,
-        },
-        triggers: { 
-          shouldOpenSidebar,
-          shouldCloseSidebar,
-          shouldOpenHeader,
-          shouldCloseHeader
-        },
+        dimensions: calc.dimensions,
+        triggers: calc.triggers,
         state: { headerOpen: finalHeaderOpen, sidebarOpen: finalSidebarOpen },
       })
     }
 
-    // ⭐ INTERACTIVITY: UI topmost when mouse in open components, otherwise content topmost
-    const mouseInSidebar = finalSidebarOpen && relativeX <= sidebarWidth
-    const mouseInHeader = finalHeaderOpen && relativeY <= headerHeight
+    const mouseInSidebar = calc.mouseInSidebar
+    const mouseInHeader = calc.mouseInHeader
     
     if (mouseInSidebar || mouseInHeader) {
       ViewManager.ensureUITopmost()
@@ -403,7 +324,7 @@ export class OverlayController {
     const timeSinceLastUpdate = now - this.lastStateUpdateTime
     const throttleMs = isAdjusting ? WINDOW_ADJUST_THROTTLE_MS : STATE_UPDATE_THROTTLE_MS
     
-    const shouldUpdate = 
+    const shouldUpdate =
       this.currentState.headerOpen !== finalHeaderOpen ||
       this.currentState.sidebarOpen !== finalSidebarOpen
 
