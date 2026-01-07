@@ -4,6 +4,7 @@ import { Pin, PanelLeft, ChevronLeft, ChevronRight, RotateCw } from 'lucide-reac
 import { useOverlayStore } from '@renderer/lib/overlayStore'
 import { useWebContents, useWindowSize, useTabs } from '@renderer/hooks'
 import { cn } from '@renderer/styles'
+import { logger } from '@renderer/lib/logger'
 
 export const AsideHeader: React.FC = () => {
   const isOpen = useOverlayStore((s) => s.headerOpen)
@@ -30,12 +31,12 @@ export const AsideHeader: React.FC = () => {
   useLayoutEffect(() => {
     const measureAndSend = async () => {
       if (!headerRef.current) {
-        console.warn('[AsideHeader] headerRef.current is null!')
+        logger.warn('[AsideHeader] headerRef.current is null')
         return
       }
       
       const height = headerRef.current.offsetHeight
-      console.log(`[AsideHeader] Measured height: ${height} (Threshold: 40)`)
+      logger.debug('[AsideHeader] Measured height', { height })
       
       const hoverHeight = 128
       
@@ -50,11 +51,11 @@ export const AsideHeader: React.FC = () => {
         const response = await window.electronAPI.invoke('overlay:update-hover-metrics', payload) as { success: boolean; error?: string }
         
         if (!response.success) {
-          console.error('[AsideHeader] ❌ Main process rejected metrics:', response.error)
+          logger.warn('[AsideHeader] Main process rejected metrics', { error: response.error })
           return
         }
       } catch (error) {
-        console.error('[AsideHeader] ❌ Failed to send hover metrics:', error)
+        logger.error('[AsideHeader] Failed to send hover metrics', error)
       }
     }
 

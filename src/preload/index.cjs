@@ -161,6 +161,7 @@ const electronAPI = {
       
       // View (WebContentsView)
       'view:navigate',
+      'view:settings-toggled',
       // Tab
       'tab:create',
       'tab:close',

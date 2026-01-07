@@ -18,6 +18,7 @@ import { cn, tokens } from '@renderer/styles';
 import { useViewBounds, useWindowFocus, useOverlayInteraction } from '@renderer/hooks';
 import { useOverlayStore } from '@renderer/lib/overlayStore';
 import { logger } from '@renderer/lib';
+import { SettingsPage } from '@renderer/pages';
 
 export const ZenLayout: React.FC = () => {
   // ⭐ 디버깅 로그 제거 (과도한 렌더링 로그 방지)
@@ -28,6 +29,8 @@ export const ZenLayout: React.FC = () => {
   const sidebarOpen = useOverlayStore((s) => s.sidebarOpen)
   const headerLatched = useOverlayStore((s) => s.headerLatched)
   const sidebarLatched = useOverlayStore((s) => s.sidebarLatched)
+
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
 
   // ⭐ Pinned 상태에서 WebContentsView가 차지할 수 없는 safe-area(inset)를 측정한다.
@@ -47,6 +50,24 @@ export const ZenLayout: React.FC = () => {
     return () => {
       document.documentElement.classList.remove('aside-overlay-mode');
     };
+  }, [])
+
+  // about:settings / chrome://settings interception from main process
+  useEffect(() => {
+    const api = window.electronAPI
+    if (!api || typeof api.on !== 'function' || typeof api.off !== 'function') return
+
+    const onNavigateToSettings = () => {
+      setSettingsOpen(true)
+      void api.invoke('view:settings-toggled', { isOpen: true }).catch(() => {
+        // ignore
+      })
+    }
+
+    api.on('navigate-to-settings', onNavigateToSettings)
+    return () => {
+      api.off('navigate-to-settings', onNavigateToSettings)
+    }
   }, [])
 
   // 1. Inset calculation & Bounds Sync
@@ -99,6 +120,42 @@ export const ZenLayout: React.FC = () => {
           <div ref={viewPlaceholderRef} className="aside-view-placeholder" />
         </div>
       </div>
+
+      {/* Settings overlay (prevents webview overlap by hiding active view in main) */}
+      {settingsOpen ? (
+        <div
+          className={cn(
+            'fixed inset-0 z-9000',
+            'pointer-events-auto',
+            tokens.colors.bg.primary,
+          )}
+        >
+          <div className="h-screen">
+            <div className="h-14" />
+            <div className="h-[calc(100vh-56px)] overflow-hidden">
+              <SettingsPage />
+            </div>
+          </div>
+
+          <button
+            className={cn(
+              'absolute top-3 right-3',
+              'px-3 py-1.5 rounded-lg',
+              'bg-white/5 hover:bg-white/10',
+              'text-sm text-white/80',
+              'no-drag'
+            )}
+            onClick={() => {
+              setSettingsOpen(false)
+              void window.electronAPI?.invoke('view:settings-toggled', { isOpen: false }).catch(() => {
+                // ignore
+              })
+            }}
+          >
+            닫기
+          </button>
+        </div>
+      ) : null}
 
       {/* DEV-only: sidebar와 WebContentsView placeholder 사이 실제 레이아웃 gap 측정 */}
       {import.meta.env.DEV ? (

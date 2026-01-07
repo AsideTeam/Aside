@@ -1,6 +1,20 @@
 export const formatUrl = (url: string): string => {
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return `https://${url}`;
+  const trimmed = url.trim()
+
+  // Keep explicit schemes as-is (including internal pages like about:settings).
+  // Note: about:/chrome: do not include "//".
+  const explicitSchemes = ['http://', 'https://', 'file://', 'app://', 'aside://']
+  for (const scheme of explicitSchemes) {
+    if (trimmed.startsWith(scheme)) return trimmed
   }
-  return url;
+
+  if (trimmed.startsWith('about:') || trimmed.startsWith('chrome:') || trimmed.startsWith('mailto:')) {
+    return trimmed
+  }
+
+  // If user already typed some other scheme (e.g. custom), keep it.
+  if (trimmed.includes('://')) return trimmed
+
+  // Default: treat as a host/search and prefix https.
+  return `https://${trimmed}`
 };
