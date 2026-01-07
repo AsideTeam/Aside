@@ -1,7 +1,4 @@
 import React from 'react';
-import { cn } from '@renderer/styles/tokens';
-import { tokens } from '@renderer/styles';
-import { Settings } from 'lucide-react';
 
 interface SettingsCategory {
   id: string;
@@ -21,32 +18,37 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   onSelectCategory,
 }) => {
   return (
-    <aside className={tokens.layout.settings.sidebar}>
-      <div className={cn('px-4 pt-2 pb-3', tokens.colors.text.primary)}>
-        <div className="flex items-center gap-2 text-base font-semibold">
-          <Settings className="w-4 h-4" />
+    <aside className="settings-sidebar">
+      <div className="px-6 py-8 mb-2">
+        <div className="flex items-center gap-4 text-xl font-medium text-[#E3E3E3] tracking-tight">
+          <div className="w-8 h-8 bg-contain bg-center bg-no-repeat" style={{ backgroundImage: 'url(/assets/icon.png)' }} />
           <span>설정</span>
         </div>
       </div>
-      <nav className="space-y-1">
-        {categories.map((category) => (
-          <button
-            key={category.id}
-            onClick={() => onSelectCategory(category.id)}
-            className={cn(
-              'w-full text-left px-4 py-3 transition-colors duration-200',
-              activeCategory === category.id
-                ? 'bg-(--color-accent) text-white'
-                : cn(tokens.colors.text.secondary, 'hover:bg-(--color-bg-hover)')
-            )}
-          >
-            <span className="flex items-center gap-2">
-              {category.icon ? <span className="w-4 h-4 shrink-0">{category.icon}</span> : null}
-              {category.label}
-            </span>
-          </button>
-        ))}
+      
+      <nav className="flex-1 overflow-y-auto px-0 py-2">
+        {categories.map((category) => {
+          const isActive = activeCategory === category.id;
+          return (
+            <button
+              key={category.id}
+              onClick={() => onSelectCategory(category.id)}
+              className={`settings-sidebar-item w-full group ${isActive ? 'active' : ''}`}
+            >
+              <div className={`transition-colors duration-200 ${isActive ? "text-[#062E6F]" : "text-[#C4C7C5] group-hover:text-[#E3E3E3]"}`}>
+                {category.icon}
+              </div>
+              <span className="flex-1 text-left">{category.label}</span>
+            </button>
+          );
+        })}
       </nav>
+
+      <div className="p-6">
+        <div className="text-xs text-[#C4C7C5] text-center border-t border-[#444746] pt-4">
+          Aside Browser v0.1.0
+        </div>
+      </div>
     </aside>
   );
 };

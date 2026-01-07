@@ -1,67 +1,140 @@
 /**
- * Settings Styles
+ * Settings Styles - Material 3 (Chrome Refresh 2023)
  *
- * Settings UI 전용 스타일(Chrome-ish IA)
- * - Tailwind v4 @apply 기반
- * - 색/레이어는 theme.css 변수 기반
+ * Design targets:
+ * - Surface: #1F1F1F (Dark Grey)
+ * - Accent: #A8C7FA (Blue 200 equivalent)
+ * - Text: Google Sans / Roboto hierarchy
  */
+
+/* ===== Variables & Theme ===== */
+:root {
+  --md-sys-color-surface: #1F1F1F;
+  --md-sys-color-surface-container: #2B2B2B;
+  --md-sys-color-on-surface: #E3E3E3;
+  --md-sys-color-on-surface-variant: #C4C7C5;
+  --md-sys-color-primary: #A8C7FA;
+  --md-sys-color-on-primary: #062E6F;
+  --md-sys-color-outline: #8E918F;
+  --md-sys-color-outline-variant: #444746;
+  
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-full: 9999px;
+  --md-sys-shape-corner-small: 8px;
+}
 
 /* ===== Layout ===== */
 .settings-container {
-  @apply flex h-full min-h-0 bg-(--color-bg-primary);
+  @apply flex h-full min-h-0 bg-[#1F1F1F] text-[#E3E3E3];
 }
 
 .settings-content {
-  @apply flex-1 overflow-y-auto min-h-0 bg-(--color-bg-secondary);
+  @apply flex-1 overflow-y-auto min-h-0;
+  scrollbar-gutter: stable;
 }
 
 .settings-content-inner {
-  @apply max-w-3xl mx-auto px-8 py-6;
+  @apply max-w-[720px] mx-auto py-10 pb-20 px-6;
 }
 
-/* ===== Top Search ===== */
+/* ===== Sidebar ===== */
+.settings-sidebar {
+  @apply w-[256px] flex flex-col h-full bg-[#1F1F1F] py-2;
+}
+
+.settings-sidebar-item {
+  @apply flex items-center gap-5 px-6 py-0 min-h-[56px] mx-0 text-[15px] font-medium text-[#C4C7C5] cursor-pointer rounded-r-full mr-2 transition-colors;
+  
+  &:hover {
+    @apply bg-[#2B2B2B];
+    color: #E3E3E3;
+  }
+}
+
+.settings-sidebar-item.active {
+  @apply bg-[#303339] text-[#A8C7FA];
+  
+  /* Active indicator icon tin */
+  & svg {
+    color: #A8C7FA;
+  }
+}
+
+/* ===== Header & Search ===== */
 .settings-topbar {
-  @apply sticky top-0 z-10 -mx-8 px-8 py-4 bg-(--color-bg-secondary);
+  @apply sticky top-0 z-20 bg-[#1F1F1F] pt-4 pb-2 mb-4;
 }
 
 .settings-search-shell {
-  @apply relative rounded-full border border-(--color-border-primary) bg-(--color-bg-tertiary);
+  @apply relative h-[48px] rounded-full bg-[#2B2B2B] overflow-hidden transition-colors;
+  
+  &:focus-within {
+    @apply bg-[#363636] shadow-md;
+  }
 }
 
 .settings-search-icon {
-  @apply absolute left-4 top-1/2 -translate-y-1/2 text-(--color-text-tertiary);
+  @apply absolute left-4 top-1/2 -translate-y-1/2 text-[#C4C7C5];
 }
 
 .settings-search-input {
-  @apply w-full h-9 pl-10 pr-4 rounded-full bg-transparent outline-none text-(--color-text-primary);
+  @apply w-full h-full pl-12 pr-4 bg-transparent outline-none text-[15px] text-[#E3E3E3] placeholder-[#C4C7C5];
 }
 
-/* ===== Cards / Sections ===== */
-.settings-card {
-  @apply rounded-xl border border-(--color-border-primary) bg-(--color-bg-secondary);
-}
-
-.settings-card-inner {
-  @apply px-6 py-2;
-}
-
+/* ===== Section & Cards ===== */
 .settings-title {
-  @apply text-2xl font-bold mb-6 text-(--color-text-primary);
+  @apply text-[20px] font-normal mb-4 text-[#E3E3E3];
+}
+
+.settings-card {
+  @apply rounded-[16px] bg-[#2B2B2B] overflow-hidden mb-6;
 }
 
 .settings-muted {
-  @apply text-(--color-text-secondary);
+  @apply text-[#C4C7C5] text-sm;
 }
 
-/* ===== Search Results ===== */
-.settings-result-btn {
-  @apply w-full text-left py-3 border-b border-(--color-border-primary) last:border-b-0 hover:bg-(--color-bg-hover);
+/* ===== Setting Row ===== */
+.settings-row {
+  @apply flex items-center justify-between min-h-[64px] px-6 py-3 border-b border-[#444746] last:border-b-0;
+  
+  /* Interactive rows (if implemented later as clickable) */
+  /* &:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  } */
 }
 
-.settings-result-title {
-  @apply font-medium text-(--color-text-primary);
+/* ===== Material 3 Toggle Switch ===== */
+.toggle-switch {
+  @apply appearance-none relative inline-flex h-8 w-[52px] shrink-0 cursor-pointer rounded-full border-2 border-[#8E918F] bg-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-0;
+  
+  /* Thumb */
+  &::after {
+    content: "";
+    @apply pointer-events-none absolute top-1/2 left-[6px] block h-4 w-4 -translate-y-1/2 rounded-full bg-[#8E918F] shadow-none ring-0 transition-transform duration-200 ease-in-out;
+  }
+
+  /* Checked State */
+  &:checked {
+    @apply bg-[#A8C7FA] border-[#A8C7FA];
+    
+    &::after {
+      @apply translate-x-[20px] bg-[#062E6F] h-6 w-6 left-[2px]; /* Thumb gets larger and moves */
+    }
+  }
 }
 
-.settings-result-desc {
-  @apply text-sm mt-1 text-(--color-text-secondary);
+/* ===== Material Dropdown ===== */
+.input-base {
+  @apply appearance-none bg-transparent text-[#A8C7FA] text-sm font-medium border-none outline-none cursor-pointer pr-8 text-right;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23A8C7FA' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  
+  /* For text inputs that are not selects */
+  &[type="text"] {
+    @apply bg-[#1F1F1F] border border-[#8E918F] rounded text-left px-3 py-1 text-[#E3E3E3] w-full text-base pr-3 hover:bg-[#2B2B2B] focus:border-[#A8C7FA] focus:ring-1 focus:ring-[#A8C7FA];
+    background-image: none;
+  }
 }

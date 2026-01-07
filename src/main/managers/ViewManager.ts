@@ -24,6 +24,7 @@ import type { ViewBounds } from '@shared/types/view'
 import type { TabData, TabSection } from './viewManager/types'
 import { applyLayout } from './viewManager/layout'
 import { attachTabEvents } from './viewManager/tabEvents'
+import { SettingsStore } from '@main/services/SettingsStore'
 import {
   dumpContentViewTree,
   ensureContentTopmost as ensureContentTopmostImpl,
@@ -51,6 +52,31 @@ export class ViewManager {
   // NEW: Recently closed tabs for undo
   private static recentlyClosed: Array<{ id: string; url: string; title: string; timestamp: number; isPinned: boolean }> = []
   private static readonly MAX_RECENT_CLOSED = 10
+
+  private static settingsUnsubscribers: Array<() => void> = []
+
+  private static getZoomFactorFromSetting(value: string): number {
+    const percent = Number.parseInt(value, 10)
+    if (Number.isNaN(percent)) return 1
+    const clamped = Math.min(500, Math.max(25, percent))
+    return clamped / 100
+  }
+
+  private static applyPageZoomToWebContents(webContents: WebContents, zoomSetting: string): void {
+    try {
+      const factor = this.getZoomFactorFromSetting(zoomSetting)
+      webContents.setZoomFactor(factor)
+      logger.info('[ViewManager] Applied page zoom', { factor, zoomSetting })
+    } catch (error) {
+      logger.warn('[ViewManager] Failed to apply page zoom', { error: String(error), zoomSetting })
+    }
+  }
+
+  private static applyPageZoomToAllTabs(zoomSetting: string): void {
+    for (const tab of this.tabs.values()) {
+      this.applyPageZoomToWebContents(tab.view.webContents, zoomSetting)
+    }
+  }
 
 
 
@@ -81,6 +107,19 @@ export class ViewManager {
 
       this.contentWindow = contentWindow
       this.uiWebContents = uiWebContents
+
+      // Apply runtime settings to content views (no renderer trust).
+      const settingsStore = SettingsStore.getInstance()
+      const initialZoom = settingsStore.get('pageZoom')
+      this.applyPageZoomToAllTabs(initialZoom)
+
+      // Subscribe to settings that affect WebContents behavior.
+      this.settingsUnsubscribers.push(
+        settingsStore.onChange('pageZoom', (newValue) => {
+          const zoomSetting = typeof newValue === 'string' ? newValue : settingsStore.get('pageZoom')
+          this.applyPageZoomToAllTabs(zoomSetting)
+        })
+      )
 
       this.dumpContentViewTree('after-initialize')
 
@@ -145,6 +184,10 @@ export class ViewManager {
 
       // ⭐ 투명 배경 설정 (Electron은 기본적으로 흰색 배경 사용)
       view.setBackgroundColor('#00000000')
+
+      // Apply persisted zoom immediately (so initial load is correct).
+      const zoomSetting = SettingsStore.getInstance().get('pageZoom')
+      this.applyPageZoomToWebContents(view.webContents, zoomSetting)
 
       // Step 2: 고유 ID 생성
       const tabId = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
@@ -225,6 +268,10 @@ export class ViewManager {
     // 새 탭 활성화
     this.activeTabId = tabId
     tabData.isActive = true
+
+    // Ensure zoom is applied for the active tab.
+    this.applyPageZoomToWebContents(tabData.view.webContents, SettingsStore.getInstance().get('pageZoom'))
+
     this.layout()
 
     logger.info('[ViewManager] Tab switched', { tabId })

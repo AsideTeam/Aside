@@ -159,5 +159,20 @@ export function setupSettingsHandlers(registry: IpcRegistry): void {
     }
   })
 
+  /**
+   * 설정 파일 경로 조회
+   * IPC: settings:get-path
+   */
+  registry.handle(IPC_CHANNELS.SETTINGS.GET_PATH, async () => {
+    try {
+      const path = settingsService.getSettingsPath()
+      return { success: true, path }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      logger.error('[SettingsHandler] Failed to get settings path:', { error: errorMessage })
+      return { success: false, error: errorMessage }
+    }
+  })
+
   logger.info('[SettingsHandler] IPC handlers registered successfully')
 }

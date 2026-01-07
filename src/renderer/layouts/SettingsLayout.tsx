@@ -1,6 +1,6 @@
 import React from 'react';
 import { SettingsSidebar } from '../components/Settings/SettingsSidebar';
-import { tokens, cn } from '@renderer/styles';
+
 
 interface SettingsCategory {
   id: string;
@@ -22,13 +22,13 @@ export const SettingsLayout: React.FC<SettingsLayoutProps> = ({
   children,
 }) => {
   return (
-    <div className={cn(tokens.layout.settings.container)}>
+    <div className="settings-container">
       <SettingsSidebar
         categories={categories}
         activeCategory={activeCategory}
         onSelectCategory={onSelectCategory}
       />
-      <main className={cn('settings-content')}>
+      <main className="settings-content">
         <div className="settings-content-inner">{children}</div>
       </main>
     </div>

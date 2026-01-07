@@ -42,6 +42,9 @@ export const IPC_CHANNELS = {
     RESTART: 'app:restart',
     /** 앱 상태 조회 */
     STATE: 'app:state',
+
+    /** 앱 정보 조회 (이름/버전/경로 등) */
+    GET_INFO: 'app:get-info',
   },
 
   // ===== WINDOW 영역 (Renderer에서 Main으로 요청) =====
@@ -137,6 +140,27 @@ export const IPC_CHANNELS = {
     UPDATE: 'settings:update',
     UPDATE_MULTIPLE: 'settings:update-multiple',
     RESET: 'settings:reset',
+
+    /** 설정 파일 경로 조회 */
+    GET_PATH: 'settings:get-path',
+  },
+
+  // ===== EXTENSIONS 영역 =====
+  EXTENSIONS: {
+    /** 확장 상태 조회 */
+    GET_STATUS: 'extensions:get-status',
+    /** 확장(재)로드 */
+    RELOAD: 'extensions:reload',
+  },
+
+  // ===== DEFAULT BROWSER 영역 =====
+  DEFAULT_BROWSER: {
+    /** 기본 브라우저 상태 조회 */
+    GET_STATUS: 'default-browser:get-status',
+    /** 기본 브라우저로 설정 시도 */
+    SET_DEFAULT: 'default-browser:set-default',
+    /** OS 기본 앱 설정 화면 열기 */
+    OPEN_SYSTEM_SETTINGS: 'default-browser:open-system-settings',
   },
 
   // ===== OVERLAY 영역 (UI overlay latch/toggles) =====
@@ -168,4 +192,6 @@ export type IPCChannelType =
   | typeof IPC_CHANNELS.SIDEBAR[keyof typeof IPC_CHANNELS.SIDEBAR]
   | typeof IPC_CHANNELS.VIEW[keyof typeof IPC_CHANNELS.VIEW]
   | typeof IPC_CHANNELS.SETTINGS[keyof typeof IPC_CHANNELS.SETTINGS]
+  | typeof IPC_CHANNELS.EXTENSIONS[keyof typeof IPC_CHANNELS.EXTENSIONS]
+  | typeof IPC_CHANNELS.DEFAULT_BROWSER[keyof typeof IPC_CHANNELS.DEFAULT_BROWSER]
   | typeof IPC_CHANNELS.OVERLAY[keyof typeof IPC_CHANNELS.OVERLAY]

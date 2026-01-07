@@ -1,7 +1,7 @@
-import { app, WebContentsView, screen, BrowserWindow, session, ipcMain, protocol } from "electron";
+import { app, WebContentsView, screen, BrowserWindow, session, shell, ipcMain, protocol } from "electron";
 import Store from "electron-store";
 import { existsSync, mkdirSync, appendFileSync, promises } from "node:fs";
-import { join, dirname } from "node:path";
+import path, { join, dirname } from "node:path";
 import { createStore } from "zustand/vanilla";
 import { z } from "zod";
 import { PrismaClient } from "@prisma/client";
@@ -391,7 +391,9 @@ const IPC_CHANNELS = {
     /** 앱 재시작 요청 */
     RESTART: "app:restart",
     /** 앱 상태 조회 */
-    STATE: "app:state"
+    STATE: "app:state",
+    /** 앱 정보 조회 (이름/버전/경로 등) */
+    GET_INFO: "app:get-info"
   },
   // ===== WINDOW 영역 (Renderer에서 Main으로 요청) =====
   WINDOW: {
@@ -480,7 +482,25 @@ const IPC_CHANNELS = {
     GET: "settings:get",
     UPDATE: "settings:update",
     UPDATE_MULTIPLE: "settings:update-multiple",
-    RESET: "settings:reset"
+    RESET: "settings:reset",
+    /** 설정 파일 경로 조회 */
+    GET_PATH: "settings:get-path"
+  },
+  // ===== EXTENSIONS 영역 =====
+  EXTENSIONS: {
+    /** 확장 상태 조회 */
+    GET_STATUS: "extensions:get-status",
+    /** 확장(재)로드 */
+    RELOAD: "extensions:reload"
+  },
+  // ===== DEFAULT BROWSER 영역 =====
+  DEFAULT_BROWSER: {
+    /** 기본 브라우저 상태 조회 */
+    GET_STATUS: "default-browser:get-status",
+    /** 기본 브라우저로 설정 시도 */
+    SET_DEFAULT: "default-browser:set-default",
+    /** OS 기본 앱 설정 화면 열기 */
+    OPEN_SYSTEM_SETTINGS: "default-browser:open-system-settings"
   },
   // ===== OVERLAY 영역 (UI overlay latch/toggles) =====
   OVERLAY: {
@@ -585,6 +605,290 @@ function attachTabEvents({
   });
   logger2.info("[ViewManager] Tab event listeners attached", { tabId });
 }
+const DEFAULT_SETTINGS = {
+  theme: "dark",
+  searchEngine: "google",
+  homepage: "https://www.google.com",
+  showHomeButton: true,
+  showBookmarksBar: false,
+  fontSize: "medium",
+  customFontSize: 14,
+  pageZoom: "100",
+  blockThirdPartyCookies: true,
+  continueSession: true,
+  language: "ko",
+  savePasswords: false,
+  savePaymentInfo: false,
+  saveAddresses: false,
+  doNotTrack: true,
+  blockAds: false,
+  // Downloads
+  downloadDirectory: "",
+  downloadAskWhereToSave: false,
+  downloadOpenAfterSave: false,
+  // Accessibility
+  accessibilityHighContrast: false,
+  accessibilityReduceMotion: false,
+  // System
+  systemHardwareAcceleration: true,
+  systemBackgroundApps: false,
+  // Extensions
+  extensionsEnabled: false,
+  extensionsDirectory: "",
+  // Default Browser
+  defaultBrowserPromptOnStartup: true
+};
+class SettingsStore {
+  static instance = null;
+  store;
+  constructor() {
+    this.store = new Store({
+      name: "settings",
+      defaults: DEFAULT_SETTINGS,
+      // Schema validation
+      schema: {
+        theme: {
+          type: "string",
+          enum: ["light", "dark", "system"],
+          default: "dark"
+        },
+        searchEngine: {
+          type: "string",
+          enum: ["google", "bing", "duckduckgo", "naver"],
+          default: "google"
+        },
+        homepage: {
+          type: "string",
+          format: "uri",
+          default: "https://www.google.com"
+        },
+        showHomeButton: {
+          type: "boolean",
+          default: true
+        },
+        showBookmarksBar: {
+          type: "boolean",
+          default: false
+        },
+        fontSize: {
+          type: "string",
+          enum: ["small", "medium", "large", "xlarge"],
+          default: "medium"
+        },
+        customFontSize: {
+          type: "number",
+          minimum: 8,
+          maximum: 24,
+          default: 14
+        },
+        pageZoom: {
+          type: "string",
+          default: "100"
+        },
+        blockThirdPartyCookies: {
+          type: "boolean",
+          default: true
+        },
+        continueSession: {
+          type: "boolean",
+          default: true
+        },
+        language: {
+          type: "string",
+          enum: ["ko", "en", "ja"],
+          default: "ko"
+        },
+        savePasswords: {
+          type: "boolean",
+          default: false
+        },
+        savePaymentInfo: {
+          type: "boolean",
+          default: false
+        },
+        saveAddresses: {
+          type: "boolean",
+          default: false
+        },
+        doNotTrack: {
+          type: "boolean",
+          default: true
+        },
+        blockAds: {
+          type: "boolean",
+          default: false
+        },
+        // Downloads
+        downloadDirectory: {
+          type: "string",
+          default: ""
+        },
+        downloadAskWhereToSave: {
+          type: "boolean",
+          default: false
+        },
+        downloadOpenAfterSave: {
+          type: "boolean",
+          default: false
+        },
+        // Accessibility
+        accessibilityHighContrast: {
+          type: "boolean",
+          default: false
+        },
+        accessibilityReduceMotion: {
+          type: "boolean",
+          default: false
+        },
+        // System
+        systemHardwareAcceleration: {
+          type: "boolean",
+          default: true
+        },
+        systemBackgroundApps: {
+          type: "boolean",
+          default: false
+        },
+        // Extensions
+        extensionsEnabled: {
+          type: "boolean",
+          default: false
+        },
+        extensionsDirectory: {
+          type: "string",
+          default: ""
+        },
+        // Default Browser
+        defaultBrowserPromptOnStartup: {
+          type: "boolean",
+          default: true
+        }
+      },
+      // Migrations for version upgrades
+      migrations: {
+        ">=0.1.0": (store) => {
+          if (!store.has("language")) {
+            store.set("language", "ko");
+          }
+        }
+      },
+      // Migration 로그
+      beforeEachMigration: (_store, context) => {
+        logger.info(
+          `[SettingsStore] Migrating from ${context.fromVersion} → ${context.toVersion}`
+        );
+      }
+    });
+    logger.info("[SettingsStore] Initialized", {
+      path: this.store.path
+    });
+  }
+  /**
+   * Singleton 인스턴스 반환
+   */
+  static getInstance() {
+    if (!this.instance) {
+      this.instance = new SettingsStore();
+    }
+    return this.instance;
+  }
+  /**
+   * 모든 설정값 조회
+   */
+  getAll() {
+    try {
+      return this.store.store;
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to get all settings:", error);
+      return DEFAULT_SETTINGS;
+    }
+  }
+  /**
+   * 특정 설정값 조회
+   */
+  get(key) {
+    try {
+      return this.store.get(key);
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to get setting:", error, { key });
+      return DEFAULT_SETTINGS[key];
+    }
+  }
+  /**
+   * 설정값 업데이트
+   */
+  set(key, value) {
+    try {
+      this.store.set(key, value);
+      logger.info("[SettingsStore] Setting updated", { key, value });
+      return true;
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to set setting:", error, { key, value });
+      return false;
+    }
+  }
+  /**
+   * 여러 설정값 한 번에 업데이트
+   */
+  setMultiple(updates) {
+    try {
+      Object.entries(updates).forEach(([key, value]) => {
+        this.store.set(key, value);
+      });
+      logger.info("[SettingsStore] Multiple settings updated", {
+        count: Object.keys(updates).length
+      });
+      return true;
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to set multiple settings:", error);
+      return false;
+    }
+  }
+  /**
+   * 설정값 삭제
+   */
+  delete(key) {
+    try {
+      this.store.delete(key);
+      logger.info("[SettingsStore] Setting deleted", { key });
+      return true;
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to delete setting:", error, { key });
+      return false;
+    }
+  }
+  /**
+   * 모든 설정값 초기화
+   */
+  reset() {
+    try {
+      this.store.clear();
+      logger.info("[SettingsStore] All settings reset to defaults");
+      return true;
+    } catch (error) {
+      logger.error("[SettingsStore] Failed to reset settings:", error);
+      return false;
+    }
+  }
+  /**
+   * 설정 파일 경로 반환
+   */
+  getPath() {
+    return this.store.path;
+  }
+  /**
+   * 설정값 변경 감지
+   */
+  onChange(key, callback) {
+    return this.store.onDidChange(key, callback);
+  }
+  /**
+   * 모든 설정값 변경 감지
+   */
+  onAnyChange(callback) {
+    return this.store.onDidAnyChange(callback);
+  }
+}
 function ensureUITopmost({
   contentWindow,
   uiWebContents,
@@ -677,6 +981,27 @@ class ViewManager {
   // NEW: Recently closed tabs for undo
   static recentlyClosed = [];
   static MAX_RECENT_CLOSED = 10;
+  static settingsUnsubscribers = [];
+  static getZoomFactorFromSetting(value) {
+    const percent = Number.parseInt(value, 10);
+    if (Number.isNaN(percent)) return 1;
+    const clamped = Math.min(500, Math.max(25, percent));
+    return clamped / 100;
+  }
+  static applyPageZoomToWebContents(webContents, zoomSetting) {
+    try {
+      const factor = this.getZoomFactorFromSetting(zoomSetting);
+      webContents.setZoomFactor(factor);
+      logger.info("[ViewManager] Applied page zoom", { factor, zoomSetting });
+    } catch (error) {
+      logger.warn("[ViewManager] Failed to apply page zoom", { error: String(error), zoomSetting });
+    }
+  }
+  static applyPageZoomToAllTabs(zoomSetting) {
+    for (const tab of this.tabs.values()) {
+      this.applyPageZoomToWebContents(tab.view.webContents, zoomSetting);
+    }
+  }
   /**
    * ViewManager 초기화
    *
@@ -700,6 +1025,15 @@ class ViewManager {
       logger.info("[ViewManager] Initializing...");
       this.contentWindow = contentWindow;
       this.uiWebContents = uiWebContents;
+      const settingsStore = SettingsStore.getInstance();
+      const initialZoom = settingsStore.get("pageZoom");
+      this.applyPageZoomToAllTabs(initialZoom);
+      this.settingsUnsubscribers.push(
+        settingsStore.onChange("pageZoom", (newValue) => {
+          const zoomSetting = typeof newValue === "string" ? newValue : settingsStore.get("pageZoom");
+          this.applyPageZoomToAllTabs(zoomSetting);
+        })
+      );
       this.dumpContentViewTree("after-initialize");
       this.contentWindow.on("resize", () => {
         this.layout();
@@ -744,6 +1078,8 @@ class ViewManager {
         }
       });
       view.setBackgroundColor("#00000000");
+      const zoomSetting = SettingsStore.getInstance().get("pageZoom");
+      this.applyPageZoomToWebContents(view.webContents, zoomSetting);
       const tabId = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
       const tabData = {
         id: tabId,
@@ -798,6 +1134,7 @@ class ViewManager {
     }
     this.activeTabId = tabId;
     tabData.isActive = true;
+    this.applyPageZoomToWebContents(tabData.view.webContents, SettingsStore.getInstance().get("pageZoom"));
     this.layout();
     logger.info("[ViewManager] Tab switched", { tabId });
     this.syncToRenderer();
@@ -2057,9 +2394,9 @@ class FsHelper {
    * @param path - 확인할 경로
    * @returns 존재하면 true
    */
-  static async pathExists(path) {
+  static async pathExists(path2) {
     try {
-      await promises.access(path);
+      await promises.access(path2);
       return true;
     } catch {
       return false;
@@ -2490,6 +2827,19 @@ function setupAppHandlers(registry2) {
       return { success: false, error: String(error) };
     }
   });
+  registry2.handle(IPC_CHANNELS.APP.GET_INFO, async () => {
+    try {
+      const info = {
+        name: Env.appName,
+        version: Env.appVersion,
+        userDataDir: Env.dataDir
+      };
+      return { success: true, info };
+    } catch (error) {
+      logger.error("[AppHandler] app:get-info failed:", error);
+      return { success: false, error: String(error) };
+    }
+  });
   registry2.handle(IPC_CHANNELS.OVERLAY.TOGGLE_HEADER_LATCH, async () => {
     try {
       const latched = OverlayController.toggleHeaderLatched();
@@ -2547,6 +2897,173 @@ function setupAppHandlers(registry2) {
     }
   });
   logger.info("[AppHandler] Handlers setup completed");
+}
+function getDevProtocolArgs() {
+  if (app.isPackaged) return null;
+  const mainArg = process.argv[1];
+  if (!mainArg) return null;
+  return { execPath: process.execPath, args: [path.resolve(mainArg)] };
+}
+class DefaultBrowserService {
+  static instance = null;
+  static getInstance() {
+    if (!this.instance) this.instance = new DefaultBrowserService();
+    return this.instance;
+  }
+  constructor() {
+  }
+  getStatus() {
+    const devArgs = getDevProtocolArgs();
+    const http = devArgs ? app.isDefaultProtocolClient("http", devArgs.execPath, devArgs.args) : app.isDefaultProtocolClient("http");
+    const https = devArgs ? app.isDefaultProtocolClient("https", devArgs.execPath, devArgs.args) : app.isDefaultProtocolClient("https");
+    return { http, https };
+  }
+  setDefault() {
+    try {
+      const devArgs = getDevProtocolArgs();
+      const httpOk = devArgs ? app.setAsDefaultProtocolClient("http", devArgs.execPath, devArgs.args) : app.setAsDefaultProtocolClient("http");
+      const httpsOk = devArgs ? app.setAsDefaultProtocolClient("https", devArgs.execPath, devArgs.args) : app.setAsDefaultProtocolClient("https");
+      logger.info("[DefaultBrowserService] setDefault attempted", { httpOk, httpsOk });
+      return { success: httpOk && httpsOk, status: this.getStatus() };
+    } catch (error) {
+      logger.error("[DefaultBrowserService] setDefault failed", error);
+      return { success: false, error: String(error), status: this.getStatus() };
+    }
+  }
+  async openSystemSettings() {
+    try {
+      const url = process.platform === "darwin" ? "x-apple.systempreferences:com.apple.preference.general" : process.platform === "win32" ? "ms-settings:defaultapps" : null;
+      if (!url) {
+        return { success: false, error: "Unsupported platform" };
+      }
+      await shell.openExternal(url);
+      return { success: true };
+    } catch (error) {
+      logger.error("[DefaultBrowserService] openSystemSettings failed", error);
+      return { success: false, error: String(error) };
+    }
+  }
+}
+const defaultBrowserService = DefaultBrowserService.getInstance();
+function setupDefaultBrowserHandlers(registry2) {
+  logger.info("[DefaultBrowserHandler] Registering IPC handlers");
+  registry2.handle(IPC_CHANNELS.DEFAULT_BROWSER.GET_STATUS, async () => {
+    try {
+      const status = defaultBrowserService.getStatus();
+      return { success: true, status };
+    } catch (error) {
+      logger.error("[DefaultBrowserHandler] get-status failed", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  registry2.handle(IPC_CHANNELS.DEFAULT_BROWSER.SET_DEFAULT, async () => {
+    return defaultBrowserService.setDefault();
+  });
+  registry2.handle(IPC_CHANNELS.DEFAULT_BROWSER.OPEN_SYSTEM_SETTINGS, async () => {
+    return await defaultBrowserService.openSystemSettings();
+  });
+}
+class ExtensionsService {
+  static instance = null;
+  loadedExtensionIds = /* @__PURE__ */ new Set();
+  store = SettingsStore.getInstance();
+  static getInstance() {
+    if (!this.instance) this.instance = new ExtensionsService();
+    return this.instance;
+  }
+  constructor() {
+  }
+  async getStatus() {
+    const enabled = this.store.get("extensionsEnabled");
+    const directory = this.store.get("extensionsDirectory");
+    const loaded = session.defaultSession.getAllExtensions().filter((ext) => this.loadedExtensionIds.has(ext.id)).map((ext) => ({ id: ext.id, name: ext.name, version: ext.version }));
+    return { enabled, directory, loaded };
+  }
+  async reload() {
+    try {
+      await this.unloadAll();
+      const enabled = this.store.get("extensionsEnabled");
+      const directory = this.store.get("extensionsDirectory");
+      if (!enabled) {
+        logger.info("[ExtensionsService] Extensions disabled; nothing to load");
+        return { success: true, loadedCount: 0 };
+      }
+      if (!directory) {
+        logger.info("[ExtensionsService] No extensions directory set");
+        return { success: true, loadedCount: 0 };
+      }
+      const loadedCount = await this.loadAllFromDirectory(directory);
+      return { success: true, loadedCount };
+    } catch (error) {
+      logger.error("[ExtensionsService] Reload failed", error);
+      return { success: false, error: String(error), loadedCount: 0 };
+    }
+  }
+  async unloadAll() {
+    const ids = Array.from(this.loadedExtensionIds);
+    this.loadedExtensionIds.clear();
+    for (const id of ids) {
+      try {
+        session.defaultSession.removeExtension(id);
+        logger.info("[ExtensionsService] Extension removed", { id });
+      } catch (error) {
+        logger.warn("[ExtensionsService] Failed to remove extension", { id, error: String(error) });
+      }
+    }
+  }
+  async loadAllFromDirectory(directory) {
+    let entries;
+    try {
+      entries = await promises.readdir(directory, { withFileTypes: true });
+    } catch (error) {
+      logger.warn("[ExtensionsService] Cannot read extensions directory", { directory, error: String(error) });
+      return 0;
+    }
+    const candidates = entries.filter((e) => e.isDirectory()).map((e) => path.join(directory, e.name));
+    let loadedCount = 0;
+    for (const extensionPath of candidates) {
+      const manifestPath = path.join(extensionPath, "manifest.json");
+      try {
+        await promises.access(manifestPath);
+      } catch {
+        continue;
+      }
+      try {
+        const ext = await session.defaultSession.loadExtension(extensionPath, {
+          allowFileAccess: true
+        });
+        this.loadedExtensionIds.add(ext.id);
+        loadedCount += 1;
+        logger.info("[ExtensionsService] Extension loaded", {
+          id: ext.id,
+          name: ext.name,
+          version: ext.version
+        });
+      } catch (error) {
+        logger.warn("[ExtensionsService] Failed to load extension", {
+          extensionPath,
+          error: String(error)
+        });
+      }
+    }
+    return loadedCount;
+  }
+}
+const extensionsService = ExtensionsService.getInstance();
+function setupExtensionsHandlers(registry2) {
+  logger.info("[ExtensionsHandler] Registering IPC handlers");
+  registry2.handle(IPC_CHANNELS.EXTENSIONS.GET_STATUS, async () => {
+    try {
+      const status = await extensionsService.getStatus();
+      return { success: true, status };
+    } catch (error) {
+      logger.error("[ExtensionsHandler] get-status failed", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  registry2.handle(IPC_CHANNELS.EXTENSIONS.RELOAD, async () => {
+    return await extensionsService.reload();
+  });
 }
 function setupTabHandlers(registry2) {
   logger.info("[TabHandler] Setting up handlers...");
@@ -2685,230 +3202,6 @@ function setupTabHandlers(registry2) {
   });
   logger.info("[TabHandler] Handlers setup completed");
 }
-const DEFAULT_SETTINGS = {
-  theme: "dark",
-  searchEngine: "google",
-  homepage: "https://www.google.com",
-  showHomeButton: true,
-  showBookmarksBar: false,
-  fontSize: "medium",
-  customFontSize: 14,
-  pageZoom: "100",
-  blockThirdPartyCookies: true,
-  continueSession: true,
-  language: "ko",
-  savePasswords: false,
-  savePaymentInfo: false,
-  saveAddresses: false,
-  doNotTrack: true,
-  blockAds: false
-};
-class SettingsStore {
-  static instance = null;
-  store;
-  constructor() {
-    this.store = new Store({
-      name: "settings",
-      defaults: DEFAULT_SETTINGS,
-      // Schema validation
-      schema: {
-        theme: {
-          type: "string",
-          enum: ["light", "dark", "system"],
-          default: "dark"
-        },
-        searchEngine: {
-          type: "string",
-          enum: ["google", "bing", "duckduckgo", "naver"],
-          default: "google"
-        },
-        homepage: {
-          type: "string",
-          format: "uri",
-          default: "https://www.google.com"
-        },
-        showHomeButton: {
-          type: "boolean",
-          default: true
-        },
-        showBookmarksBar: {
-          type: "boolean",
-          default: false
-        },
-        fontSize: {
-          type: "string",
-          enum: ["small", "medium", "large", "xlarge"],
-          default: "medium"
-        },
-        customFontSize: {
-          type: "number",
-          minimum: 8,
-          maximum: 24,
-          default: 14
-        },
-        pageZoom: {
-          type: "string",
-          default: "100"
-        },
-        blockThirdPartyCookies: {
-          type: "boolean",
-          default: true
-        },
-        continueSession: {
-          type: "boolean",
-          default: true
-        },
-        language: {
-          type: "string",
-          enum: ["ko", "en", "ja"],
-          default: "ko"
-        },
-        savePasswords: {
-          type: "boolean",
-          default: false
-        },
-        savePaymentInfo: {
-          type: "boolean",
-          default: false
-        },
-        saveAddresses: {
-          type: "boolean",
-          default: false
-        },
-        doNotTrack: {
-          type: "boolean",
-          default: true
-        },
-        blockAds: {
-          type: "boolean",
-          default: false
-        }
-      },
-      // Migrations for version upgrades
-      migrations: {
-        ">=0.1.0": (store) => {
-          if (!store.has("language")) {
-            store.set("language", "ko");
-          }
-        }
-      },
-      // Migration 로그
-      beforeEachMigration: (_store, context) => {
-        logger.info(
-          `[SettingsStore] Migrating from ${context.fromVersion} → ${context.toVersion}`
-        );
-      }
-    });
-    logger.info("[SettingsStore] Initialized", {
-      path: this.store.path
-    });
-  }
-  /**
-   * Singleton 인스턴스 반환
-   */
-  static getInstance() {
-    if (!this.instance) {
-      this.instance = new SettingsStore();
-    }
-    return this.instance;
-  }
-  /**
-   * 모든 설정값 조회
-   */
-  getAll() {
-    try {
-      return this.store.store;
-    } catch (error) {
-      logger.error("[SettingsStore] Failed to get all settings:", error);
-      return DEFAULT_SETTINGS;
-    }
-  }
-  /**
-   * 특정 설정값 조회
-   */
-  get(key) {
-    try {
-      return this.store.get(key);
-    } catch (error) {
-      logger.error("[SettingsStore] Failed to get setting:", error, { key });
-      return DEFAULT_SETTINGS[key];
-    }
-  }
-  /**
-   * 설정값 업데이트
-   */
-  set(key, value) {
-    try {
-      this.store.set(key, value);
-      logger.info("[SettingsStore] Setting updated", { key, value });
-      return true;
-    } catch (error) {
-      logger.error("[SettingsStore] Failed to set setting:", error, { key, value });
-      return false;
-    }
-  }
-  /**
-   * 여러 설정값 한 번에 업데이트
-   */
-  setMultiple(updates) {
-    try {
-      Object.entries(updates).forEach(([key, value]) => {
-        this.store.set(key, value);
-      });
-      logger.info("[SettingsStore] Multiple settings updated", {
-        count: Object.keys(updates).length
-      });
-      return true;
-    } catch (error) {
-      logger.error("[SettingsStore] Failed to set multiple settings:", error);
-      return false;
-    }
-  }
-  /**
-   * 설정값 삭제
-   */
-  delete(key) {
-    try {
-      this.store.delete(key);
-      logger.info("[SettingsStore] Setting deleted", { key });
-      return true;
-    } catch (error) {
-      logger.error("[SettingsStore] Failed to delete setting:", error, { key });
-      return false;
-    }
-  }
-  /**
-   * 모든 설정값 초기화
-   */
-  reset() {
-    try {
-      this.store.clear();
-      logger.info("[SettingsStore] All settings reset to defaults");
-      return true;
-    } catch (error) {
-      logger.error("[SettingsStore] Failed to reset settings:", error);
-      return false;
-    }
-  }
-  /**
-   * 설정 파일 경로 반환
-   */
-  getPath() {
-    return this.store.path;
-  }
-  /**
-   * 설정값 변경 감지
-   */
-  onChange(key, callback) {
-    return this.store.onDidChange(key, callback);
-  }
-  /**
-   * 모든 설정값 변경 감지
-   */
-  onAnyChange(callback) {
-    return this.store.onDidAnyChange(callback);
-  }
-}
 class SettingsService {
   static instance = null;
   store;
@@ -3044,6 +3337,38 @@ class SettingsService {
           }
         }
         break;
+      case "downloadDirectory":
+        if (typeof value !== "string") {
+          return "Download directory must be a string";
+        }
+        if (value.length > 512) {
+          return "Download directory is too long";
+        }
+        if (value.includes("\0")) {
+          return "Download directory contains invalid characters";
+        }
+        break;
+      case "systemHardwareAcceleration":
+      case "systemBackgroundApps":
+      case "accessibilityHighContrast":
+      case "accessibilityReduceMotion":
+      case "extensionsEnabled":
+      case "defaultBrowserPromptOnStartup":
+        if (typeof value !== "boolean") {
+          return "Value must be a boolean";
+        }
+        break;
+      case "extensionsDirectory":
+        if (typeof value !== "string") {
+          return "Extensions directory must be a string";
+        }
+        if (value.length > 512) {
+          return "Extensions directory is too long";
+        }
+        if (value.includes("\\0")) {
+          return "Extensions directory contains invalid characters";
+        }
+        break;
       case "pageZoom":
         if (typeof value === "string") {
           const zoom = parseInt(value, 10);
@@ -3063,7 +3388,7 @@ class SettingsService {
         }
         break;
       case "fontSize":
-        if (!["small", "medium", "large"].includes(value)) {
+        if (!["small", "medium", "large", "xlarge"].includes(value)) {
           return "Invalid font size";
         }
         break;
@@ -3202,6 +3527,16 @@ function setupSettingsHandlers(registry2) {
       return { success: false, error: errorMessage };
     }
   });
+  registry2.handle(IPC_CHANNELS.SETTINGS.GET_PATH, async () => {
+    try {
+      const path2 = settingsService.getSettingsPath();
+      return { success: true, path: path2 };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error("[SettingsHandler] Failed to get settings path:", { error: errorMessage });
+      return { success: false, error: errorMessage };
+    }
+  });
   logger.info("[SettingsHandler] IPC handlers registered successfully");
 }
 function setupViewHandlers(registry2) {
@@ -3281,6 +3616,10 @@ function setupIPCHandlers() {
     logger.info("[IPC] Tab handlers registered");
     setupSettingsHandlers(registry);
     logger.info("[IPC] Settings handlers registered");
+    setupExtensionsHandlers(registry);
+    logger.info("[IPC] Extensions handlers registered");
+    setupDefaultBrowserHandlers(registry);
+    logger.info("[IPC] Default browser handlers registered");
     setupViewHandlers(registry);
     logger.info("[IPC] View handlers registered");
     logger.info("[IPC] All handlers setup completed");

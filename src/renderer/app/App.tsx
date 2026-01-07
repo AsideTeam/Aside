@@ -2,8 +2,11 @@ import React from 'react';
 import { ZenLayout } from '../layouts/Layout';
 import { BrowserPage } from '../pages/BrowserPage';
 import { tokens, cn } from '@renderer/styles';
+import { useApplyAppSettingsEffects } from '@renderer/hooks';
 
 export const App: React.FC = () => {
+  useApplyAppSettingsEffects();
+
   // TODO: 설정에서 layout mode를 선택할 수 있도록 구현
   // const layoutMode = useSettings().layoutMode; // 'zen' | 'browser'
 

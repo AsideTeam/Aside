@@ -12,6 +12,8 @@
 
 import { logger } from '@main/utils/logger'
 import { setupAppHandlers } from './AppHandler'
+import { setupDefaultBrowserHandlers } from './DefaultBrowserHandler'
+import { setupExtensionsHandlers } from './ExtensionsHandler'
 import { setupTabHandlers } from './TabHandler'
 import { setupSettingsHandlers } from './SettingsHandler'
 import { setupViewHandlers } from './ViewHandler'
@@ -43,6 +45,13 @@ export function setupIPCHandlers(): void {
     // Step 3: 설정 핸들러 등록
     setupSettingsHandlers(registry)
     logger.info('[IPC] Settings handlers registered')
+
+    // Step 3.1: 확장/기본 브라우저 핸들러 등록
+    setupExtensionsHandlers(registry)
+    logger.info('[IPC] Extensions handlers registered')
+
+    setupDefaultBrowserHandlers(registry)
+    logger.info('[IPC] Default browser handlers registered')
 
     // Step 4: View(WebContentsView) 핸들러 등록
     setupViewHandlers(registry)

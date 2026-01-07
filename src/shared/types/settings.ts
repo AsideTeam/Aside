@@ -28,6 +28,26 @@ export interface SettingsSchema {
   // Privacy
   doNotTrack: boolean
   blockAds: boolean
+
+  // Downloads
+  downloadDirectory: string
+  downloadAskWhereToSave: boolean
+  downloadOpenAfterSave: boolean
+
+  // Accessibility
+  accessibilityHighContrast: boolean
+  accessibilityReduceMotion: boolean
+
+  // System
+  systemHardwareAcceleration: boolean
+  systemBackgroundApps: boolean
+
+  // Extensions
+  extensionsEnabled: boolean
+  extensionsDirectory: string
+
+  // Default Browser
+  defaultBrowserPromptOnStartup: boolean
 }
 
 /**

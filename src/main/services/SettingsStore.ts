@@ -29,6 +29,25 @@ const DEFAULT_SETTINGS: SettingsSchema = {
   saveAddresses: false,
   doNotTrack: true,
   blockAds: false,
+
+  // Downloads
+  downloadDirectory: '',
+  downloadAskWhereToSave: false,
+  downloadOpenAfterSave: false,
+
+  // Accessibility
+  accessibilityHighContrast: false,
+  accessibilityReduceMotion: false,
+
+  // System
+  systemHardwareAcceleration: true,
+  systemBackgroundApps: false,
+  // Extensions
+  extensionsEnabled: false,
+  extensionsDirectory: '',
+
+  // Default Browser
+  defaultBrowserPromptOnStartup: true,
 }
 
 /**
@@ -114,6 +133,55 @@ export class SettingsStore {
         blockAds: {
           type: 'boolean',
           default: false,
+        },
+
+        // Downloads
+        downloadDirectory: {
+          type: 'string',
+          default: '',
+        },
+        downloadAskWhereToSave: {
+          type: 'boolean',
+          default: false,
+        },
+        downloadOpenAfterSave: {
+          type: 'boolean',
+          default: false,
+        },
+
+        // Accessibility
+        accessibilityHighContrast: {
+          type: 'boolean',
+          default: false,
+        },
+        accessibilityReduceMotion: {
+          type: 'boolean',
+          default: false,
+        },
+
+        // System
+        systemHardwareAcceleration: {
+          type: 'boolean',
+          default: true,
+        },
+        systemBackgroundApps: {
+          type: 'boolean',
+          default: false,
+        },
+        // Extensions
+        extensionsEnabled: {
+          type: 'boolean',
+          default: false,
+        },
+        extensionsDirectory: {
+          type: 'string',
+          default: '',
+        },
+
+        // Default Browser
+        defaultBrowserPromptOnStartup: {
+          type: 'boolean',
+          default: true,
         },
       },
       // Migrations for version upgrades

@@ -99,6 +99,71 @@
   }
 }
 
+/* ===== Forced Theme Overrides (Settings) ===== */
+/* These blocks appear after the media query so user choice wins. */
+:root[data-theme='dark'] {
+  --color-bg-primary: rgb(3, 7, 18);
+  --color-bg-primary-rgb: 3, 7, 18;
+  --color-bg-secondary: rgb(17, 24, 39);
+  --color-bg-secondary-rgb: 17, 24, 39;
+  --color-bg-tertiary: rgb(31, 41, 55);
+  --color-bg-hover: rgb(31, 41, 55);
+  --color-bg-input: rgb(243, 244, 246);
+
+  --color-text-primary: rgb(255, 255, 255);
+  --color-text-secondary: rgb(156, 163, 175);
+  --color-text-tertiary: rgb(107, 114, 128);
+  --color-text-muted: rgb(107, 114, 128);
+
+  --color-border-primary: rgb(31, 41, 55);
+  --color-border-light: rgb(55, 65, 81);
+
+  --color-accent: rgb(37, 99, 235);
+  --color-accent-hover: rgb(29, 78, 216);
+  --color-accent-light: rgb(96, 165, 250);
+
+  --color-danger: rgb(239, 68, 68);
+  --color-danger-hover: rgb(220, 38, 38);
+
+  --button-primary-bg: rgb(37, 99, 235);
+  --button-primary-bg-hover: rgb(29, 78, 216);
+  --button-primary-text: rgb(255, 255, 255);
+
+  --button-secondary-bg: rgb(55, 65, 81);
+  --button-secondary-bg-hover: rgb(55, 65, 81);
+  --button-secondary-text: rgb(229, 231, 235);
+
+  --button-ghost-bg: transparent;
+  --button-ghost-bg-hover: rgb(31, 41, 55);
+  --button-ghost-text: rgb(107, 114, 128);
+  --button-ghost-text-hover: rgb(229, 231, 235);
+}
+
+:root[data-theme='light'] {
+  --color-bg-primary: rgb(249, 250, 251);
+  --color-bg-secondary: rgb(255, 255, 255);
+  --color-bg-tertiary: rgb(243, 244, 246);
+  --color-bg-hover: rgb(229, 231, 235);
+  --color-bg-input: rgb(255, 255, 255);
+
+  --color-text-primary: rgb(17, 24, 39);
+  --color-text-secondary: rgb(75, 85, 99);
+  --color-text-tertiary: rgb(156, 163, 175);
+  --color-text-muted: rgb(156, 163, 175);
+
+  --color-border-primary: rgb(229, 231, 235);
+  --color-border-light: rgb(209, 213, 219);
+
+  --button-secondary-bg: rgb(229, 231, 235);
+  --button-secondary-bg-hover: rgb(209, 213, 219);
+  --button-secondary-text: rgb(17, 24, 39);
+
+  --button-ghost-bg: transparent;
+  --button-ghost-bg-hover: rgb(229, 231, 235);
+  --button-ghost-text: rgb(107, 114, 128);
+  --button-ghost-text-hover: rgb(17, 24, 39);
+}
+
 /* ===== RTL Support ===== */
 [dir='rtl'] {
   --transform-flip: scaleX(-1);

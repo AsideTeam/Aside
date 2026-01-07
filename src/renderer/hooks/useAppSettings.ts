@@ -21,6 +21,21 @@ const SettingsSchemaZ = z.object({
   saveAddresses: z.boolean(),
   doNotTrack: z.boolean(),
   blockAds: z.boolean(),
+
+  downloadDirectory: z.string(),
+  downloadAskWhereToSave: z.boolean(),
+  downloadOpenAfterSave: z.boolean(),
+
+  accessibilityHighContrast: z.boolean(),
+  accessibilityReduceMotion: z.boolean(),
+
+  systemHardwareAcceleration: z.boolean(),
+  systemBackgroundApps: z.boolean(),
+
+  extensionsEnabled: z.boolean(),
+  extensionsDirectory: z.string(),
+
+  defaultBrowserPromptOnStartup: z.boolean(),
 })
 
 type UpdateResult = { success?: boolean; error?: string }

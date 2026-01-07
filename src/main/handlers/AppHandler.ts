@@ -17,6 +17,7 @@ import { MainWindow } from '@main/core/window'
 import { OverlayController } from '@main/core/OverlayController'
 import { AppState } from '@main/managers/AppState'
 import { ViewManager } from '@main/managers/ViewManager'
+import { Env } from '@main/config/env'
 import { IPC_CHANNELS } from '@shared/ipc/channels'
 import type { IpcRegistry } from './IpcRegistry'
 import { OverlayHoverMetricsSchema } from '@shared/validation/schemas'
@@ -127,6 +128,21 @@ export function setupAppHandlers(registry: IpcRegistry): void {
       return { success: true, state }
     } catch (error) {
       logger.error('[AppHandler] app:state failed:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // app:get-info - 앱 메타데이터 조회
+  registry.handle(IPC_CHANNELS.APP.GET_INFO, async () => {
+    try {
+      const info = {
+        name: Env.appName,
+        version: Env.appVersion,
+        userDataDir: Env.dataDir,
+      }
+      return { success: true, info }
+    } catch (error) {
+      logger.error('[AppHandler] app:get-info failed:', error)
       return { success: false, error: String(error) }
     }
   })

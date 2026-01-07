@@ -183,6 +183,41 @@ export class SettingsService {
         }
         break
 
+      case 'downloadDirectory':
+        if (typeof value !== 'string') {
+          return 'Download directory must be a string'
+        }
+        if (value.length > 512) {
+          return 'Download directory is too long'
+        }
+        if (value.includes('\0')) {
+          return 'Download directory contains invalid characters'
+        }
+        break
+
+      case 'systemHardwareAcceleration':
+      case 'systemBackgroundApps':
+      case 'accessibilityHighContrast':
+      case 'accessibilityReduceMotion':
+      case 'extensionsEnabled':
+      case 'defaultBrowserPromptOnStartup':
+        if (typeof value !== 'boolean') {
+          return 'Value must be a boolean'
+        }
+        break
+
+      case 'extensionsDirectory':
+        if (typeof value !== 'string') {
+          return 'Extensions directory must be a string'
+        }
+        if (value.length > 512) {
+          return 'Extensions directory is too long'
+        }
+        if (value.includes('\\0')) {
+          return 'Extensions directory contains invalid characters'
+        }
+        break
+
       case 'pageZoom':
         if (typeof value === 'string') {
           const zoom = parseInt(value, 10)
@@ -205,7 +240,7 @@ export class SettingsService {
         break
 
       case 'fontSize':
-        if (!['small', 'medium', 'large'].includes(value as string)) {
+        if (!['small', 'medium', 'large', 'xlarge'].includes(value as string)) {
           return 'Invalid font size'
         }
         break

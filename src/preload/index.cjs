@@ -152,6 +152,7 @@ const electronAPI = {
       'app:quit',
       'app:restart',
       'app:state',
+      'app:get-info',
       
       // Window
       'window:minimize',
@@ -181,6 +182,16 @@ const electronAPI = {
       'settings:get',
       'settings:update',
       'settings:reset',
+      'settings:get-path',
+
+      // Extensions
+      'extensions:get-status',
+      'extensions:reload',
+
+      // Default Browser
+      'default-browser:get-status',
+      'default-browser:set-default',
+      'default-browser:open-system-settings',
 
       // Overlay toggles
       'overlay:toggle-header-latch',

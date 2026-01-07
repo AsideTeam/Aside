@@ -152,24 +152,7 @@ export const ZenLayout: React.FC = () => {
             <SettingsPage />
           </div>
 
-          <button
-            className={cn(
-              'absolute top-3 right-3',
-              'px-3 py-1.5 rounded-lg',
-              'bg-white/5 hover:bg-white/10',
-              'text-sm text-white/80',
-              'no-drag'
-            )}
-            onClick={() => {
-              const fallbackUrl = 'https://www.google.com'
-              const lastUrl = (activeTabId && lastNormalUrlByTabIdRef.current[activeTabId]) || fallbackUrl
-              void window.electronAPI?.invoke('tab:navigate', { url: lastUrl }).catch(() => {
-                // ignore
-              })
-            }}
-          >
-            닫기
-          </button>
+
         </div>
       ) : null}
 
