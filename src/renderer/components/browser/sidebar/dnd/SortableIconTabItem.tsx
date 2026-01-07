@@ -3,14 +3,17 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
 import { getFaviconUrl } from '@renderer/lib/faviconUtils'
+import { cn } from '@renderer/styles'
 
 import type { SidebarTabItem } from '../types'
 
 export function SortableIconTabItem({
   tab,
+  isActive,
   onSelect,
 }: {
   tab: SidebarTabItem
+  isActive: boolean
   onSelect: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -28,7 +31,7 @@ export function SortableIconTabItem({
     <button
       ref={setNodeRef}
       style={style}
-      className="sidebar-icon-item"
+      className={cn('sidebar-icon-item', isActive && 'sidebar-icon-item--active')}
       onClick={onSelect}
       title={tab.title || tab.url}
       {...attributes}
@@ -37,7 +40,7 @@ export function SortableIconTabItem({
       <img
         src={getFaviconUrl(tab.url, tab.favicon)}
         alt=""
-        className="w-8 h-8 object-contain rounded-md"
+        className="sidebar-icon-img"
       />
     </button>
   )

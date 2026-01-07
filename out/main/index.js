@@ -1306,6 +1306,83 @@ class ViewManager {
     });
   }
 }
+function mergeHoverMetrics(current, incoming) {
+  if (!Number.isFinite(incoming.dpr) || incoming.dpr <= 0 || !Number.isFinite(incoming.timestamp)) {
+    return { kind: "invalid" };
+  }
+  if (!current) {
+    return {
+      kind: "initial",
+      next: { ...incoming, timestamp: incoming.timestamp || Date.now() }
+    };
+  }
+  const next = { ...current };
+  if (incoming.sidebarRightPx !== void 0 && Number.isFinite(incoming.sidebarRightPx)) {
+    next.sidebarRightPx = Math.max(0, incoming.sidebarRightPx);
+  }
+  if (incoming.headerBottomPx !== void 0 && Number.isFinite(incoming.headerBottomPx)) {
+    next.headerBottomPx = Math.max(0, incoming.headerBottomPx);
+  }
+  if (incoming.titlebarHeightPx !== void 0 && Number.isFinite(incoming.titlebarHeightPx)) {
+    next.titlebarHeightPx = Math.max(0, incoming.titlebarHeightPx);
+  }
+  next.dpr = incoming.dpr;
+  next.timestamp = incoming.timestamp || Date.now();
+  return { kind: "update", next };
+}
+const DEFAULT_SIDEBAR_WIDTH = 288;
+const DEFAULT_HEADER_HEIGHT = 56;
+function computeEdgeOverlayState({
+  relativeX,
+  relativeY,
+  currentState,
+  headerLatched,
+  sidebarLatched,
+  metrics,
+  edgeThreshold
+}) {
+  const sidebarWidth = metrics?.sidebarRightPx ?? DEFAULT_SIDEBAR_WIDTH;
+  const headerHeight = metrics?.headerBottomPx ?? DEFAULT_HEADER_HEIGHT;
+  let shouldOpenSidebar = false;
+  let shouldCloseSidebar = false;
+  if (!sidebarLatched) {
+    if (relativeX <= edgeThreshold) {
+      shouldOpenSidebar = true;
+    }
+    if (currentState.sidebarOpen && relativeX > sidebarWidth) {
+      shouldCloseSidebar = true;
+    }
+  }
+  let shouldOpenHeader = false;
+  let shouldCloseHeader = false;
+  if (!headerLatched) {
+    if (relativeY <= edgeThreshold) {
+      shouldOpenHeader = true;
+    }
+    if (currentState.headerOpen && relativeY > headerHeight) {
+      shouldCloseHeader = true;
+    }
+  }
+  if (shouldOpenSidebar && shouldOpenHeader) {
+    shouldOpenSidebar = false;
+  }
+  const finalSidebarOpen = sidebarLatched || (shouldOpenSidebar || currentState.sidebarOpen && !shouldCloseSidebar);
+  const finalHeaderOpen = headerLatched || (shouldOpenHeader || currentState.headerOpen && !shouldCloseHeader);
+  const mouseInSidebar = finalSidebarOpen && relativeX <= sidebarWidth;
+  const mouseInHeader = finalHeaderOpen && relativeY <= headerHeight;
+  return {
+    nextState: { headerOpen: finalHeaderOpen, sidebarOpen: finalSidebarOpen },
+    mouseInSidebar,
+    mouseInHeader,
+    dimensions: { sidebarWidth, headerHeight, edgeThreshold },
+    triggers: {
+      shouldOpenSidebar,
+      shouldCloseSidebar,
+      shouldOpenHeader,
+      shouldCloseHeader
+    }
+  };
+}
 const TRACKING_INTERVAL_MS = 16;
 const MAX_METRICS_AGE_MS = 1e4;
 const STATE_UPDATE_THROTTLE_MS = 16;
@@ -1354,27 +1431,15 @@ class OverlayController {
     }
   }
   static updateHoverMetrics(metrics) {
-    if (!Number.isFinite(metrics.dpr) || metrics.dpr <= 0 || !Number.isFinite(metrics.timestamp)) {
+    const result = mergeHoverMetrics(this.hoverMetrics, metrics);
+    if (result.kind === "invalid") {
       logger.warn("[OverlayController] Invalid dpr or timestamp, skipping");
       return;
     }
-    const current = this.hoverMetrics;
-    if (!current) {
-      this.hoverMetrics = { ...metrics, timestamp: metrics.timestamp || Date.now() };
+    this.hoverMetrics = result.next;
+    if (result.kind === "initial") {
       logger.info("[OverlayController] Initial metrics received");
-      return;
     }
-    if (metrics.sidebarRightPx !== void 0 && Number.isFinite(metrics.sidebarRightPx)) {
-      current.sidebarRightPx = Math.max(0, metrics.sidebarRightPx);
-    }
-    if (metrics.headerBottomPx !== void 0 && Number.isFinite(metrics.headerBottomPx)) {
-      current.headerBottomPx = Math.max(0, metrics.headerBottomPx);
-    }
-    if (metrics.titlebarHeightPx !== void 0 && Number.isFinite(metrics.titlebarHeightPx)) {
-      current.titlebarHeightPx = Math.max(0, metrics.titlebarHeightPx);
-    }
-    current.dpr = metrics.dpr;
-    current.timestamp = metrics.timestamp || Date.now();
   }
   // Latch state (pinned)
   static getHeaderLatched() {
@@ -1508,53 +1573,28 @@ class OverlayController {
     const { headerLatched, sidebarLatched } = overlayStore.getState();
     const metrics = this.hoverMetrics;
     const EDGE_THRESHOLD = 3;
-    const sidebarWidth = metrics?.sidebarRightPx ?? 288;
-    const headerHeight = metrics?.headerBottomPx ?? 56;
-    let shouldOpenSidebar = false;
-    let shouldCloseSidebar = false;
-    if (!sidebarLatched) {
-      if (relativeX <= EDGE_THRESHOLD) {
-        shouldOpenSidebar = true;
-      }
-      if (this.currentState.sidebarOpen && relativeX > sidebarWidth) {
-        shouldCloseSidebar = true;
-      }
-    }
-    let shouldOpenHeader = false;
-    let shouldCloseHeader = false;
-    if (!headerLatched) {
-      if (relativeY <= EDGE_THRESHOLD) {
-        shouldOpenHeader = true;
-      }
-      if (this.currentState.headerOpen && relativeY > headerHeight) {
-        shouldCloseHeader = true;
-      }
-    }
-    if (shouldOpenSidebar && shouldOpenHeader) {
-      shouldOpenSidebar = false;
-    }
-    const finalSidebarOpen = sidebarLatched || (shouldOpenSidebar || this.currentState.sidebarOpen && !shouldCloseSidebar);
-    const finalHeaderOpen = headerLatched || (shouldOpenHeader || this.currentState.headerOpen && !shouldCloseHeader);
+    const calc = computeEdgeOverlayState({
+      relativeX,
+      relativeY,
+      currentState: this.currentState,
+      headerLatched,
+      sidebarLatched,
+      metrics,
+      edgeThreshold: EDGE_THRESHOLD
+    });
+    const finalHeaderOpen = calc.nextState.headerOpen;
+    const finalSidebarOpen = calc.nextState.sidebarOpen;
     if (Math.random() < 0.02) {
       logger.debug("[OverlayController] State Debug", {
         mouse: { screenX: mouseX, screenY: mouseY, relativeX, relativeY },
         bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
-        dimensions: {
-          sidebarWidth,
-          headerHeight,
-          edgeThreshold: EDGE_THRESHOLD
-        },
-        triggers: {
-          shouldOpenSidebar,
-          shouldCloseSidebar,
-          shouldOpenHeader,
-          shouldCloseHeader
-        },
+        dimensions: calc.dimensions,
+        triggers: calc.triggers,
         state: { headerOpen: finalHeaderOpen, sidebarOpen: finalSidebarOpen }
       });
     }
-    const mouseInSidebar = finalSidebarOpen && relativeX <= sidebarWidth;
-    const mouseInHeader = finalHeaderOpen && relativeY <= headerHeight;
+    const mouseInSidebar = calc.mouseInSidebar;
+    const mouseInHeader = calc.mouseInHeader;
     if (mouseInSidebar || mouseInHeader) {
       ViewManager.ensureUITopmost();
     } else {

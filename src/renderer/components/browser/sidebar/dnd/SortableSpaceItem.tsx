@@ -1,9 +1,10 @@
 import React from 'react'
-import { Globe } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
 import { cn } from '@renderer/styles'
+import { getFaviconUrl } from '@renderer/lib/faviconUtils'
 
 import type { SidebarTabItem } from '../types'
 
@@ -11,10 +12,12 @@ export function SortableSpaceItem({
   tab,
   isActive,
   onSelect,
+  onClose,
 }: {
   tab: SidebarTabItem
   isActive: boolean
   onSelect: () => void
+  onClose: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id,
@@ -36,10 +39,27 @@ export function SortableSpaceItem({
       {...attributes}
       {...listeners}
     >
-      <div className="sidebar-space-icon">
-        <Globe size={16} />
+      <div className="sidebar-space-favicon">
+        <img
+          src={getFaviconUrl(tab.url, tab.favicon)}
+          alt=""
+          className="sidebar-space-favicon-img"
+        />
       </div>
       <span className="sidebar-space-text">{tab.title || 'Untitled'}</span>
+
+      <button
+        className="sidebar-space-close"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation()
+          onClose()
+        }}
+        aria-label="Close tab"
+        title="Close"
+      >
+        <X size={14} />
+      </button>
     </div>
   )
 }

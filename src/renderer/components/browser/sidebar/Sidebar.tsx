@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo, useRef, useState } from 'react'
-import { Plus, Download, Settings, MoreHorizontal } from 'lucide-react'
+import { Plus, Download, Settings, ChevronDown } from 'lucide-react'
 import {
   DndContext,
   DragEndEvent,
@@ -158,7 +158,7 @@ export const Sidebar: React.FC = () => {
       className={cn(
         'fixed left-0 z-9999',
         'w-72',
-        'bg-[#0E0F11]',
+        'bg-[var(--color-bg-primary)]',
         'border-r border-white/5',
         'text-gray-300 text-sm',
         'transition-all duration-300 ease-out',
@@ -184,26 +184,7 @@ export const Sidebar: React.FC = () => {
             <SortableContext items={iconTabs.map((t) => t.id)} strategy={verticalListSortingStrategy}>
               <div className="sidebar-icon-grid">
                 {iconTabs.map((t) => (
-                  <SortableIconTabItem key={t.id} tab={t} onSelect={() => void switchTab(t.id)} />
-                ))}
-              </div>
-            </SortableContext>
-          </SectionDropZone>
-        </div>
-
-        {/* 2. SPACE SECTION */}
-        <div className="sidebar-space-section">
-          <SectionDropZone section="space">
-            <div className="sidebar-space-header">
-              <span className="sidebar-space-title">Space</span>
-              <button className="sidebar-space-menu">
-                <MoreHorizontal size={14} />
-              </button>
-            </div>
-            <SortableContext items={pinnedTabs.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              <div className="sidebar-space-list">
-                {pinnedTabs.map((t) => (
-                  <SortableSpaceItem
+                  <SortableIconTabItem
                     key={t.id}
                     tab={t}
                     isActive={t.id === activeTabId}
@@ -215,13 +196,44 @@ export const Sidebar: React.FC = () => {
           </SectionDropZone>
         </div>
 
+        {/* 2. SPACE SECTION */}
+        <div className="sidebar-space-section">
+          <SectionDropZone section="space">
+            <div className="sidebar-space-header">
+              <span className="sidebar-space-title">Space</span>
+              <button className="sidebar-space-menu" aria-label="Space menu">
+                <ChevronDown size={14} />
+              </button>
+            </div>
+            <SortableContext items={pinnedTabs.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+              <div className="sidebar-space-list">
+                {pinnedTabs.map((t) => (
+                  <SortableSpaceItem
+                    key={t.id}
+                    tab={t}
+                    isActive={t.id === activeTabId}
+                    onSelect={() => void switchTab(t.id)}
+                    onClose={() => void closeTab(t.id)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </SectionDropZone>
+        </div>
+
+        {/* Option / Divider Row (visual only) */}
+        <div className="sidebar-option-row" aria-hidden="true">
+          <div className="sidebar-option-divider" />
+          <div className="sidebar-option-text">탭 정리</div>
+        </div>
+
         {/* 3. TAB SECTION */}
         <div className="sidebar-tab-section">
           <button className="sidebar-new-tab" onClick={() => void createTab()}>
             <div className="sidebar-new-tab-icon">
               <Plus size={14} />
             </div>
-            <span>New Tab</span>
+            <span>새 탭</span>
           </button>
 
           <div className="sidebar-tab-divider" />
