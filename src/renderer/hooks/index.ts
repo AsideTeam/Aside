@@ -1,16 +1,12 @@
-export { useBrowser } from './useBrowser';
-export { useAppSettings } from './useAppSettings';
-export { AppSettingsProvider } from './useAppSettings';
-export { useAsideInfo } from './useAsideInfo';
-export { useSetting } from './useSetting';
-export { useTabs } from './useTabs';
-export { useViewBounds } from './useViewBounds';
-export { useWebContents } from './useWebContents';
-export { useWindowFocus } from './useWindowFocus';
-export { useOverlayHover } from './useOverlayHover';
-export { useOverlayInteraction } from './useOverlayInteraction';
-export { useWindowSize, useResponsive } from './useWindowSize';
-export { useI18n } from './useI18n';
-export * from './useExtensionsStatus';
-export * from './useDefaultBrowserStatus';
-export * from './useApplyAppSettingsEffects';
+export { useBrowser } from './browser/useBrowser'
+export { useAsideInfo } from './status/useAsideInfo'
+export * from './tabs/useTabs'
+export { useViewBounds } from './view/useViewBounds'
+export { useWebContents } from './view/useWebContents'
+export { useWindowFocus } from './window/useWindowFocus'
+export { useOverlayHover } from './overlay/useOverlayHover'
+export { useOverlayInteraction } from './overlay/useOverlayInteraction'
+export * from './window/useWindowSize'
+export { useExtensionsStatus } from './status/useExtensionsStatus'
+export { useDefaultBrowserStatus } from './status/useDefaultBrowserStatus'
+export * from './settings'

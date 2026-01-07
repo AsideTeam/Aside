@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { cn } from '@renderer/styles'
 import type { SettingsSchema } from '@shared/types'
 import { formatUrl } from '@renderer/lib/utils'
-import { useAppSettings } from '@renderer/hooks/useAppSettings'
+import { useAppSettings } from '@renderer/hooks/settings/useAppSettings'
 
 function buildSearchUrl(engine: SettingsSchema['searchEngine'], query: string): string {
   const q = encodeURIComponent(query)

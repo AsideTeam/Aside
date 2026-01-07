@@ -11,9 +11,9 @@ import {
 
 import type { SettingsSchema } from '@shared/types'
 import { SettingsLayout } from '../layouts/SettingsLayout'
-import { useAppSettings } from '../hooks/useAppSettings'
-import { useI18n } from '../hooks/useI18n'
-import { useAsideInfo } from '../hooks/useAsideInfo'
+import { useAppSettings } from '../hooks/settings/useAppSettings'
+import { useI18n } from '../hooks/settings/useI18n'
+import { useAsideInfo } from '@renderer/hooks'
 import { useExtensionsStatus } from '../hooks'
 
 // --- Types ---

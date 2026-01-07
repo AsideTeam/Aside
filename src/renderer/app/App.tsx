@@ -2,8 +2,7 @@ import React from 'react';
 import { ZenLayout } from '../layouts/Layout';
 import { BrowserPage } from '../pages/BrowserPage';
 import { tokens, cn } from '@renderer/styles';
-import { useApplyAppSettingsEffects } from '@renderer/hooks';
-import { AppSettingsProvider } from '@renderer/hooks/useAppSettings';
+import { AppSettingsProvider, useApplyAppSettingsEffects } from '@renderer/hooks';
 
 const AppInner: React.FC = () => {
   useApplyAppSettingsEffects();

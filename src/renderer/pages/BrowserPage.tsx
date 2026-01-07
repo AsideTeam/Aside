@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserLayout } from '../layouts/BrowserLayout';
-import { useBrowser } from '../hooks/useBrowser';
+import { useBrowser } from '@renderer/hooks'
 import { logger } from '../lib/logger';
 import { tokens, cn } from '@renderer/styles';
 

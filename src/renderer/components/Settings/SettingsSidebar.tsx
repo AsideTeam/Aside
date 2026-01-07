@@ -1,5 +1,5 @@
 import React from 'react';
-import { useI18n } from '@renderer/hooks/useI18n'
+import { useI18n } from '@renderer/hooks/settings/useI18n'
 
 interface SettingsCategory {
   id: string;
