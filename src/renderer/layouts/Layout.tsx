@@ -11,11 +11,11 @@
  *   └── WebContentsView (Electron Native, 자식 뷰)
  */
 
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Sidebar } from '../components/browser/Sidebar';
 import { AsideHeader } from '../components/browser/AsideHeader';
 import { cn, tokens } from '@renderer/styles';
-import { useViewBounds, useWindowFocus, useOverlayInteraction } from '@renderer/hooks';
+import { useTabs, useViewBounds, useWindowFocus, useOverlayInteraction } from '@renderer/hooks';
 import { useOverlayStore } from '@renderer/lib/overlayStore';
 import { logger } from '@renderer/lib';
 import { SettingsPage } from '@renderer/pages';
@@ -30,7 +30,11 @@ export const ZenLayout: React.FC = () => {
   const headerLatched = useOverlayStore((s) => s.headerLatched)
   const sidebarLatched = useOverlayStore((s) => s.sidebarLatched)
 
+  const { tabs, activeTabId } = useTabs()
+  const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId) ?? null, [tabs, activeTabId])
+
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const lastNormalUrlByTabIdRef = useRef<Record<string, string>>({})
 
 
   // ⭐ Pinned 상태에서 WebContentsView가 차지할 수 없는 safe-area(inset)를 측정한다.
@@ -52,23 +56,29 @@ export const ZenLayout: React.FC = () => {
     };
   }, [])
 
-  // about:settings / chrome://settings interception from main process
+  // Track last non-about URL per tab so Settings can close back.
   useEffect(() => {
-    const api = window.electronAPI
-    if (!api || typeof api.on !== 'function' || typeof api.off !== 'function') return
-
-    const onNavigateToSettings = () => {
-      setSettingsOpen(true)
-      void api.invoke('view:settings-toggled', { isOpen: true }).catch(() => {
-        // ignore
-      })
+    if (!activeTabId || !activeTab?.url) return
+    if (!activeTab.url.startsWith('about:')) {
+      lastNormalUrlByTabIdRef.current[activeTabId] = activeTab.url
     }
+  }, [activeTabId, activeTab?.url])
 
-    api.on('navigate-to-settings', onNavigateToSettings)
-    return () => {
-      api.off('navigate-to-settings', onNavigateToSettings)
-    }
-  }, [])
+  // Settings visibility is driven by active tab URL.
+  useEffect(() => {
+    const url = activeTab?.url ?? ''
+    const shouldOpen = url === 'about:settings' || url === 'about:preferences'
+    if (settingsOpen === shouldOpen) return
+
+    setSettingsOpen(shouldOpen)
+
+    // Ask main to hide/show the active WebContentsView to prevent overlap.
+    void window.electronAPI?.invoke('view:settings-toggled', { isOpen: shouldOpen }).catch(() => {
+      // ignore
+    })
+
+    logger.info('[ZenLayout] Settings toggle', { shouldOpen, url })
+  }, [activeTab?.url, settingsOpen])
 
   // 1. Inset calculation & Bounds Sync
   useLayoutEffect(() => {
@@ -125,7 +135,7 @@ export const ZenLayout: React.FC = () => {
       {settingsOpen ? (
         <div
           className={cn(
-            'fixed inset-0 z-9000',
+            'fixed inset-0 z-10000',
             'pointer-events-auto',
             tokens.colors.bg.primary,
           )}
@@ -146,8 +156,9 @@ export const ZenLayout: React.FC = () => {
               'no-drag'
             )}
             onClick={() => {
-              setSettingsOpen(false)
-              void window.electronAPI?.invoke('view:settings-toggled', { isOpen: false }).catch(() => {
+              const fallbackUrl = 'https://www.google.com'
+              const lastUrl = (activeTabId && lastNormalUrlByTabIdRef.current[activeTabId]) || fallbackUrl
+              void window.electronAPI?.invoke('tab:navigate', { url: lastUrl }).catch(() => {
                 // ignore
               })
             }}

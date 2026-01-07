@@ -21,8 +21,7 @@ export const AsideHeader: React.FC = () => {
 
   // Navigate handler
   const handleNavigate = async (url: string) => {
-    if (!activeTabId) return
-    await window.electronAPI?.invoke('tab:navigate', { tabId: activeTabId, url })
+    await window.electronAPI?.invoke('tab:navigate', { url })
   }
 
 

@@ -3324,7 +3324,12 @@ function setupNavigationInterceptors() {
       if (url.startsWith("about:settings") || url.startsWith("chrome://settings")) {
         event.preventDefault();
         logger.info("[ProtocolHandler] Blocked about:settings, redirecting to app:settings");
-        contents.send("navigate-to-settings");
+        const ui = MainWindow.getUiOverlayWebContents();
+        if (ui) {
+          ui.send("navigate-to-settings");
+        } else {
+          logger.warn("[ProtocolHandler] UI overlay webContents not available for settings navigation");
+        }
         return;
       }
       if (url.startsWith("chrome://") || url.startsWith("about:")) {

@@ -13,6 +13,7 @@
 
 import { app, protocol } from 'electron'
 import { logger } from '@main/utils/logger'
+import { MainWindow } from '@main/core/window'
 
 /**
  * 프로토콜 핸들러 설정
@@ -53,9 +54,14 @@ export function setupNavigationInterceptors(): void {
       if (url.startsWith('about:settings') || url.startsWith('chrome://settings')) {
         event.preventDefault()
         logger.info('[ProtocolHandler] Blocked about:settings, redirecting to app:settings')
-        
-        // Renderer에게 이벤트 보내기
-        contents.send('navigate-to-settings')
+
+        // UI overlay renderer에게 이벤트 보내기 (탭 webContents는 preload가 없어 수신 불가)
+        const ui = MainWindow.getUiOverlayWebContents()
+        if (ui) {
+          ui.send('navigate-to-settings')
+        } else {
+          logger.warn('[ProtocolHandler] UI overlay webContents not available for settings navigation')
+        }
         return
       }
 
