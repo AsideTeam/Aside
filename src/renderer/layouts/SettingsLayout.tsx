@@ -5,7 +5,7 @@ import { tokens, cn } from '@renderer/styles';
 interface SettingsCategory {
   id: string;
   label: string;
-  iconName?: string;
+  icon?: React.ReactNode;
 }
 
 interface SettingsLayoutProps {
@@ -22,16 +22,14 @@ export const SettingsLayout: React.FC<SettingsLayoutProps> = ({
   children,
 }) => {
   return (
-    <div className={cn('flex h-screen', tokens.colors.bg.primary)}>
+    <div className={cn(tokens.layout.settings.container)}>
       <SettingsSidebar
         categories={categories}
         activeCategory={activeCategory}
         onSelectCategory={onSelectCategory}
       />
-      <main className={cn('flex-1 overflow-y-auto', tokens.colors.bg.secondary)}>
-        <div className="max-w-3xl mx-auto px-8 py-6">
-          {children}
-        </div>
+      <main className={cn('settings-content')}>
+        <div className="settings-content-inner">{children}</div>
       </main>
     </div>
   );

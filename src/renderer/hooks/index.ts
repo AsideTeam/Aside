@@ -1,4 +1,5 @@
 export { useBrowser } from './useBrowser';
+export { useAppSettings } from './useAppSettings';
 export { useSetting } from './useSetting';
 export { useTabs } from './useTabs';
 export { useViewBounds } from './useViewBounds';

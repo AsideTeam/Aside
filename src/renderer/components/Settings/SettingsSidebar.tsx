@@ -1,11 +1,12 @@
 import React from 'react';
 import { cn } from '@renderer/styles/tokens';
 import { tokens } from '@renderer/styles';
+import { Settings } from 'lucide-react';
 
 interface SettingsCategory {
   id: string;
   label: string;
-  iconName?: string;
+  icon?: React.ReactNode;
 }
 
 interface SettingsSidebarProps {
@@ -21,6 +22,12 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
 }) => {
   return (
     <aside className={tokens.layout.settings.sidebar}>
+      <div className={cn('px-4 pt-2 pb-3', tokens.colors.text.primary)}>
+        <div className="flex items-center gap-2 text-base font-semibold">
+          <Settings className="w-4 h-4" />
+          <span>설정</span>
+        </div>
+      </div>
       <nav className="space-y-1">
         {categories.map((category) => (
           <button
@@ -34,7 +41,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
             )}
           >
             <span className="flex items-center gap-2">
-              {category.iconName && <span>{category.iconName}</span>}
+              {category.icon ? <span className="w-4 h-4 shrink-0">{category.icon}</span> : null}
               {category.label}
             </span>
           </button>

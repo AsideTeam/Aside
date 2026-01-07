@@ -1,0 +1,67 @@
+/**
+ * Settings Styles
+ *
+ * Settings UI 전용 스타일(Chrome-ish IA)
+ * - Tailwind v4 @apply 기반
+ * - 색/레이어는 theme.css 변수 기반
+ */
+
+/* ===== Layout ===== */
+.settings-container {
+  @apply flex h-full min-h-0 bg-(--color-bg-primary);
+}
+
+.settings-content {
+  @apply flex-1 overflow-y-auto min-h-0 bg-(--color-bg-secondary);
+}
+
+.settings-content-inner {
+  @apply max-w-3xl mx-auto px-8 py-6;
+}
+
+/* ===== Top Search ===== */
+.settings-topbar {
+  @apply sticky top-0 z-10 -mx-8 px-8 py-4 bg-(--color-bg-secondary);
+}
+
+.settings-search-shell {
+  @apply relative rounded-full border border-(--color-border-primary) bg-(--color-bg-tertiary);
+}
+
+.settings-search-icon {
+  @apply absolute left-4 top-1/2 -translate-y-1/2 text-(--color-text-tertiary);
+}
+
+.settings-search-input {
+  @apply w-full h-9 pl-10 pr-4 rounded-full bg-transparent outline-none text-(--color-text-primary);
+}
+
+/* ===== Cards / Sections ===== */
+.settings-card {
+  @apply rounded-xl border border-(--color-border-primary) bg-(--color-bg-secondary);
+}
+
+.settings-card-inner {
+  @apply px-6 py-2;
+}
+
+.settings-title {
+  @apply text-2xl font-bold mb-6 text-(--color-text-primary);
+}
+
+.settings-muted {
+  @apply text-(--color-text-secondary);
+}
+
+/* ===== Search Results ===== */
+.settings-result-btn {
+  @apply w-full text-left py-3 border-b border-(--color-border-primary) last:border-b-0 hover:bg-(--color-bg-hover);
+}
+
+.settings-result-title {
+  @apply font-medium text-(--color-text-primary);
+}
+
+.settings-result-desc {
+  @apply text-sm mt-1 text-(--color-text-secondary);
+}

@@ -3,6 +3,7 @@
 /* ===== Import Custom Styles ===== */
 @import "./theme.css";
 @import "./components.css";
+@import "./settings.css";
 @import "./sidebar.css";
 @import "./aside-sidebar.css";
 

@@ -135,16 +135,21 @@ export const ZenLayout: React.FC = () => {
       {settingsOpen ? (
         <div
           className={cn(
-            'fixed inset-0 z-10000',
+            'fixed right-0 bottom-0',
+            // Keep Sidebar(9999) + Header(10000) interactive/visible above.
+            'z-9000',
             'pointer-events-auto',
             tokens.colors.bg.primary,
           )}
+          style={
+            {
+              left: 'var(--aside-sidebar-width)',
+              top: 'var(--aside-header-height)',
+            } as React.CSSProperties
+          }
         >
-          <div className="h-screen">
-            <div className="h-14" />
-            <div className="h-[calc(100vh-56px)] overflow-hidden">
-              <SettingsPage />
-            </div>
+          <div className="w-full h-full overflow-hidden">
+            <SettingsPage />
           </div>
 
           <button

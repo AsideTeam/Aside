@@ -125,39 +125,6 @@
   @apply w-full h-full bg-transparent;
 }
 
-/* ===== Settings Page ===== */
-.settings-container {
-  @apply flex h-screen bg-(--color-bg-primary);
-}
-
-.settings-sidebar {
-  @apply w-48 bg-(--color-bg-secondary) border-r border-(--color-border-primary) px-0 py-4 h-full overflow-y-auto;
-}
-
-.settings-content {
-  @apply flex-1 p-6 overflow-y-auto;
-}
-
-.settings-section {
-  @apply mb-8;
-}
-
-.settings-section-title {
-  @apply text-2xl font-bold text-(--color-text-primary) mb-6;
-}
-
-.settings-row {
-  @apply flex items-center justify-between py-4 border-b border-(--color-border-light) last:border-b-0;
-}
-
-.settings-label {
-  @apply font-medium text-(--color-text-primary);
-}
-
-.settings-description {
-  @apply text-sm text-(--color-text-secondary) mt-1;
-}
-
 /* ===== Forms ===== */
 .form-group {
   @apply mb-4;
