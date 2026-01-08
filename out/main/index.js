@@ -2035,21 +2035,10 @@ class OverlayController {
     });
     const finalHeaderOpen = calc.nextState.headerOpen;
     const finalSidebarOpen = calc.nextState.sidebarOpen;
-    if (Math.random() < 0.02) {
-      logger.debug("[OverlayController] State Debug", {
-        mouse: { screenX: mouseX, screenY: mouseY, relativeX, relativeY },
-        bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
-        dimensions: calc.dimensions,
-        triggers: calc.triggers,
-        state: { headerOpen: finalHeaderOpen, sidebarOpen: finalSidebarOpen }
-      });
-    }
     const mouseInSidebar = calc.mouseInSidebar;
     const mouseInHeader = calc.mouseInHeader;
-    if (mouseInSidebar || mouseInHeader) {
+    if (mouseInSidebar || mouseInHeader || headerLatched || sidebarLatched) {
       ViewManager.ensureUITopmost();
-    } else {
-      ViewManager.ensureContentTopmost();
     }
     const now = Date.now();
     const timeSinceLastUpdate = now - this.lastStateUpdateTime;

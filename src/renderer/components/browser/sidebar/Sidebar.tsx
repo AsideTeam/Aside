@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 
-import { useTabs } from '@renderer/hooks'
+import { useI18n, useTabs } from '@renderer/hooks'
 import { logger } from '@renderer/lib/logger'
 import { useOverlayStore } from '@renderer/lib/overlayStore'
 import { cn } from '@renderer/styles'
@@ -33,6 +33,7 @@ import {
 } from './dnd'
 
 export const Sidebar: React.FC = () => {
+  const { t } = useI18n()
   const { tabs, activeTabId, createTab, closeTab, switchTab } = useTabs()
   const isOpen = useOverlayStore((s) => s.sidebarOpen)
   const isLatched = useOverlayStore((s) => s.sidebarLatched)
@@ -151,125 +152,135 @@ export const Sidebar: React.FC = () => {
       ref={sidebarRef}
       style={{
         pointerEvents: isOpen || isLatched ? 'auto' : 'none',
-        width: '288px',
+        width: 'var(--zen-sidebar-width, 260px)',
         top: shouldPushDown ? '56px' : '0',
         height: shouldPushDown ? 'calc(100% - 56px)' : '100%',
       }}
       className={cn(
         'fixed left-0 z-9999',
-        'w-72',
-        'bg-[var(--color-bg-primary)]',
-        'border-r border-(--color-border-light)',
-        'text-(--color-text-secondary) text-sm',
+        'bg-[var(--zen-bg-sidebar)]',
+        'border-r border-[var(--zen-border-subtle)]',
+        'text-[var(--color-text-secondary)] text-sm',
         'transition-all duration-300 ease-out',
         '-translate-x-full',
         (isOpen || isLatched) && 'translate-x-0',
         'select-none',
-        'flex flex-col'
+        'flex flex-col overflow-hidden shadow-2xl'
       )}
       data-overlay-zone="sidebar"
       data-interactive="true"
     >
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        {/* 1. ICON SECTION */}
-        <div className="sidebar-icon-section">
-          <SectionDropZone section="icon">
-            <SortableContext items={iconTabs.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              <div className="sidebar-icon-grid">
-                {iconTabs.map((t) => (
-                  <SortableIconTabItem
-                    key={t.id}
-                    tab={t}
-                    isActive={t.id === activeTabId}
-                    onSelect={() => void switchTab(t.id)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </SectionDropZone>
-        </div>
+      {/* Scrollable content wrapper */}
+      <div className="sidebar-scrollable-wrapper">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          {/* 1. ICON SECTION */}
+          <div className="sidebar-icon-section">
+            <SectionDropZone section="icon">
+              <SortableContext items={iconTabs.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="sidebar-icon-grid">
+                  {iconTabs.map((t) => (
+                    <SortableIconTabItem
+                      key={t.id}
+                      tab={t}
+                      isActive={t.id === activeTabId}
+                      onSelect={() => void switchTab(t.id)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </SectionDropZone>
+          </div>
 
-        {/* 2. SPACE SECTION */}
-        <div className="sidebar-space-section">
-          <SectionDropZone section="space">
-            <div className="sidebar-space-header">
-              <span className="sidebar-space-title">Space</span>
-              <button className="sidebar-space-menu" aria-label="Space menu">
-                <ChevronDown size={14} />
-              </button>
+          {/* 2. SPACE SECTION */}
+          <div className="sidebar-space-section">
+            <SectionDropZone section="space">
+              <div className="sidebar-space-header">
+                <span className="sidebar-space-title">{t('sidebar.space')}</span>
+                <button className="sidebar-space-menu" aria-label={t('sidebar.spaceMenu')}>
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+              <SortableContext items={pinnedTabs.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="sidebar-space-list">
+                  {pinnedTabs.map((t) => (
+                    <SortableSpaceItem
+                      key={t.id}
+                      tab={t}
+                      isActive={t.id === activeTabId}
+                      onSelect={() => void switchTab(t.id)}
+                      onClose={() => void closeTab(t.id)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </SectionDropZone>
+          </div>
+
+          {/* Option / Divider Row (visual only) */}
+          <div className="sidebar-option-row" aria-hidden="true">
+            <div className="sidebar-option-divider" />
+            <div className="sidebar-option-text">
+               <span style={{ fontSize: '11px', opacity: 0.7 }}>↓ {t('sidebar.organizeTabs')}</span>
             </div>
-            <SortableContext items={pinnedTabs.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              <div className="sidebar-space-list">
-                {pinnedTabs.map((t) => (
-                  <SortableSpaceItem
-                    key={t.id}
-                    tab={t}
-                    isActive={t.id === activeTabId}
-                    onSelect={() => void switchTab(t.id)}
-                    onClose={() => void closeTab(t.id)}
-                  />
-                ))}
+          </div>
+
+          {/* 3. TAB SECTION */}
+          <div className="sidebar-tab-section">
+            <button className="sidebar-new-tab" onClick={() => void createTab()}>
+              <div className="sidebar-new-tab-icon">
+                <Plus size={14} />
               </div>
-            </SortableContext>
-          </SectionDropZone>
-        </div>
+              <span>{t('action.newTab')}</span>
+            </button>
 
-        {/* Option / Divider Row (visual only) */}
-        <div className="sidebar-option-row" aria-hidden="true">
-          <div className="sidebar-option-divider" />
-          <div className="sidebar-option-text">탭 정리</div>
-        </div>
+            <div className="sidebar-tab-divider" />
 
-        {/* 3. TAB SECTION */}
-        <div className="sidebar-tab-section">
-          <button className="sidebar-new-tab" onClick={() => void createTab()}>
-            <div className="sidebar-new-tab-icon">
-              <Plus size={14} />
-            </div>
-            <span>새 탭</span>
-          </button>
+            <SectionDropZone section="tab">
+              <SortableContext items={normalTabs.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="sidebar-tab-list">
+                  {normalTabs.map((t) => (
+                    <SortableTabItem
+                      key={t.id}
+                      tab={t}
+                      isActive={t.id === activeTabId}
+                      onSelect={() => void switchTab(t.id)}
+                      onClose={() => void closeTab(t.id)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </SectionDropZone>
+          </div>
 
-          <div className="sidebar-tab-divider" />
+          <SidebarDragOverlay activeId={activeId} tabs={allTabs} />
+        </DndContext>
+      </div>
 
-          <SectionDropZone section="tab">
-            <SortableContext items={normalTabs.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              <div className="sidebar-tab-list">
-                {normalTabs.map((t) => (
-                  <SortableTabItem
-                    key={t.id}
-                    tab={t}
-                    isActive={t.id === activeTabId}
-                    onSelect={() => void switchTab(t.id)}
-                    onClose={() => void closeTab(t.id)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </SectionDropZone>
-        </div>
-
-        <SidebarDragOverlay activeId={activeId} tabs={allTabs} />
-      </DndContext>
-
-      {/* 4. FOOTER */}
-      <div className="sidebar-footer">
+      {/* 4. FOOTER (fixed at bottom) */}
+      <div className="sidebar-footer flex-shrink-0">
         <div className="sidebar-footer-left">
-          <button className="sidebar-footer-btn" title="Settings">
+          <button
+            className="sidebar-footer-btn"
+            title={t('action.settings')}
+            onClick={() => {
+              /* logic to open settings if needed */
+            }}
+          >
             <Settings size={16} />
           </button>
         </div>
         <div className="sidebar-footer-right">
-          <button className="sidebar-footer-btn" title="Downloads">
+          <button className="sidebar-footer-btn" title={t('action.downloads')}>
             <Download size={16} />
           </button>
-          <button className="sidebar-footer-btn" title="New Tab" onClick={() => void createTab()}>
+          <button className="sidebar-footer-btn" title={t('action.newTab')} onClick={() => void createTab()}>
             <Plus size={16} />
           </button>
         </div>

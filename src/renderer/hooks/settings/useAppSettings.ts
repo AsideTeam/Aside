@@ -59,7 +59,20 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
           return
         }
 
+        // Immediately update local state for optimistic UI
         setSettings((prev) => (prev ? { ...prev, [key]: value } : prev))
+        
+        // Refresh from main to ensure consistency
+        try {
+          const raw: unknown = await window.electronAPI?.invoke('settings:get-all')
+          const refreshParsed = SettingsSchemaZ.safeParse(raw)
+          if (refreshParsed.success) {
+            setSettings(refreshParsed.data)
+            logger.debug('[AppSettingsProvider] Settings refreshed after update', { key } as unknown as Record<string, unknown>)
+          }
+        } catch (refreshError) {
+          logger.warn('[AppSettingsProvider] Failed to refresh settings after update', refreshError as unknown as Record<string, unknown>)
+        }
       } catch (error) {
         logger.error('[AppSettingsProvider] Failed to update setting', error)
       }
@@ -128,7 +141,20 @@ export function useAppSettings(): UseAppSettingsResult {
           return
         }
 
+        // Immediately update local state for optimistic UI
         setSettings((prev) => (prev ? { ...prev, [key]: value } : prev))
+        
+        // Refresh from main to ensure consistency
+        try {
+          const raw: unknown = await window.electronAPI?.invoke('settings:get-all')
+          const refreshParsed = SettingsSchemaZ.safeParse(raw)
+          if (refreshParsed.success) {
+            setSettings(refreshParsed.data)
+            logger.debug('[useAppSettings] Settings refreshed after update', { key } as unknown as Record<string, unknown>)
+          }
+        } catch (refreshError) {
+          logger.warn('[useAppSettings] Failed to refresh settings after update', refreshError as unknown as Record<string, unknown>)
+        }
       } catch (error) {
         logger.error('[useAppSettings] Failed to update setting', error)
       }

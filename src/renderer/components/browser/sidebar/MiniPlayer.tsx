@@ -7,6 +7,7 @@
 import React from 'react'
 import { cn } from '@renderer/styles'
 import { Play, Pause, SkipBack, SkipForward, Volume2 } from 'lucide-react'
+import { useI18n } from '@renderer/hooks'
 
 interface MiniPlayerProps {
   isVisible?: boolean
@@ -23,14 +24,18 @@ interface MiniPlayerProps {
 export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   isVisible = false,
   isPlaying = false,
-  title = '곡 제목',
-  artist = '아티스트',
+  title,
+  artist,
   thumbnail,
   onPlayPause,
   onPrevious,
   onNext,
   onVolumeClick,
 }) => {
+  const { t } = useI18n()
+  const displayTitle = title ?? t('media.trackTitle')
+  const displayArtist = artist ?? t('media.artist')
+
   if (!isVisible) return null
 
   return (
@@ -57,10 +62,10 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
       {/* Center: Info + Controls */}
       <div className="flex-1 min-w-0">
         <div className="text-[12px] font-medium text-(--color-text-primary) truncate">
-          {title}
+          {displayTitle}
         </div>
         <div className="text-[11px] text-(--color-text-secondary) truncate">
-          {artist}
+          {displayArtist}
         </div>
       </div>
 
@@ -74,7 +79,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             'hover:bg-(--color-bg-hover)',
             'transition-colors'
           )}
-          title="Previous"
+          title={t('media.previous')}
         >
           <SkipBack size={14} />
         </button>
@@ -87,7 +92,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             'hover:bg-(--color-bg-hover)',
             'transition-colors'
           )}
-          title={isPlaying ? 'Pause' : 'Play'}
+          title={isPlaying ? t('media.pause') : t('media.play')}
         >
           {isPlaying ? <Pause size={14} /> : <Play size={14} />}
         </button>
@@ -100,7 +105,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             'hover:bg-(--color-bg-hover)',
             'transition-colors'
           )}
-          title="Next"
+          title={t('media.next')}
         >
           <SkipForward size={14} />
         </button>
@@ -113,7 +118,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             'hover:bg-(--color-bg-hover)',
             'transition-colors'
           )}
-          title="Volume"
+          title={t('media.volume')}
         >
           <Volume2 size={14} />
         </button>

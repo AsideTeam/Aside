@@ -29,30 +29,28 @@ export const PinnedTabItem: React.FC<PinnedTabItemProps> = ({
   return (
     <div
       onClick={() => onSelect?.(id)}
-      className={isActive ? 'sidebar-pinned-item sidebar-pinned-item--active' : 'sidebar-pinned-item'}
+      className={isActive ? 'sidebar-space-item sidebar-space-item--active' : 'sidebar-space-item'}
       title={title}
     >
-      <div className="sidebar-pinned-item-left">
-        <div className="sidebar-pinned-icon">
-          {icon || (type === 'folder' ? <Folder size={14} /> : <Globe size={14} />)}
-        </div>
-
-        <span className="sidebar-pinned-title">
-          {title}
-        </span>
+      <div className="sidebar-space-favicon">
+        {icon || (type === 'folder' ? <Folder size={10} /> : <Globe size={10} />)}
       </div>
 
-      {/* Delete Button (hover) */}
+      <span className="sidebar-space-text">
+        {title}
+      </span>
+
+      {/* Close/Delete Button (hover) */}
       {onDelete && (
         <button
           onClick={(e) => {
             e.stopPropagation()
             onDelete(id)
           }}
-          className="sidebar-pinned-delete"
+          className="sidebar-space-close"
           aria-label="Delete"
         >
-          <X size={14} />
+          <X size={12} />
         </button>
       )}
     </div>

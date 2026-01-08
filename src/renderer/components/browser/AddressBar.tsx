@@ -3,6 +3,7 @@ import { cn } from '@renderer/styles'
 import type { SettingsSchema } from '@shared/types'
 import { formatUrl } from '@renderer/lib/utils'
 import { useAppSettings } from '@renderer/hooks/settings/useAppSettings'
+import { useI18n } from '@renderer/hooks'
 
 function buildSearchUrl(engine: SettingsSchema['searchEngine'], query: string): string {
   const q = encodeURIComponent(query)
@@ -48,6 +49,7 @@ export function AddressBar({
   currentUrl: currentUrlProp,
   onNavigate,
 }: AddressBarProps) {
+  const { t } = useI18n()
   const { settings } = useAppSettings()
   const [inputValue, setInputValue] = useState(currentUrlProp ?? settings?.homepage ?? 'https://www.google.com')
 
@@ -76,7 +78,7 @@ export function AddressBar({
         type="text"
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
-        placeholder="주소 입력..."
+        placeholder={t('addressBar.placeholder')}
         className={cn(
           'w-full px-3 py-0.5 bg-transparent text-sm focus:outline-none transition-colors placeholder:text-(--color-text-muted)',
           'no-drag', // Allow text selection/input, prevent dragging

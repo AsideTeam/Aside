@@ -1,16 +1,41 @@
 @import "tailwindcss";
 
 :root {
-  /* Zen / Firefox-like Dark Theme Palette */
-  --zen-bg-base: #1C1B22;       /* Main app background */
-  --zen-bg-sidebar: #101014;    /* Sidebar background (slightly darker) */
-  --zen-bg-card: #2B2A33;       /* Card background */
-  --zen-bg-hover: #52525E;      /* General hover state */
-  --zen-bg-active: #00DDFF;     /* Accent / Checkbox Active */
-  
-  --zen-text-primary: #FBFBFE;
-  --zen-text-secondary: #CFCFD8; /* Muted text */
-  --zen-border: #5B5B66;         /* Borders */
+  /* Zen UI palette mapped onto global theme variables (theme.css)
+     - user-selected theme sets :root[data-theme]
+     - system theme uses prefers-color-scheme */
+  --zen-bg-base: var(--color-bg-primary);
+  --zen-bg-sidebar: var(--color-bg-secondary);
+  --zen-bg-card: var(--color-bg-secondary);
+  --zen-bg-hover: var(--color-bg-hover);
+  --zen-bg-active: var(--color-accent);
+
+  --zen-text-primary: var(--color-text-primary);
+  --zen-text-secondary: var(--color-text-secondary);
+  --zen-border: var(--color-border-primary);
+  --zen-border-light: var(--color-border-light);
+
+  --zen-input-bg: var(--color-bg-input);
+  --zen-input-bg-focus: var(--color-bg-tertiary);
+
+  --zen-checkmark-color: var(--color-on-accent);
+
+  /* Search icon (SVG as data URI) */
+  --zen-search-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --zen-search-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+  }
+}
+
+:root[data-theme='dark'] {
+  --zen-search-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+}
+
+:root[data-theme='light'] {
+  --zen-search-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
 }
 
 html, body, #root {
@@ -26,6 +51,7 @@ html, body, #root {
   display: flex;
   height: 100vh;
   background-color: var(--zen-bg-base);
+  overflow: hidden; /* Force containment */
 }
 
 .settings-sidebar {
@@ -34,7 +60,9 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   padding: 20px 16px;
-  border-right: 1px solid #2B2A33; /* Very subtle border */
+  border-right: 1px solid var(--zen-border);
+  height: 100%; /* Ensure full height */
+  overflow: hidden; /* Prevent sidebar itself from scrolling */
 }
 
 .settings-content-shell {
@@ -58,6 +86,8 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .settings-sidebar-item {
@@ -74,25 +104,25 @@ html, body, #root {
 }
 
 .settings-sidebar-item:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   color: var(--zen-text-primary);
 }
 
 .settings-sidebar-item.active {
-  background-color: rgba(0, 221, 255, 0.15); /* Low opacity accent */
+  background-color: color-mix(in srgb, var(--color-accent) 18%, transparent);
   color: var(--zen-text-primary);
 }
 
 /* Sidebar Search Input (Zen Style) */
 .zen-search-input {
   width: 100%;
-  background-color: #2B2A33;
+  background-color: var(--zen-input-bg);
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 10px 12px 10px 36px;
   color: var(--zen-text-primary);
   font-size: 14px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23CFCFD8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+  background-image: var(--zen-search-icon);
   background-repeat: no-repeat;
   background-position: 10px center;
   transition: border-color 0.2s;
@@ -101,7 +131,7 @@ html, body, #root {
 .zen-search-input:focus {
   outline: none;
   border-color: var(--zen-bg-active);
-  background-color: #42414D;
+  background-color: var(--zen-input-bg-focus);
 }
 
 /* --- Content Typography --- */
@@ -131,7 +161,7 @@ html, body, #root {
   border-radius: 8px;
   padding: 8px 0; /* Rows will handle padding */
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.03);
+  border: 1px solid var(--zen-border);
 }
 
 .zen-setting-row {
@@ -142,9 +172,7 @@ html, body, #root {
   min-height: 48px;
 }
 
-.zen-setting-row:not(:last-child) {
-  /* No divider in Zen usually, just spacing */
-}
+
 
 .zen-row-info {
   flex: 1;
@@ -172,7 +200,7 @@ html, body, #root {
   width: 18px;
   height: 18px;
   background-color: transparent;
-  border: 2px solid #8F8F9D;
+  border: 2px solid var(--zen-border-light);
   border-radius: 4px; /* Slight rounded corner */
   cursor: pointer;
   position: relative;
@@ -191,13 +219,13 @@ html, body, #root {
   left: 5px;
   width: 5px;
   height: 10px;
-  border: solid #1C1B22; /* Checkmark color matching bg */
+  border: solid var(--zen-checkmark-color);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
 
 .zen-select {
-  background-color: #42414D;
+  background-color: var(--zen-input-bg);
   color: var(--zen-text-primary);
   border: 1px solid transparent;
   padding: 6px 12px;
@@ -212,7 +240,7 @@ html, body, #root {
 }
 
 .zen-btn {
-  background-color: #42414D;
+  background-color: var(--zen-input-bg);
   color: var(--zen-text-primary);
   padding: 8px 16px;
   border-radius: 4px;
@@ -224,7 +252,7 @@ html, body, #root {
 }
 
 .zen-btn:hover {
-  background-color: #52525E;
+  background-color: var(--zen-bg-hover);
 }
 
 /* --- Visual Theme Cards (Bottom Area) --- */
@@ -236,7 +264,7 @@ html, body, #root {
 }
 
 .theme-card {
-  border: 2px solid #5B5B66;
+  border: 2px solid var(--zen-border);
   border-radius: 8px;
   padding: 10px;
   cursor: pointer;
@@ -244,7 +272,7 @@ html, body, #root {
 }
 
 .theme-card:hover {
-  border-color: #999;
+  border-color: var(--zen-border-light);
 }
 
 .theme-card.active {
@@ -253,10 +281,10 @@ html, body, #root {
 
 .theme-card-preview {
   height: 60px;
-  background-color: #1C1B22;
+  background-color: var(--zen-bg-base);
   border-radius: 4px;
   margin-bottom: 10px;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid var(--zen-border);
   position: relative;
 }
 

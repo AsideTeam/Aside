@@ -44,8 +44,8 @@ export function SortableTabItem({
       {...attributes}
       {...listeners}
     >
-      <div className="sidebar-tab-left" onClick={onSelect}>
-        <div className="sidebar-tab-favicon">
+      <div className="sidebar-tab-item-content" onClick={onSelect}>
+        <div className="w-4 h-4 flex items-center justify-center shrink-0">
           <img
             src={getFaviconUrl(tab.url, tab.favicon)}
             alt=""
@@ -55,14 +55,14 @@ export function SortableTabItem({
         <span className="sidebar-tab-title">{tab.title || 'Loading...'}</span>
       </div>
       <button
-        className="sidebar-tab-close"
+        className="sidebar-space-close"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation()
           onClose()
         }}
       >
-        <X size={14} />
+        <X size={12} />
       </button>
     </div>
   )

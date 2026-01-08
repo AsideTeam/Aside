@@ -3,11 +3,12 @@ import { Pin, PanelLeft, ChevronLeft, ChevronRight, RotateCw } from 'lucide-reac
 
 import { AddressBar } from './AddressBar'
 import { useOverlayStore } from '@renderer/lib/overlayStore'
-import { useTabs, useWebContents, useWindowSize } from '@renderer/hooks'
+import { useI18n, useTabs, useWebContents, useWindowSize } from '@renderer/hooks'
 import { cn } from '@renderer/styles'
 import { logger } from '@renderer/lib/logger'
 
 export const AsideHeader: React.FC = () => {
+  const { t } = useI18n()
   const isOpen = useOverlayStore((s) => s.headerOpen)
   const isHeaderLatched = useOverlayStore((s) => s.headerLatched)
   const isSidebarLatched = useOverlayStore((s) => s.sidebarLatched)
@@ -106,7 +107,7 @@ export const AsideHeader: React.FC = () => {
             style={{ pointerEvents: 'auto' }}
             onClick={web.goBack}
             disabled={!web.canGoBack}
-            title="뒤로"
+            title={t('nav.back')}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -123,7 +124,7 @@ export const AsideHeader: React.FC = () => {
             style={{ pointerEvents: 'auto' }}
             onClick={web.goForward}
             disabled={!web.canGoForward}
-            title="앞으로"
+            title={t('nav.forward')}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -141,7 +142,7 @@ export const AsideHeader: React.FC = () => {
             style={{ pointerEvents: 'auto' }}
             onClick={web.reload}
             disabled={web.isLoading}
-            title="새로고침"
+            title={t('nav.reload')}
           >
             <RotateCw className="w-4 h-4" />
           </button>
@@ -177,7 +178,7 @@ export const AsideHeader: React.FC = () => {
                 : 'bg-transparent text-(--color-text-secondary) hover:bg-(--color-bg-tertiary)'
             )}
             style={{ pointerEvents: 'auto' }}
-            title={isSidebarLatched ? '사이드바 고정 해제 (Cmd/Ctrl+B)' : '사이드바 고정 (Cmd/Ctrl+B)'}
+            title={isSidebarLatched ? t('overlay.sidebarLatch.off') : t('overlay.sidebarLatch.on')}
           >
             <PanelLeft className="w-4 h-4" />
           </button>
@@ -194,7 +195,7 @@ export const AsideHeader: React.FC = () => {
                 : 'bg-transparent text-(--color-text-secondary) hover:bg-(--color-bg-tertiary)'
             )}
             style={{ pointerEvents: 'auto' }}
-            title={isHeaderLatched ? '주소바 고정 해제 (Cmd/Ctrl+L)' : '주소바 고정 (Cmd/Ctrl+L)'}
+            title={isHeaderLatched ? t('overlay.headerLatch.off') : t('overlay.headerLatch.on')}
           >
             <Pin className="w-4 h-4" />
           </button>

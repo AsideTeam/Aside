@@ -23,7 +23,16 @@ export function useApplyAppSettingsEffects(): void {
   const { settings } = useAppSettings()
 
   useEffect(() => {
-    if (!settings) return
+    if (!settings) {
+      logger.debug('[useApplyAppSettingsEffects] Settings not yet loaded')
+      return
+    }
+
+    logger.info('[useApplyAppSettingsEffects] Applying settings', {
+      language: settings.language,
+      theme: settings.theme,
+      fontSize: settings.fontSize,
+    })
 
     try {
       // Language
@@ -32,13 +41,16 @@ export function useApplyAppSettingsEffects(): void {
       // Theme
       if (settings.theme === 'system') {
         document.documentElement.removeAttribute('data-theme')
+        logger.debug('[useApplyAppSettingsEffects] Theme set to system')
       } else {
         document.documentElement.setAttribute('data-theme', settings.theme)
+        logger.debug('[useApplyAppSettingsEffects] Theme set to', { theme: settings.theme })
       }
 
       // UI font size (renderer UI only)
       const uiFontPx = mapFontSize(settings.fontSize)
       document.documentElement.style.setProperty('--aside-ui-font-size', `${uiFontPx}px`)
+      logger.debug('[useApplyAppSettingsEffects] Font size set', { uiFontPx })
     } catch (error) {
       logger.error('[useApplyAppSettingsEffects] Failed to apply settings effects', error)
     }

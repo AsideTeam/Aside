@@ -42,6 +42,36 @@ export type I18nKey =
   | 'action.refresh'
   | 'action.set'
   | 'action.open'
+  | 'action.settings'
+  | 'action.downloads'
+  | 'action.newTab'
+  | 'action.close'
+
+  | 'nav.back'
+  | 'nav.forward'
+  | 'nav.reload'
+
+  | 'overlay.sidebarLatch.on'
+  | 'overlay.sidebarLatch.off'
+  | 'overlay.headerLatch.on'
+  | 'overlay.headerLatch.off'
+
+  | 'addressBar.placeholder'
+
+  | 'tab.untitled'
+    | 'sidebar.space'
+    | 'sidebar.spaceMenu'
+    | 'sidebar.organizeTabs'
+
+  | 'extensions.noneInstalled'
+
+  | 'media.previous'
+  | 'media.next'
+  | 'media.play'
+  | 'media.pause'
+  | 'media.volume'
+  | 'media.trackTitle'
+  | 'media.artist'
 
   | 'extensions.status.label'
   | 'extensions.status.desc'
@@ -167,6 +197,36 @@ const MESSAGES: Record<Language, Record<I18nKey, string>> = {
     'action.refresh': '새로고침',
     'action.set': '설정',
     'action.open': '열기',
+    'action.settings': '설정',
+    'action.downloads': '다운로드',
+    'action.newTab': '새 탭',
+    'action.close': '닫기',
+
+    'nav.back': '뒤로',
+    'nav.forward': '앞으로',
+    'nav.reload': '새로고침',
+
+    'overlay.sidebarLatch.on': '사이드바 고정 (Cmd/Ctrl+B)',
+    'overlay.sidebarLatch.off': '사이드바 고정 해제 (Cmd/Ctrl+B)',
+    'overlay.headerLatch.on': '주소바 고정 (Cmd/Ctrl+L)',
+    'overlay.headerLatch.off': '주소바 고정 해제 (Cmd/Ctrl+L)',
+
+    'addressBar.placeholder': '주소 입력...',
+
+    'tab.untitled': '제목 없음',
+      'sidebar.space': 'Space',
+      'sidebar.spaceMenu': 'Space 메뉴',
+      'sidebar.organizeTabs': '탭 정리',
+
+    'extensions.noneInstalled': '설치된 확장 프로그램이 없습니다.',
+
+    'media.previous': '이전',
+    'media.next': '다음',
+    'media.play': '재생',
+    'media.pause': '일시정지',
+    'media.volume': '볼륨',
+    'media.trackTitle': '곡 제목',
+    'media.artist': '아티스트',
 
     'extensions.status.label': '로드 상태',
     'extensions.status.desc': '현재 로드된 확장 프로그램 상태입니다.',
@@ -289,6 +349,36 @@ const MESSAGES: Record<Language, Record<I18nKey, string>> = {
     'action.refresh': 'Refresh',
     'action.set': 'Set',
     'action.open': 'Open',
+    'action.settings': 'Settings',
+    'action.downloads': 'Downloads',
+    'action.newTab': 'New tab',
+    'action.close': 'Close',
+
+    'nav.back': 'Back',
+    'nav.forward': 'Forward',
+    'nav.reload': 'Reload',
+
+    'overlay.sidebarLatch.on': 'Pin sidebar (Cmd/Ctrl+B)',
+    'overlay.sidebarLatch.off': 'Unpin sidebar (Cmd/Ctrl+B)',
+    'overlay.headerLatch.on': 'Pin address bar (Cmd/Ctrl+L)',
+    'overlay.headerLatch.off': 'Unpin address bar (Cmd/Ctrl+L)',
+
+    'addressBar.placeholder': 'Enter address...',
+
+    'tab.untitled': 'Untitled',
+      'sidebar.space': 'Space',
+      'sidebar.spaceMenu': 'Space menu',
+      'sidebar.organizeTabs': 'Organize tabs',
+
+    'extensions.noneInstalled': 'No extensions installed.',
+
+    'media.previous': 'Previous',
+    'media.next': 'Next',
+    'media.play': 'Play',
+    'media.pause': 'Pause',
+    'media.volume': 'Volume',
+    'media.trackTitle': 'Track title',
+    'media.artist': 'Artist',
 
     'extensions.status.label': 'Load status',
     'extensions.status.desc': 'Shows currently loaded extensions.',
@@ -411,6 +501,36 @@ const MESSAGES: Record<Language, Record<I18nKey, string>> = {
     'action.refresh': '更新',
     'action.set': '設定',
     'action.open': '開く',
+    'action.settings': '設定',
+    'action.downloads': 'ダウンロード',
+    'action.newTab': '新しいタブ',
+    'action.close': '閉じる',
+
+    'nav.back': '戻る',
+    'nav.forward': '進む',
+    'nav.reload': '再読み込み',
+
+    'overlay.sidebarLatch.on': 'サイドバーを固定 (Cmd/Ctrl+B)',
+    'overlay.sidebarLatch.off': 'サイドバー固定を解除 (Cmd/Ctrl+B)',
+    'overlay.headerLatch.on': 'アドレスバーを固定 (Cmd/Ctrl+L)',
+    'overlay.headerLatch.off': 'アドレスバー固定を解除 (Cmd/Ctrl+L)',
+
+    'addressBar.placeholder': 'アドレスを入力...',
+
+    'tab.untitled': '無題',
+      'sidebar.space': 'スペース',
+      'sidebar.spaceMenu': 'スペース メニュー',
+      'sidebar.organizeTabs': 'タブ整理',
+
+    'extensions.noneInstalled': 'インストール済みの拡張機能はありません。',
+
+    'media.previous': '前へ',
+    'media.next': '次へ',
+    'media.play': '再生',
+    'media.pause': '一時停止',
+    'media.volume': '音量',
+    'media.trackTitle': '曲名',
+    'media.artist': 'アーティスト',
 
     'extensions.status.label': '読み込み状態',
     'extensions.status.desc': '現在読み込まれている拡張機能の状態です。',

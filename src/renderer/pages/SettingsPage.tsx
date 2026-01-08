@@ -318,15 +318,6 @@ export const SettingsPage: React.FC = () => {
 
   // --- Definitions (using t) ---
   const MAIN_CATEGORIES: MainCategoryDef[] = useMemo(() => [
-    { id: 'general', label: t('category.appearance'), icon: <LayoutGrid className="w-5 h-5" /> }, // Keeping label simple or mapping? User mapped 'general' to '일반' (General). Let's use keys.
-    // Wait, original design had 'general' -> '일반', 'privacy' -> '개인정보'. 
-    // I should check keys in i18n. There is no 'category.general'. 
-    // However, I can use 'category.appearance' or just hardcode 'General' mapped to t('settings.title')? No.
-    // Let's look at i18n.ts again. Subcategories are mapped. Main categories might need new keys or reuse.
-    // The previous code had: { id: 'general', label: '일반', ... }
-    // I will use 'General' for now or reuse a key if fits. Actually, 'category.appearance' is a subcat.
-    // I will use hardcoded strings for Main Categories if keys don't exist, or add them.
-    // User said "use translations done before".
     { id: 'general', label: t('category.general'), icon: <LayoutGrid className="w-5 h-5" /> }, 
     { id: 'appearance', label: t('category.appearance'), icon: <Monitor className="w-5 h-5" /> }, // New Main Category
     { id: 'search', label: t('category.search'), icon: <Search className="w-5 h-5" /> }, // New Main Category
@@ -410,7 +401,8 @@ export const SettingsPage: React.FC = () => {
   }
 
   const renderContent = () => {
-    if (isLoading || !settings) return <div className="text-center pt-20 text-[#888]">{t('settings.loading')}</div>
+    if (isLoading || !settings)
+      return <div className="text-center pt-20 text-(--color-text-tertiary)">{t('settings.loading')}</div>
 
     // If Search Query Exists
     if (query.trim()) {
@@ -429,7 +421,7 @@ export const SettingsPage: React.FC = () => {
                       {it.render({ settings, updateSetting, resetAll })}
                    </ZenSettingRow>
                 )) : (
-                   <div className="p-6 text-center text-[#888]">{t('settings.search.noResults')}</div>
+                   <div className="p-6 text-center text-(--color-text-tertiary)">{t('settings.search.noResults')}</div>
                 )}
              </div>
           </div>
@@ -440,22 +432,34 @@ export const SettingsPage: React.FC = () => {
     if (activeMainCategory === 'extensions') {
        return (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-200">
-             <h2 className="zen-section-title">{t('category.extensions')}</h2>
+             <div className="flex items-center justify-between mb-6">
+                <h2 className="zen-section-title mb-0">{t('category.extensions')}</h2>
+                <button className="zen-btn" onClick={() => void reloadExtensions()}>{t('action.refresh')}</button>
+             </div>
+             
              <div className="zen-card">
-               <div className="p-4 flex items-center justify-between border-b border-white/5">
-                  <span className="text-sm font-medium">{t('category.extensions')}</span>
-                  <button className="zen-btn" onClick={() => reloadExtensions()}>{t('action.refresh')}</button>
-               </div>
-               {extensionsStatus?.loaded.map(ext => (
-                  <div key={ext.id} className="zen-setting-row">
-                     <div className="zen-row-info">
-                        <span className="zen-row-label">{ext.name}</span>
-                        <span className="zen-row-desc">{ext.id} • {ext.version}</span>
+               {extensionsStatus?.loaded && extensionsStatus.loaded.length > 0 ? (
+                 extensionsStatus.loaded.map(ext => (
+                   <ZenSettingRow 
+                     key={ext.id} 
+                     label={ext.name} 
+                     description={`${ext.id} • v${ext.version}`}
+                   >
+                     <div className="flex items-center gap-2">
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-(--color-accent)/10 text-(--color-accent) font-medium">
+                          Active
+                        </span>
                      </div>
-                  </div>
-               ))}
-               {(!extensionsStatus?.loaded || extensionsStatus.loaded.length === 0) && (
-                  <div className="p-6 text-center text-[#888]">No extensions installed</div>
+                   </ZenSettingRow>
+                 ))
+               ) : (
+                 <div className="p-12 text-center">
+                   <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-(--color-bg-tertiary) text-(--color-text-tertiary) mb-4">
+                     <Puzzle size={24} />
+                   </div>
+                   <p className="text-sm text-(--color-text-secondary) mb-1">{t('extensions.noneInstalled')}</p>
+                   <p className="text-xs text-(--color-text-tertiary)">Manage your browser extensions here.</p>
+                 </div>
                )}
              </div>
           </div>
