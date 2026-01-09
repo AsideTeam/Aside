@@ -348,263 +348,6 @@ function validateOrThrow(schema, data) {
   }
   return result.data;
 }
-function applyLayout({
-  contentWindow,
-  tabs,
-  externalActiveBounds,
-  logger: logger2
-}) {
-  const { width, height } = contentWindow.getBounds();
-  const defaultBounds = {
-    x: 0,
-    y: 0,
-    width,
-    height: Math.max(0, height)
-  };
-  const activeBounds = externalActiveBounds ?? defaultBounds;
-  logger2.debug("[MAIN LAYOUT] Applying bounds:", {
-    contentWindow: { w: width, h: height },
-    externalBounds: externalActiveBounds,
-    finalBounds: activeBounds,
-    usingExternal: !!externalActiveBounds
-  });
-  for (const [, tabData] of tabs) {
-    if (tabData.isActive) {
-      if (tabData.url.startsWith("about:")) {
-        tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-        logger2.debug("[ViewManager] Layout: hiding WebView for about page", { url: tabData.url });
-      } else {
-        tabData.view.setBounds(activeBounds);
-      }
-    } else {
-      tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-    }
-  }
-}
-const IPC_CHANNELS = {
-  // ===== APP 영역 =====
-  APP: {
-    /** 앱이 준비됨 (모든 초기화 완료) */
-    READY: "app:ready",
-    /** 앱 종료 요청 */
-    QUIT: "app:quit",
-    /** 앱 재시작 요청 */
-    RESTART: "app:restart",
-    /** 앱 상태 조회 */
-    STATE: "app:state",
-    /** 앱 정보 조회 (이름/버전/경로 등) */
-    GET_INFO: "app:get-info"
-  },
-  // ===== WINDOW 영역 (Renderer에서 Main으로 요청) =====
-  WINDOW: {
-    /** 윈도우 최소화 */
-    MINIMIZE: "window:minimize",
-    /** 윈도우 최대화/복원 토글 */
-    MAXIMIZE: "window:maximize",
-    /** 윈도우 닫기 */
-    CLOSE: "window:close"
-  },
-  // ===== TAB 영역 (탭 관리 - Request/Response) =====
-  TAB: {
-    /** 새 탭 생성 (Request: URL, Response: tabId) */
-    CREATE: "tab:create",
-    /** 탭 닫기 (Request: tabId) */
-    CLOSE: "tab:close",
-    /** 탭 전환 (Request: tabId) */
-    SWITCH: "tab:switch",
-    /** 탭 URL 변경 (Request: tabId, url) */
-    UPDATE_URL: "tab:update-url",
-    /** 탭 목록 조회 */
-    LIST: "tab:list",
-    /** 활성 탭 ID 조회 */
-    ACTIVE: "tab:active",
-    /** 현재 탭 네비게이션 */
-    NAVIGATE: "tab:navigate",
-    /** 뒤로 가기 */
-    BACK: "tab:back",
-    /** 앞으로 가기 */
-    FORWARD: "tab:forward",
-    /** 새로고침 */
-    RELOAD: "tab:reload",
-    /** 탭 복제 (현재 URL과 같은 새 탭 생성) */
-    DUPLICATE: "tab:duplicate",
-    /** 탭 고정/해제 (Space 섹션에 표시) */
-    PIN: "tab:pin",
-    /** 다른 탭 모두 닫기 */
-    CLOSE_OTHERS: "tab:close-others",
-    /** 모든 탭 닫기 */
-    CLOSE_ALL: "tab:close-all",
-    /** 닫은 탭 복원 */
-    RESTORE: "tab:restore",
-    /** 섹션 간 이동 (Icon/Space/Tab) */
-    MOVE_SECTION: "tab:move-section",
-    /** 같은 섹션 내 탭 순서 변경 (Request: tabId, position) */
-    REORDER: "tab:reorder",
-    /** Icon 순서 변경 (Request: fromIndex, toIndex) */
-    REORDER_ICON: "tab:reorder-icon",
-    /** [Event] 탭 목록 업데이트 (Main → Renderer) */
-    UPDATED: "tabs:updated"
-  },
-  // ===== NAVIGATION 영역 (브라우징 네비게이션) =====
-  NAV: {
-    /** URL로 이동 (Request: url) */
-    NAVIGATE: "nav:navigate",
-    /** 뒤로 가기 */
-    BACK: "nav:back",
-    /** 앞으로 가기 */
-    FORWARD: "nav:forward",
-    /** 새로고침 */
-    RELOAD: "nav:reload",
-    /** [Event] 네비게이션 상태 변경 (뒤/앞 가능 여부 변경) */
-    STATE_CHANGED: "nav:state-changed"
-  },
-  // ===== SIDEBAR 영역 =====
-  SIDEBAR: {
-    /** 사이드바 토글 (확장/축소) */
-    TOGGLE: "sidebar:toggle"
-  },
-  // ===== VIEW 영역 (WebContentsView 관리 - Zen Layout) =====
-  VIEW: {
-    /** WebContentsView 크기/위치 조절 (Request: bounds) */
-    RESIZE: "view:resize",
-    /** WebContentsView로 네비게이션 (Request: url) */
-    NAVIGATE: "view:navigate",
-    /** Settings 페이지 열림/닫힘 토글 */
-    SETTINGS_TOGGLED: "view:settings-toggled",
-    /** [Event] WebContentsView 로드 완료 */
-    LOADED: "view:loaded",
-    /** [Event] WebContentsView 네비게이션 완료 */
-    NAVIGATED: "view:navigated"
-  },
-  // ===== SETTINGS 영역 =====
-  SETTINGS: {
-    GET_ALL: "settings:get-all",
-    GET: "settings:get",
-    UPDATE: "settings:update",
-    UPDATE_MULTIPLE: "settings:update-multiple",
-    RESET: "settings:reset",
-    /** 설정 파일 경로 조회 */
-    GET_PATH: "settings:get-path"
-  },
-  // ===== EXTENSIONS 영역 =====
-  EXTENSIONS: {
-    /** 확장 상태 조회 */
-    GET_STATUS: "extensions:get-status",
-    /** 확장(재)로드 */
-    RELOAD: "extensions:reload"
-  },
-  // ===== DEFAULT BROWSER 영역 =====
-  DEFAULT_BROWSER: {
-    /** 기본 브라우저 상태 조회 */
-    GET_STATUS: "default-browser:get-status",
-    /** 기본 브라우저로 설정 시도 */
-    SET_DEFAULT: "default-browser:set-default",
-    /** OS 기본 앱 설정 화면 열기 */
-    OPEN_SYSTEM_SETTINGS: "default-browser:open-system-settings"
-  },
-  // ===== OVERLAY 영역 (UI overlay latch/toggles) =====
-  OVERLAY: {
-    TOGGLE_HEADER_LATCH: "overlay:toggle-header-latch",
-    TOGGLE_SIDEBAR_LATCH: "overlay:toggle-sidebar-latch",
-    SET_INTERACTIVE: "overlay:set-interactive",
-    /** Renderer가 실측한 hover hotzone(사이드바/헤더/titlebar) 업데이트 */
-    UPDATE_HOVER_METRICS: "overlay:update-hover-metrics",
-    /** [Event] Ghost 상태에서 edge hover 감지 (Main → Renderer) */
-    EDGE_HOVER: "overlay:edge-hover",
-    /** [Event] WebView에서 마우스 다운/업 발생 (Main → Renderer) */
-    CONTENT_POINTER: "overlay:content-pointer",
-    DEBUG: "overlay:debug"
-  }
-};
-function attachTabEvents({
-  tabId,
-  view,
-  getTabData,
-  getUiWebContents,
-  syncToRenderer,
-  createTab,
-  logger: logger2
-}) {
-  view.webContents.on("before-input-event", (_event, input) => {
-    try {
-      const uiWebContents = getUiWebContents();
-      if (!uiWebContents) return;
-      if (input.type !== "mouseDown" && input.type !== "mouseUp") return;
-      const payload = OverlayContentPointerEventSchema.parse({
-        kind: input.type,
-        timestamp: Date.now()
-      });
-      uiWebContents.send(IPC_CHANNELS.OVERLAY.CONTENT_POINTER, payload);
-    } catch {
-    }
-  });
-  view.webContents.on("page-title-updated", (_event, title) => {
-    const tabData = getTabData(tabId);
-    if (tabData) {
-      tabData.title = title;
-      logger2.info("[ViewManager] Tab title updated", { tabId, title });
-      syncToRenderer();
-    }
-  });
-  view.webContents.on("did-navigate", (_event, url) => {
-    const tabData = getTabData(tabId);
-    if (tabData) {
-      tabData.url = url;
-      logger2.info("[ViewManager] Tab URL changed", { tabId, url });
-      syncToRenderer();
-      const uiWebContents = getUiWebContents();
-      if (uiWebContents && tabData.isActive) {
-        uiWebContents.send("view:navigated", {
-          url,
-          canGoBack: view.webContents.navigationHistory.canGoBack(),
-          canGoForward: view.webContents.navigationHistory.canGoForward(),
-          timestamp: Date.now()
-        });
-      }
-    }
-  });
-  view.webContents.on("did-navigate-in-page", (_event, url) => {
-    const tabData = getTabData(tabId);
-    if (tabData) {
-      tabData.url = url;
-      syncToRenderer();
-      const uiWebContents = getUiWebContents();
-      if (uiWebContents && tabData.isActive) {
-        uiWebContents.send("view:navigated", {
-          url,
-          canGoBack: view.webContents.navigationHistory.canGoBack(),
-          canGoForward: view.webContents.navigationHistory.canGoForward(),
-          timestamp: Date.now()
-        });
-      }
-    }
-  });
-  view.webContents.setWindowOpenHandler(({ url }) => {
-    logger2.info("[ViewManager] Intercepted window.open", { url });
-    void createTab(url);
-    return { action: "deny" };
-  });
-  view.webContents.on("page-favicon-updated", (_event, favicons) => {
-    const tabData = getTabData(tabId);
-    if (tabData && favicons.length > 0) {
-      tabData.favicon = favicons[0];
-      logger2.debug("[ViewManager] Tab favicon updated", { tabId, favicon: favicons[0] });
-      syncToRenderer();
-    }
-  });
-  view.webContents.on("did-finish-load", () => {
-    const tabData = getTabData(tabId);
-    if (!tabData) return;
-    const uiWebContents = getUiWebContents();
-    if (uiWebContents && tabData.isActive) {
-      uiWebContents.send("view:loaded", {
-        url: view.webContents.getURL(),
-        timestamp: Date.now()
-      });
-    }
-  });
-  logger2.info("[ViewManager] Tab event listeners attached", { tabId });
-}
 const DEFAULT_SETTINGS = {
   theme: "dark",
   searchEngine: "google",
@@ -1059,94 +802,762 @@ function dumpContentViewTree({
     logger2.error("[ViewManager] Failed to dump content view tree", error);
   }
 }
-class ViewManager {
-  static tabs = /* @__PURE__ */ new Map();
-  static activeTabId = null;
-  static contentWindow = null;
-  static uiWebContents = null;
-  static isInitializing = false;
-  static lastReorderTarget = null;
-  static externalActiveBounds = null;
-  // NEW: Recently closed tabs for undo
-  static recentlyClosed = [];
-  static MAX_RECENT_CLOSED = 10;
-  static settingsUnsubscribers = [];
-  static getZoomFactorFromSetting(value) {
-    const percent = Number.parseInt(value, 10);
-    if (Number.isNaN(percent)) return 1;
-    const clamped = Math.min(500, Math.max(25, percent));
-    return clamped / 100;
+function computeExternalActiveBounds(args) {
+  const { contentWindow, safeArea, logger: logger2 } = args;
+  const contentBounds = contentWindow.getBounds();
+  const { width, height } = contentBounds;
+  logger2.debug("[📐 MAIN] Content Window actual bounds:", {
+    x: contentBounds.x,
+    y: contentBounds.y,
+    width: contentBounds.width,
+    height: contentBounds.height
+  });
+  const bleed = 0;
+  const externalActiveBounds = {
+    x: safeArea.left,
+    y: safeArea.top,
+    width: Math.max(0, width - safeArea.left + bleed),
+    height: Math.max(0, height - safeArea.top + bleed)
+  };
+  logger2.debug("[📐 MAIN] Calculated bounds from safe-area (with bleed):", {
+    contentWindow: { w: width, h: height },
+    safeArea,
+    bleed,
+    calculatedBounds: externalActiveBounds
+  });
+  return externalActiveBounds;
+}
+function applyLayout({
+  contentWindow,
+  tabs,
+  externalActiveBounds,
+  logger: logger2
+}) {
+  const { width, height } = contentWindow.getBounds();
+  const defaultBounds = {
+    x: 0,
+    y: 0,
+    width,
+    height: Math.max(0, height)
+  };
+  const activeBounds = externalActiveBounds ?? defaultBounds;
+  logger2.debug("[MAIN LAYOUT] Applying bounds:", {
+    contentWindow: { w: width, h: height },
+    externalBounds: externalActiveBounds,
+    finalBounds: activeBounds,
+    usingExternal: !!externalActiveBounds
+  });
+  for (const [, tabData] of tabs) {
+    if (tabData.isActive) {
+      if (tabData.url.startsWith("about:")) {
+        tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        logger2.debug("[ViewManager] Layout: hiding WebView for about page", { url: tabData.url });
+      } else {
+        tabData.view.setBounds(activeBounds);
+      }
+    } else {
+      tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    }
   }
-  static applyPageZoomToWebContents(webContents2, zoomSetting) {
+}
+const DEFAULT_MAX_RECENT_CLOSED = 10;
+function createInitialViewManagerState() {
+  return {
+    tabs: /* @__PURE__ */ new Map(),
+    activeTabId: null,
+    contentWindow: null,
+    uiWebContents: null,
+    isInitializing: false,
+    lastReorderTarget: null,
+    externalActiveBounds: null,
+    recentlyClosed: [],
+    settingsUnsubscribers: []
+  };
+}
+function getTabSection(tab) {
+  if (tab.isFavorite) return "icon";
+  if (tab.isPinned) return "space";
+  return "tab";
+}
+function setPinned(args) {
+  const { tabs, tabId, pinned, logger: logger2 } = args;
+  const tab = tabs.get(tabId);
+  if (!tab) {
+    logger2.warn("[ViewManager] Tab not found for pin", { tabId });
+    return;
+  }
+  tab.isPinned = pinned;
+  if (pinned) {
+    tab.isFavorite = false;
+  }
+  logger2.info("[ViewManager] Tab pin status changed", { tabId, pinned });
+}
+function moveTabToSection(args) {
+  const { tabs, tabId, targetType, logger: logger2 } = args;
+  const tab = tabs.get(tabId);
+  if (!tab) {
+    logger2.warn("[ViewManager] Tab not found for move-section", { tabId });
+    return;
+  }
+  const previousType = getTabSection(tab);
+  switch (targetType) {
+    case "icon":
+      tab.isFavorite = true;
+      tab.isPinned = false;
+      logger2.info("[ViewManager] Tab moved to icon section", { tabId, previousType });
+      break;
+    case "space":
+      tab.isFavorite = false;
+      tab.isPinned = true;
+      logger2.info("[ViewManager] Tab moved to space section", { tabId, previousType });
+      break;
+    case "tab":
+      tab.isFavorite = false;
+      tab.isPinned = false;
+      logger2.info("[ViewManager] Tab moved to tab section", { tabId, previousType });
+      break;
+  }
+}
+function reorderTab(args) {
+  const { tabs, tabId, targetId, logger: logger2 } = args;
+  const allTabs = Array.from(tabs.entries());
+  const fromIndex = allTabs.findIndex(([id]) => id === tabId);
+  const toIndex = allTabs.findIndex(([id]) => id === targetId);
+  if (fromIndex === -1 || toIndex === -1) {
+    logger2.warn("[ViewManager] Invalid tab IDs for reorder", { tabId, targetId });
+    return;
+  }
+  const [movedTab] = allTabs.splice(fromIndex, 1);
+  allTabs.splice(toIndex, 0, movedTab);
+  tabs.clear();
+  allTabs.forEach(([id, data]) => {
+    tabs.set(id, data);
+  });
+  logger2.info("[ViewManager] Tab reordered", { tabId, targetId, fromIndex, toIndex });
+}
+function reorderTabWithinSection(args) {
+  const { tabs, tabId, position, logger: logger2 } = args;
+  const tab = tabs.get(tabId);
+  if (!tab) {
+    logger2.warn("[ViewManager] Tab not found for reorder", { tabId });
+    return;
+  }
+  const section = getTabSection(tab);
+  const sectionTabs = Array.from(tabs.entries()).filter(([, data]) => {
+    return getTabSection(data) === section;
+  });
+  const currentIndex = sectionTabs.findIndex(([id]) => id === tabId);
+  if (currentIndex === -1 || position < 0 || position >= sectionTabs.length) {
+    logger2.warn("[ViewManager] Invalid position for reorder", {
+      tabId,
+      position,
+      sectionLength: sectionTabs.length
+    });
+    return;
+  }
+  const [movedEntry] = sectionTabs.splice(currentIndex, 1);
+  sectionTabs.splice(position, 0, movedEntry);
+  const allTabs = Array.from(tabs.entries());
+  const newTabs = [];
+  const iconTabs = allTabs.filter(([, data]) => getTabSection(data) === "icon");
+  const spaceTabs = allTabs.filter(([, data]) => getTabSection(data) === "space");
+  const normalTabs = allTabs.filter(([, data]) => getTabSection(data) === "tab");
+  switch (section) {
+    case "icon":
+      newTabs.push(...sectionTabs);
+      newTabs.push(...spaceTabs);
+      newTabs.push(...normalTabs);
+      break;
+    case "space":
+      newTabs.push(...iconTabs);
+      newTabs.push(...sectionTabs);
+      newTabs.push(...normalTabs);
+      break;
+    case "tab":
+      newTabs.push(...iconTabs);
+      newTabs.push(...spaceTabs);
+      newTabs.push(...sectionTabs);
+      break;
+  }
+  tabs.clear();
+  newTabs.forEach(([id, data]) => {
+    tabs.set(id, data);
+  });
+  logger2.info("[ViewManager] Tab reordered within section", { tabId, position, currentIndex });
+}
+function getTabsSnapshot(tabs) {
+  return Array.from(tabs.values()).map(({ id, url, title, isActive, isPinned, isFavorite, favicon }) => ({
+    id,
+    url,
+    title,
+    isActive,
+    isPinned,
+    isFavorite,
+    favicon
+  }));
+}
+function syncTabsToRenderer(args) {
+  const { uiWebContents, tabs, activeTabId, logger: logger2 } = args;
+  if (!uiWebContents) return;
+  const state = {
+    tabs: getTabsSnapshot(tabs),
+    activeTabId
+  };
+  try {
+    uiWebContents.send("tabs:updated", state);
+    logger2.debug("[ViewManager] Synced to renderer", { tabCount: state.tabs.length });
+  } catch (error) {
+    logger2.error("[ViewManager] Failed to sync to renderer:", error);
+  }
+}
+const IPC_CHANNELS = {
+  // ===== APP 영역 =====
+  APP: {
+    /** 앱이 준비됨 (모든 초기화 완료) */
+    READY: "app:ready",
+    /** 앱 종료 요청 */
+    QUIT: "app:quit",
+    /** 앱 재시작 요청 */
+    RESTART: "app:restart",
+    /** 앱 상태 조회 */
+    STATE: "app:state",
+    /** 앱 정보 조회 (이름/버전/경로 등) */
+    GET_INFO: "app:get-info"
+  },
+  // ===== WINDOW 영역 (Renderer에서 Main으로 요청) =====
+  WINDOW: {
+    /** 윈도우 최소화 */
+    MINIMIZE: "window:minimize",
+    /** 윈도우 최대화/복원 토글 */
+    MAXIMIZE: "window:maximize",
+    /** 윈도우 닫기 */
+    CLOSE: "window:close"
+  },
+  // ===== TAB 영역 (탭 관리 - Request/Response) =====
+  TAB: {
+    /** 새 탭 생성 (Request: URL, Response: tabId) */
+    CREATE: "tab:create",
+    /** 탭 닫기 (Request: tabId) */
+    CLOSE: "tab:close",
+    /** 탭 전환 (Request: tabId) */
+    SWITCH: "tab:switch",
+    /** 탭 URL 변경 (Request: tabId, url) */
+    UPDATE_URL: "tab:update-url",
+    /** 탭 목록 조회 */
+    LIST: "tab:list",
+    /** 활성 탭 ID 조회 */
+    ACTIVE: "tab:active",
+    /** 현재 탭 네비게이션 */
+    NAVIGATE: "tab:navigate",
+    /** 뒤로 가기 */
+    BACK: "tab:back",
+    /** 앞으로 가기 */
+    FORWARD: "tab:forward",
+    /** 새로고침 */
+    RELOAD: "tab:reload",
+    /** 탭 복제 (현재 URL과 같은 새 탭 생성) */
+    DUPLICATE: "tab:duplicate",
+    /** 탭 고정/해제 (Space 섹션에 표시) */
+    PIN: "tab:pin",
+    /** 다른 탭 모두 닫기 */
+    CLOSE_OTHERS: "tab:close-others",
+    /** 모든 탭 닫기 */
+    CLOSE_ALL: "tab:close-all",
+    /** 닫은 탭 복원 */
+    RESTORE: "tab:restore",
+    /** 섹션 간 이동 (Icon/Space/Tab) */
+    MOVE_SECTION: "tab:move-section",
+    /** 같은 섹션 내 탭 순서 변경 (Request: tabId, position) */
+    REORDER: "tab:reorder",
+    /** Icon 순서 변경 (Request: fromIndex, toIndex) */
+    REORDER_ICON: "tab:reorder-icon",
+    /** [Event] 탭 목록 업데이트 (Main → Renderer) */
+    UPDATED: "tabs:updated"
+  },
+  // ===== NAVIGATION 영역 (브라우징 네비게이션) =====
+  NAV: {
+    /** URL로 이동 (Request: url) */
+    NAVIGATE: "nav:navigate",
+    /** 뒤로 가기 */
+    BACK: "nav:back",
+    /** 앞으로 가기 */
+    FORWARD: "nav:forward",
+    /** 새로고침 */
+    RELOAD: "nav:reload",
+    /** [Event] 네비게이션 상태 변경 (뒤/앞 가능 여부 변경) */
+    STATE_CHANGED: "nav:state-changed"
+  },
+  // ===== SIDEBAR 영역 =====
+  SIDEBAR: {
+    /** 사이드바 토글 (확장/축소) */
+    TOGGLE: "sidebar:toggle"
+  },
+  // ===== VIEW 영역 (WebContentsView 관리 - Zen Layout) =====
+  VIEW: {
+    /** WebContentsView 크기/위치 조절 (Request: bounds) */
+    RESIZE: "view:resize",
+    /** WebContentsView로 네비게이션 (Request: url) */
+    NAVIGATE: "view:navigate",
+    /** Settings 페이지 열림/닫힘 토글 */
+    SETTINGS_TOGGLED: "view:settings-toggled",
+    /** [Event] WebContentsView 로드 완료 */
+    LOADED: "view:loaded",
+    /** [Event] WebContentsView 네비게이션 완료 */
+    NAVIGATED: "view:navigated"
+  },
+  // ===== SETTINGS 영역 =====
+  SETTINGS: {
+    GET_ALL: "settings:get-all",
+    GET: "settings:get",
+    UPDATE: "settings:update",
+    UPDATE_MULTIPLE: "settings:update-multiple",
+    RESET: "settings:reset",
+    /** 설정 파일 경로 조회 */
+    GET_PATH: "settings:get-path"
+  },
+  // ===== EXTENSIONS 영역 =====
+  EXTENSIONS: {
+    /** 확장 상태 조회 */
+    GET_STATUS: "extensions:get-status",
+    /** 확장(재)로드 */
+    RELOAD: "extensions:reload"
+  },
+  // ===== DEFAULT BROWSER 영역 =====
+  DEFAULT_BROWSER: {
+    /** 기본 브라우저 상태 조회 */
+    GET_STATUS: "default-browser:get-status",
+    /** 기본 브라우저로 설정 시도 */
+    SET_DEFAULT: "default-browser:set-default",
+    /** OS 기본 앱 설정 화면 열기 */
+    OPEN_SYSTEM_SETTINGS: "default-browser:open-system-settings"
+  },
+  // ===== OVERLAY 영역 (UI overlay latch/toggles) =====
+  OVERLAY: {
+    TOGGLE_HEADER_LATCH: "overlay:toggle-header-latch",
+    TOGGLE_SIDEBAR_LATCH: "overlay:toggle-sidebar-latch",
+    SET_INTERACTIVE: "overlay:set-interactive",
+    /** Renderer가 실측한 hover hotzone(사이드바/헤더/titlebar) 업데이트 */
+    UPDATE_HOVER_METRICS: "overlay:update-hover-metrics",
+    /** [Event] Ghost 상태에서 edge hover 감지 (Main → Renderer) */
+    EDGE_HOVER: "overlay:edge-hover",
+    /** [Event] WebView에서 마우스 다운/업 발생 (Main → Renderer) */
+    CONTENT_POINTER: "overlay:content-pointer",
+    DEBUG: "overlay:debug"
+  }
+};
+function attachTabEvents(args) {
+  const { tabId, view, getTabData, getUiWebContents, syncToRenderer, createTab: createTab2, logger: logger2 } = args;
+  view.webContents.on("before-input-event", (_event, input) => {
     try {
-      const factor = this.getZoomFactorFromSetting(zoomSetting);
-      webContents2.setZoomFactor(factor);
-      logger.info("[ViewManager] Applied page zoom", { factor, zoomSetting });
+      const uiWebContents = getUiWebContents();
+      if (!uiWebContents) return;
+      if (input.type !== "mouseDown" && input.type !== "mouseUp") return;
+      const payload = OverlayContentPointerEventSchema.parse({
+        kind: input.type,
+        timestamp: Date.now()
+      });
+      uiWebContents.send(IPC_CHANNELS.OVERLAY.CONTENT_POINTER, payload);
+    } catch {
+    }
+  });
+  view.webContents.on("page-title-updated", (_event, title) => {
+    const tabData = getTabData(tabId);
+    if (tabData) {
+      tabData.title = title;
+      logger2.info("[ViewManager] Tab title updated", { tabId, title });
+      syncToRenderer();
+    }
+  });
+  view.webContents.on("did-navigate", (_event, url) => {
+    const tabData = getTabData(tabId);
+    if (tabData) {
+      tabData.url = url;
+      logger2.info("[ViewManager] Tab URL changed", { tabId, url });
+      syncToRenderer();
+      const uiWebContents = getUiWebContents();
+      if (uiWebContents && tabData.isActive) {
+        uiWebContents.send("view:navigated", {
+          url,
+          canGoBack: view.webContents.navigationHistory.canGoBack(),
+          canGoForward: view.webContents.navigationHistory.canGoForward(),
+          timestamp: Date.now()
+        });
+      }
+    }
+  });
+  view.webContents.on("did-navigate-in-page", (_event, url) => {
+    const tabData = getTabData(tabId);
+    if (tabData) {
+      tabData.url = url;
+      syncToRenderer();
+      const uiWebContents = getUiWebContents();
+      if (uiWebContents && tabData.isActive) {
+        uiWebContents.send("view:navigated", {
+          url,
+          canGoBack: view.webContents.navigationHistory.canGoBack(),
+          canGoForward: view.webContents.navigationHistory.canGoForward(),
+          timestamp: Date.now()
+        });
+      }
+    }
+  });
+  view.webContents.setWindowOpenHandler(({ url }) => {
+    logger2.info("[ViewManager] Intercepted window.open", { url });
+    void createTab2(url);
+    return { action: "deny" };
+  });
+  view.webContents.on("page-favicon-updated", (_event, favicons) => {
+    const tabData = getTabData(tabId);
+    if (tabData && favicons.length > 0) {
+      tabData.favicon = favicons[0];
+      logger2.debug("[ViewManager] Tab favicon updated", { tabId, favicon: favicons[0] });
+      syncToRenderer();
+    }
+  });
+  view.webContents.on("did-finish-load", () => {
+    const tabData = getTabData(tabId);
+    if (!tabData) return;
+    const uiWebContents = getUiWebContents();
+    if (uiWebContents && tabData.isActive) {
+      uiWebContents.send("view:loaded", {
+        url: view.webContents.getURL(),
+        timestamp: Date.now()
+      });
+    }
+  });
+  logger2.info("[ViewManager] Tab event listeners attached", { tabId });
+}
+async function navigateActiveTab(args) {
+  const { tabs, activeTabId, url, applyAppearance, syncToRenderer, logger: logger2 } = args;
+  if (!activeTabId) {
+    logger2.warn("[ViewManager] No active tab to navigate");
+    return;
+  }
+  const tabData = tabs.get(activeTabId);
+  if (!tabData) {
+    logger2.warn("[ViewManager] Active tab not found");
+    return;
+  }
+  try {
+    if (url.startsWith("about:")) {
+      const aboutPage = url.replace("about:", "");
+      switch (aboutPage) {
+        case "preferences":
+        case "settings":
+          tabData.url = url;
+          tabData.title = "Settings";
+          tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+          logger2.info("[ViewManager] Navigating to settings page", { tabId: activeTabId });
+          syncToRenderer();
+          return;
+        default:
+          logger2.warn("[ViewManager] Unknown about page:", { page: aboutPage });
+          return;
+      }
+    }
+    applyAppearance(tabData);
+    void tabData.view.webContents.loadURL(url).catch((err) => {
+      logger2.error("[ViewManager] loadURL error", { url, error: err });
+    });
+    tabData.url = url;
+    logger2.info("[ViewManager] Navigate started", { url });
+    syncToRenderer();
+  } catch (error) {
+    logger2.error("[ViewManager] Navigate failed:", { error, url });
+    throw error;
+  }
+}
+function goBack(args) {
+  const { tabs, activeTabId, logger: logger2 } = args;
+  if (!activeTabId) return;
+  const tabData = tabs.get(activeTabId);
+  if (tabData?.view.webContents.navigationHistory.canGoBack()) {
+    tabData.view.webContents.navigationHistory.goBack();
+    logger2.info("[ViewManager] Go back", { tabId: activeTabId });
+  }
+}
+function goForward(args) {
+  const { tabs, activeTabId, logger: logger2 } = args;
+  if (!activeTabId) return;
+  const tabData = tabs.get(activeTabId);
+  if (tabData?.view.webContents.navigationHistory.canGoForward()) {
+    tabData.view.webContents.navigationHistory.goForward();
+    logger2.info("[ViewManager] Go forward", { tabId: activeTabId });
+  }
+}
+function reload(args) {
+  const { tabs, activeTabId, logger: logger2 } = args;
+  if (!activeTabId) return;
+  const tabData = tabs.get(activeTabId);
+  if (tabData) {
+    tabData.view.webContents.reload();
+    logger2.info("[ViewManager] Reload", { tabId: activeTabId });
+  }
+}
+async function createTab(args) {
+  const {
+    contentWindow,
+    tabs,
+    url,
+    zoomSetting,
+    applyZoom,
+    setupTabEvents,
+    applyAppearance,
+    ensureUITopmost: ensureUITopmost2,
+    dumpTree,
+    logger: logger2
+  } = args;
+  logger2.info("[ViewManager] Creating new tab...", { url });
+  const view = new WebContentsView({
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true
+    }
+  });
+  view.setBackgroundColor("#00000000");
+  applyZoom(view.webContents, zoomSetting);
+  const tabId = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+  const tabData = {
+    id: tabId,
+    view,
+    url,
+    title: "New Tab",
+    isActive: false,
+    isPinned: false,
+    isFavorite: false
+  };
+  tabs.set(tabId, tabData);
+  const contentView = contentWindow.getContentView();
+  try {
+    if (contentView.children.includes(view)) {
+      contentView.removeChildView(view);
+    }
+  } catch {
+  }
+  contentView.addChildView(view);
+  ensureUITopmost2();
+  dumpTree?.("after-add-tab-view");
+  view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+  setupTabEvents(tabId, view);
+  applyAppearance(view.webContents);
+  void view.webContents.loadURL(url).catch((err) => {
+    logger2.error("[ViewManager] Failed to load URL in tab", { tabId, url, error: err });
+  });
+  logger2.info("[ViewManager] Tab created (loading in background)", { tabId, url });
+  return tabId;
+}
+function switchTab(args) {
+  const { tabs, activeTabId, tabId, applyZoomToActive, layout, syncToRenderer, logger: logger2 } = args;
+  const tabData = tabs.get(tabId);
+  if (!tabData) {
+    logger2.warn("[ViewManager] Tab not found", { tabId });
+    return activeTabId;
+  }
+  if (activeTabId) {
+    const prevTab = tabs.get(activeTabId);
+    if (prevTab) {
+      prevTab.isActive = false;
+      prevTab.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    }
+  }
+  tabData.isActive = true;
+  applyZoomToActive(tabData);
+  layout();
+  logger2.info("[ViewManager] Tab switched", { tabId });
+  syncToRenderer();
+  return tabId;
+}
+function closeTab(args) {
+  const {
+    tabs,
+    activeTabId,
+    contentWindow,
+    tabId,
+    recentlyClosed,
+    maxRecentClosed,
+    switchTab: switchTab2,
+    setActiveTabId,
+    syncToRenderer,
+    logger: logger2
+  } = args;
+  const tabData = tabs.get(tabId);
+  if (!tabData) {
+    logger2.warn("[ViewManager] Tab not found", { tabId });
+    return;
+  }
+  try {
+    recentlyClosed.push({
+      id: tabData.id,
+      url: tabData.url,
+      title: tabData.title,
+      timestamp: Date.now(),
+      isPinned: tabData.isPinned
+    });
+    if (recentlyClosed.length > maxRecentClosed) {
+      recentlyClosed.shift();
+    }
+    if (contentWindow) {
+      contentWindow.getContentView().removeChildView(tabData.view);
+    }
+    tabData.view.webContents.close();
+    tabs.delete(tabId);
+    if (activeTabId === tabId) {
+      const remainingTabId = Array.from(tabs.keys())[0];
+      if (remainingTabId) {
+        switchTab2(remainingTabId);
+      } else {
+        setActiveTabId(null);
+      }
+    }
+    logger2.info("[ViewManager] Tab closed", { tabId });
+    syncToRenderer();
+  } catch (error) {
+    logger2.error("[ViewManager] Tab close failed:", error);
+  }
+}
+async function duplicateTab(args) {
+  const { tabs, tabId, createTab: createTab2, logger: logger2 } = args;
+  const tab = tabs.get(tabId);
+  if (!tab) {
+    throw new Error("Tab not found");
+  }
+  const newTabId = await createTab2(tab.url);
+  logger2.info("[ViewManager] Tab duplicated", { originalId: tabId, newId: newTabId });
+  return newTabId;
+}
+function closeOtherTabs(args) {
+  const { tabs, keepTabId, closeTab: closeTab2, logger: logger2 } = args;
+  const tabsToClose = Array.from(tabs.keys()).filter((id) => id !== keepTabId);
+  for (const tabId of tabsToClose) {
+    closeTab2(tabId);
+  }
+  logger2.info("[ViewManager] Closed other tabs", { kept: keepTabId, closed: tabsToClose.length });
+}
+async function closeAllTabs(args) {
+  const { tabs, closeTab: closeTab2, createTab: createTab2, homepage, logger: logger2 } = args;
+  const allTabIds = Array.from(tabs.keys());
+  for (const tabId of allTabIds) {
+    closeTab2(tabId);
+  }
+  if (tabs.size === 0) {
+    await createTab2(homepage);
+  }
+  logger2.info("[ViewManager] Closed all tabs");
+}
+async function restoreClosedTab(args) {
+  const { recentlyClosed, createTab: createTab2, setPinned: setPinned2, logger: logger2 } = args;
+  if (recentlyClosed.length === 0) {
+    logger2.warn("[ViewManager] No recently closed tabs to restore");
+    return null;
+  }
+  const closedTab = recentlyClosed.pop();
+  if (!closedTab) return null;
+  const newTabId = await createTab2(closedTab.url);
+  if (closedTab.isPinned) {
+    setPinned2(newTabId, true);
+  }
+  logger2.info("[ViewManager] Restored closed tab", { url: closedTab.url, newId: newTabId });
+  return newTabId;
+}
+function disposeSettingsSubscriptions(unsubs) {
+  for (const unsub of unsubs) {
+    try {
+      unsub();
+    } catch {
+    }
+  }
+}
+function applyThemeToAllTabs(args) {
+  const { tabs, applyAppearance } = args;
+  for (const tab of tabs.values()) {
+    applyAppearance(tab);
+  }
+}
+function reloadAllNonAboutTabs(args) {
+  const { tabs, logger: logger2 } = args;
+  for (const tab of tabs.values()) {
+    if (tab.url.startsWith("about:")) continue;
+    try {
+      tab.view.webContents.reload();
     } catch (error) {
-      logger.warn("[ViewManager] Failed to apply page zoom", { error: String(error), zoomSetting });
+      logger2.warn("[ViewManager] Failed to reload tab after language change", { error: String(error) });
     }
   }
-  static applyPageZoomToAllTabs(zoomSetting) {
-    for (const tab of this.tabs.values()) {
-      this.applyPageZoomToWebContents(tab.view.webContents, zoomSetting);
-    }
+}
+function getZoomFactorFromSetting(value) {
+  const percent = Number.parseInt(value, 10);
+  if (Number.isNaN(percent)) return 1;
+  const clamped = Math.min(500, Math.max(25, percent));
+  return clamped / 100;
+}
+function applyPageZoomToWebContents(webContents2, zoomSetting, logger2) {
+  try {
+    const factor = getZoomFactorFromSetting(zoomSetting);
+    webContents2.setZoomFactor(factor);
+    logger2.debug("[ViewManager] Applied page zoom", { factor, zoomSetting });
+  } catch (error) {
+    logger2.warn("[ViewManager] Failed to apply page zoom", { error: String(error), zoomSetting });
   }
-  /**
-   * ViewManager 초기화
-   *
-   * 프로세스:
-   * 1. 메인 윈도우 저장
-   * 2. 기본 탭 1개 생성 (홈페이지)
-   * 3. 레이아웃 적용
-   *
-   * @param window - 부모 BrowserWindow
-   */
+}
+function applyPageZoomToAllTabs(tabs, zoomSetting, logger2) {
+  for (const tab of tabs.values()) {
+    applyPageZoomToWebContents(tab.view.webContents, zoomSetting, logger2);
+  }
+}
+class ViewManager {
+  static state = createInitialViewManagerState();
+  static MAX_RECENT_CLOSED = DEFAULT_MAX_RECENT_CLOSED;
+  static syncTimer = null;
+  static SYNC_DEBOUNCE_MS = 16;
+  static scheduleSyncToRenderer() {
+    if (this.syncTimer) return;
+    this.syncTimer = setTimeout(() => {
+      this.syncTimer = null;
+      this.syncToRenderer();
+    }, this.SYNC_DEBOUNCE_MS);
+  }
   static async initialize(contentWindow, uiWebContents) {
-    if (this.contentWindow) {
+    if (this.state.contentWindow) {
       logger.warn("[ViewManager] Already initialized. Skipping.");
       return;
     }
-    if (this.isInitializing) {
+    if (this.state.isInitializing) {
       throw new Error("[ViewManager] Initialization already in progress");
     }
-    this.isInitializing = true;
+    this.state.isInitializing = true;
     try {
       logger.info("[ViewManager] Initializing...");
-      this.contentWindow = contentWindow;
-      this.uiWebContents = uiWebContents;
+      this.state.contentWindow = contentWindow;
+      this.state.uiWebContents = uiWebContents;
       const settingsStore = SettingsStore.getInstance();
       const initialZoom = settingsStore.get("pageZoom");
-      this.applyPageZoomToAllTabs(initialZoom);
-      this.settingsUnsubscribers.push(
+      applyPageZoomToAllTabs(this.state.tabs, initialZoom, logger);
+      this.state.settingsUnsubscribers.push(
         settingsStore.onChange("pageZoom", (newValue) => {
           const zoomSetting = typeof newValue === "string" ? newValue : settingsStore.get("pageZoom");
-          this.applyPageZoomToAllTabs(zoomSetting);
+          applyPageZoomToAllTabs(this.state.tabs, zoomSetting, logger);
         })
       );
-      this.settingsUnsubscribers.push(
+      this.state.settingsUnsubscribers.push(
         settingsStore.onChange("theme", () => {
-          for (const tab of this.tabs.values()) {
-            void AppearanceService.applyToWebContents(tab.view.webContents);
-          }
+          applyThemeToAllTabs({
+            tabs: this.state.tabs,
+            applyAppearance: (tab) => {
+              void AppearanceService.applyToWebContents(tab.view.webContents);
+            }
+          });
         })
       );
-      this.settingsUnsubscribers.push(
+      this.state.settingsUnsubscribers.push(
         settingsStore.onChange("language", () => {
-          for (const tab of this.tabs.values()) {
-            if (tab.url.startsWith("about:")) continue;
-            try {
-              tab.view.webContents.reload();
-            } catch (error) {
-              logger.warn("[ViewManager] Failed to reload tab after language change", { error: String(error) });
-            }
-          }
+          reloadAllNonAboutTabs({ tabs: this.state.tabs, logger });
         })
       );
       this.dumpContentViewTree("after-initialize");
-      this.contentWindow.on("resize", () => {
+      this.state.contentWindow.on("resize", () => {
         this.layout();
       });
-      const homepage = SettingsStore.getInstance().get("homepage");
+      const homepage = settingsStore.get("homepage");
       const homeTabId = await this.createTab(homepage);
       logger.info("[ViewManager] Home tab created", { tabId: homeTabId });
       this.switchTab(homeTabId);
@@ -1159,607 +1570,256 @@ class ViewManager {
       logger.error("[ViewManager] Initialization failed:", error);
       throw error;
     } finally {
-      this.isInitializing = false;
+      this.state.isInitializing = false;
     }
   }
-  /**
-   * 새 탭 생성
-   *
-   * 프로세스:
-   * 1. WebContentsView 생성
-   * 2. 탭 데이터 저장
-   * 3. URL 로드
-   * 4. 이벤트 리스너 설정
-   *
-   * @param url - 초기 URL
-   * @returns 생성된 탭 ID
-   */
   static async createTab(url) {
-    if (!this.contentWindow) {
+    if (!this.state.contentWindow) {
       throw new Error("[ViewManager] Not initialized. Call initialize() first.");
     }
     try {
-      logger.info("[ViewManager] Creating new tab...", { url });
-      const view = new WebContentsView({
-        webPreferences: {
-          contextIsolation: true,
-          sandbox: true
-        }
-      });
-      view.setBackgroundColor("#00000000");
-      const zoomSetting = SettingsStore.getInstance().get("pageZoom");
-      this.applyPageZoomToWebContents(view.webContents, zoomSetting);
-      const tabId = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-      const tabData = {
-        id: tabId,
-        view,
+      const settingsStore = SettingsStore.getInstance();
+      const zoomSetting = settingsStore.get("pageZoom");
+      const tabId = await createTab({
+        contentWindow: this.state.contentWindow,
+        tabs: this.state.tabs,
         url,
-        title: "New Tab",
-        isActive: false,
-        isPinned: false,
-        // Default: not pinned
-        isFavorite: false
-      };
-      this.tabs.set(tabId, tabData);
-      const contentView = this.contentWindow.getContentView();
-      try {
-        if (contentView.children.includes(view)) {
-          contentView.removeChildView(view);
-        }
-      } catch {
-      }
-      contentView.addChildView(view);
-      this.ensureUITopmost();
-      if (process.env.ASIDE_VIEW_TREE_DEBUG === "1") {
-        this.dumpContentViewTree("after-add-tab-view");
-      }
-      view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-      this.setupTabEvents(tabId, view);
-      void AppearanceService.applyToWebContents(view.webContents);
-      void view.webContents.loadURL(url).catch((err) => {
-        logger.error("[ViewManager] Failed to load URL in tab", { tabId, url, error: err });
+        zoomSetting,
+        applyZoom: (wc, setting) => applyPageZoomToWebContents(wc, setting, logger),
+        setupTabEvents: (id, view) => this.setupTabEvents(id, view),
+        applyAppearance: (wc) => {
+          void AppearanceService.applyToWebContents(wc);
+        },
+        ensureUITopmost: () => this.ensureUITopmost(),
+        dumpTree: process.env.ASIDE_VIEW_TREE_DEBUG === "1" ? (reason) => this.dumpContentViewTree(reason) : void 0,
+        logger
       });
-      logger.info("[ViewManager] Tab created (loading in background)", { tabId, url });
       return tabId;
     } catch (error) {
       logger.error("[ViewManager] Tab creation failed:", error);
       throw error;
     }
   }
-  /**
-   * 탭 전환
-   *
-   * @param tabId - 활성화할 탭 ID
-   */
   static switchTab(tabId) {
-    const tabData = this.tabs.get(tabId);
-    if (!tabData) {
-      logger.warn("[ViewManager] Tab not found", { tabId });
-      return;
-    }
-    if (this.activeTabId) {
-      const prevTab = this.tabs.get(this.activeTabId);
-      if (prevTab) {
-        prevTab.isActive = false;
-        prevTab.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-      }
-    }
-    this.activeTabId = tabId;
-    tabData.isActive = true;
-    this.applyPageZoomToWebContents(tabData.view.webContents, SettingsStore.getInstance().get("pageZoom"));
-    this.layout();
-    logger.info("[ViewManager] Tab switched", { tabId });
-    this.syncToRenderer();
+    const settingsStore = SettingsStore.getInstance();
+    const next = switchTab({
+      tabs: this.state.tabs,
+      activeTabId: this.state.activeTabId,
+      tabId,
+      applyZoomToActive: (tab) => applyPageZoomToWebContents(tab.view.webContents, settingsStore.get("pageZoom"), logger),
+      layout: () => this.layout(),
+      syncToRenderer: () => this.scheduleSyncToRenderer(),
+      logger
+    });
+    this.state.activeTabId = next;
   }
-  /**
-   * Renderer에서 들어온 safe-area 오프셋을 받아 실제 bounds 계산
-   */
   static setActiveViewBounds(safeArea) {
-    if (!this.contentWindow) {
+    if (!this.state.contentWindow) {
       logger.warn("[ViewManager] contentWindow not available; ignoring safe-area");
       return;
     }
-    const contentBounds = this.contentWindow.getBounds();
-    const { width, height } = contentBounds;
-    logger.info("[📐 MAIN] Content Window actual bounds:", {
-      x: contentBounds.x,
-      y: contentBounds.y,
-      width: contentBounds.width,
-      height: contentBounds.height
-    });
-    const bleed = 0;
-    this.externalActiveBounds = {
-      x: safeArea.left,
-      y: safeArea.top,
-      width: Math.max(0, width - safeArea.left + bleed),
-      height: Math.max(0, height - safeArea.top + bleed)
-    };
-    logger.debug("[📐 MAIN] Calculated bounds from safe-area (with bleed):", {
-      contentWindow: { w: width, h: height },
+    this.state.externalActiveBounds = computeExternalActiveBounds({
+      contentWindow: this.state.contentWindow,
       safeArea,
-      bleed,
-      calculatedBounds: this.externalActiveBounds
+      logger
     });
     this.layout();
   }
-  /**
-   * 탭 닫기
-   *
-   * @param tabId - 닫을 탭 ID
-   */
   static closeTab(tabId) {
-    const tabData = this.tabs.get(tabId);
-    if (!tabData) {
-      logger.warn("[ViewManager] Tab not found", { tabId });
-      return;
-    }
-    try {
-      this.recentlyClosed.push({
-        id: tabData.id,
-        url: tabData.url,
-        title: tabData.title,
-        timestamp: Date.now(),
-        isPinned: tabData.isPinned
-      });
-      if (this.recentlyClosed.length > this.MAX_RECENT_CLOSED) {
-        this.recentlyClosed.shift();
-      }
-      if (this.contentWindow) {
-        this.contentWindow.getContentView().removeChildView(tabData.view);
-      }
-      tabData.view.webContents.close();
-      this.tabs.delete(tabId);
-      if (this.activeTabId === tabId) {
-        const remainingTabId = Array.from(this.tabs.keys())[0];
-        if (remainingTabId) {
-          this.switchTab(remainingTabId);
-        } else {
-          this.activeTabId = null;
-        }
-      }
-      logger.info("[ViewManager] Tab closed", { tabId });
-      this.syncToRenderer();
-    } catch (error) {
-      logger.error("[ViewManager] Tab close failed:", error);
-    }
+    closeTab({
+      tabs: this.state.tabs,
+      activeTabId: this.state.activeTabId,
+      contentWindow: this.state.contentWindow,
+      tabId,
+      recentlyClosed: this.state.recentlyClosed,
+      maxRecentClosed: this.MAX_RECENT_CLOSED,
+      switchTab: (nextTabId) => this.switchTab(nextTabId),
+      setActiveTabId: (next) => {
+        this.state.activeTabId = next;
+      },
+      syncToRenderer: () => this.scheduleSyncToRenderer(),
+      logger
+    });
   }
-  /**
-   * 탭 리스트 반환
-   *
-   * @returns 모든 탭 메타데이터 (뷰 객체 제외)
-   */
   static getTabs() {
-    return Array.from(this.tabs.values()).map(({ id, url, title, isActive, isPinned, isFavorite, favicon }) => ({
-      id,
-      url,
-      title,
-      isActive,
-      isPinned,
-      isFavorite,
-      favicon
-    }));
+    return getTabsSnapshot(this.state.tabs);
   }
-  static getTabSection(tab) {
-    if (tab.isFavorite) return "icon";
-    if (tab.isPinned) return "space";
-    return "tab";
-  }
-  /**
-   * 활성 탭 ID 반환
-   */
   static getActiveTabId() {
-    return this.activeTabId;
+    return this.state.activeTabId;
   }
-  /**
-   * 탭 고정/해제 (Space 섹션에 표시)
-   */
   static setPinned(tabId, pinned) {
-    const tab = this.tabs.get(tabId);
-    if (!tab) {
-      logger.warn("[ViewManager] Tab not found for pin", { tabId });
-      return;
-    }
-    tab.isPinned = pinned;
-    if (pinned) {
-      tab.isFavorite = false;
-    }
-    logger.info("[ViewManager] Tab pin status changed", { tabId, pinned });
-    this.syncToRenderer();
+    setPinned({ tabs: this.state.tabs, tabId, pinned, logger });
+    this.scheduleSyncToRenderer();
   }
-  /**
-   * 탭 순서 변경 (드래그앤드롭)
-   */
   static reorderTab(tabId, targetId) {
-    const allTabs = Array.from(this.tabs.entries());
-    const fromIndex = allTabs.findIndex(([id]) => id === tabId);
-    const toIndex = allTabs.findIndex(([id]) => id === targetId);
-    if (fromIndex === -1 || toIndex === -1) {
-      logger.warn("[ViewManager] Invalid tab IDs for reorder", { tabId, targetId });
-      return;
-    }
-    const [movedTab] = allTabs.splice(fromIndex, 1);
-    allTabs.splice(toIndex, 0, movedTab);
-    this.tabs.clear();
-    allTabs.forEach(([id, data]) => {
-      this.tabs.set(id, data);
-    });
-    logger.info("[ViewManager] Tab reordered", { tabId, targetId, fromIndex, toIndex });
-    this.syncToRenderer();
+    reorderTab({ tabs: this.state.tabs, tabId, targetId, logger });
+    this.scheduleSyncToRenderer();
   }
-  /**
-   * 같은 섹션 내에서 탭 순서 변경
-   * 
-   * @param tabId - 이동할 탭 ID
-   * @param position - 새로운 위치 (0부터 시작)
-   */
   static reorderTabWithinSection(tabId, position) {
-    const tab = this.tabs.get(tabId);
-    if (!tab) {
-      logger.warn("[ViewManager] Tab not found for reorder", { tabId });
-      return;
-    }
-    const section = this.getTabSection(tab);
-    const sectionTabs = Array.from(this.tabs.entries()).filter(([_, data]) => {
-      return this.getTabSection(data) === section;
-    });
-    const currentIndex = sectionTabs.findIndex(([id]) => id === tabId);
-    if (currentIndex === -1 || position < 0 || position >= sectionTabs.length) {
-      logger.warn("[ViewManager] Invalid position for reorder", { tabId, position, sectionLength: sectionTabs.length });
-      return;
-    }
-    const [movedEntry] = sectionTabs.splice(currentIndex, 1);
-    sectionTabs.splice(position, 0, movedEntry);
-    const allTabs = Array.from(this.tabs.entries());
-    const newTabs = [];
-    const iconTabs = allTabs.filter(([_, data]) => this.getTabSection(data) === "icon");
-    const spaceTabs = allTabs.filter(([_, data]) => this.getTabSection(data) === "space");
-    const normalTabs = allTabs.filter(([_, data]) => this.getTabSection(data) === "tab");
-    const reorderedSectionTabs = sectionTabs;
-    switch (section) {
-      case "icon":
-        newTabs.push(...reorderedSectionTabs);
-        newTabs.push(...spaceTabs);
-        newTabs.push(...normalTabs);
-        break;
-      case "space":
-        newTabs.push(...iconTabs);
-        newTabs.push(...reorderedSectionTabs);
-        newTabs.push(...normalTabs);
-        break;
-      case "tab":
-        newTabs.push(...iconTabs);
-        newTabs.push(...spaceTabs);
-        newTabs.push(...reorderedSectionTabs);
-        break;
-    }
-    this.tabs.clear();
-    newTabs.forEach(([id, data]) => {
-      this.tabs.set(id, data);
-    });
-    logger.info("[ViewManager] Tab reordered within section", { tabId, position, currentIndex });
-    this.syncToRenderer();
+    reorderTabWithinSection({ tabs: this.state.tabs, tabId, position, logger });
+    this.scheduleSyncToRenderer();
   }
-  /**
-   * Icon 섹션의 앱 순서 변경 (고정 앱 순서)
-   * 
-   * @param fromIndex - 원본 인덱스
-   * @param toIndex - 목표 인덱스
-   */
   static reorderIcon(fromIndex, toIndex) {
     logger.info("[ViewManager] Icon reordered", { fromIndex, toIndex });
   }
-  /**
-   * 탭을 다른 섹션으로 이동 (Icon/Space/Tab)
-   * 
-   * @param tabId - 이동할 탭 ID
-   * @param targetType - 목표 섹션 ('icon' | 'space' | 'tab')
-   */
   static moveTabToSection(tabId, targetType) {
-    const tab = this.tabs.get(tabId);
-    if (!tab) {
-      logger.warn("[ViewManager] Tab not found for move-section", { tabId });
-      return;
-    }
-    const previousType = this.getTabSection(tab);
-    switch (targetType) {
-      case "icon":
-        tab.isFavorite = true;
-        tab.isPinned = false;
-        logger.info("[ViewManager] Tab moved to icon section", { tabId, previousType });
-        break;
-      case "space":
-        tab.isFavorite = false;
-        tab.isPinned = true;
-        logger.info("[ViewManager] Tab moved to space section", { tabId, previousType });
-        break;
-      case "tab":
-        tab.isFavorite = false;
-        tab.isPinned = false;
-        logger.info("[ViewManager] Tab moved to tab section", { tabId, previousType });
-        break;
-    }
-    this.syncToRenderer();
+    moveTabToSection({ tabs: this.state.tabs, tabId, targetType, logger });
+    this.scheduleSyncToRenderer();
   }
-  /**
-   * 탭 복제 (같은 URL로 새 탭 생성)
-   */
   static async duplicateTab(tabId) {
-    const tab = this.tabs.get(tabId);
-    if (!tab) {
-      throw new Error("Tab not found");
-    }
-    const newTabId = await this.createTab(tab.url);
-    logger.info("[ViewManager] Tab duplicated", { originalId: tabId, newId: newTabId });
-    return newTabId;
+    return duplicateTab({
+      tabs: this.state.tabs,
+      tabId,
+      createTab: (url) => this.createTab(url),
+      logger
+    });
   }
-  /**
-   * 다른 탭 모두 닫기
-   */
   static closeOtherTabs(keepTabId) {
-    const tabsToClose = Array.from(this.tabs.keys()).filter((id) => id !== keepTabId);
-    for (const tabId of tabsToClose) {
-      this.closeTab(tabId);
-    }
-    logger.info("[ViewManager] Closed other tabs", { kept: keepTabId, closed: tabsToClose.length });
+    closeOtherTabs({
+      tabs: this.state.tabs,
+      keepTabId,
+      closeTab: (id) => this.closeTab(id),
+      logger
+    });
   }
-  /**
-   * 모든 탭 닫기 (최소 1개는 유지)
-   */
   static closeAllTabs() {
-    const allTabIds = Array.from(this.tabs.keys());
-    for (const tabId of allTabIds) {
-      this.closeTab(tabId);
-    }
-    if (this.tabs.size === 0) {
-      const homepage = SettingsStore.getInstance().get("homepage");
-      void this.createTab(homepage);
-    }
-    logger.info("[ViewManager] Closed all tabs");
+    const homepage = SettingsStore.getInstance().get("homepage");
+    void closeAllTabs({
+      tabs: this.state.tabs,
+      closeTab: (id) => this.closeTab(id),
+      createTab: (url) => this.createTab(url),
+      homepage,
+      logger
+    });
   }
-  /**
-   * 닫은 탭 복원 (가장 최근)
-   */
   static async restoreClosedTab() {
-    if (this.recentlyClosed.length === 0) {
-      logger.warn("[ViewManager] No recently closed tabs to restore");
-      return null;
-    }
-    const closedTab = this.recentlyClosed.pop();
-    if (!closedTab) {
-      return null;
-    }
-    const newTabId = await this.createTab(closedTab.url);
-    if (closedTab.isPinned) {
-      this.setPinned(newTabId, true);
-    }
-    logger.info("[ViewManager] Restored closed tab", { url: closedTab.url, newId: newTabId });
-    return newTabId;
+    return restoreClosedTab({
+      recentlyClosed: this.state.recentlyClosed,
+      createTab: (url) => this.createTab(url),
+      setPinned: (id, pinned) => this.setPinned(id, pinned),
+      logger
+    });
   }
-  /**
-   * Get recently closed tabs list
-   */
   static getRecentlyClosed() {
-    return [...this.recentlyClosed];
+    return [...this.state.recentlyClosed];
   }
-  /**
-   * 현재 활성 탭에서 URL 이동
-   * about: 스키마 처리 (React 컴포넌트로 렌더링)
-   * 
-   * ⚠️ 중요: loadURL()은 비동기이지만, 완료를 기다리지 않는다
-   * did-finish-load / did-fail-load 이벤트로 결과를 감지해야 함
-   */
   static async navigate(url) {
-    if (!this.activeTabId) {
-      logger.warn("[ViewManager] No active tab to navigate");
-      return;
-    }
-    const tabData = this.tabs.get(this.activeTabId);
-    if (!tabData) {
-      logger.warn("[ViewManager] Active tab not found");
-      return;
-    }
-    try {
-      if (url.startsWith("about:")) {
-        const aboutPage = url.replace("about:", "");
-        switch (aboutPage) {
-          case "preferences":
-          case "settings":
-            tabData.url = url;
-            tabData.title = "Settings";
-            tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-            logger.info("[ViewManager] Navigating to settings page", { tabId: this.activeTabId });
-            this.syncToRenderer();
-            return;
-          default:
-            logger.warn("[ViewManager] Unknown about page:", { page: aboutPage });
-            return;
-        }
-      }
-      void AppearanceService.applyToWebContents(tabData.view.webContents);
-      void tabData.view.webContents.loadURL(url).catch((err) => {
-        logger.error("[ViewManager] loadURL error", { url, error: err });
-      });
-      tabData.url = url;
-      logger.info("[ViewManager] Navigate started", { url });
-      this.syncToRenderer();
-    } catch (error) {
-      logger.error("[ViewManager] Navigate failed:", { error, url });
-      throw error;
-    }
+    await navigateActiveTab({
+      tabs: this.state.tabs,
+      activeTabId: this.state.activeTabId,
+      url,
+      applyAppearance: (tab) => {
+        void AppearanceService.applyToWebContents(tab.view.webContents);
+      },
+      syncToRenderer: () => this.scheduleSyncToRenderer(),
+      logger
+    });
   }
-  /**
-   * 뒤로 가기
-   */
   static goBack() {
-    if (!this.activeTabId) return;
-    const tabData = this.tabs.get(this.activeTabId);
-    if (tabData?.view.webContents.navigationHistory.canGoBack()) {
-      tabData.view.webContents.navigationHistory.goBack();
-      logger.info("[ViewManager] Go back", { tabId: this.activeTabId });
-    }
+    goBack({ tabs: this.state.tabs, activeTabId: this.state.activeTabId, logger });
   }
-  /**
-   * 앞으로 가기
-   */
   static goForward() {
-    if (!this.activeTabId) return;
-    const tabData = this.tabs.get(this.activeTabId);
-    if (tabData?.view.webContents.navigationHistory.canGoForward()) {
-      tabData.view.webContents.navigationHistory.goForward();
-      logger.info("[ViewManager] Go forward", { tabId: this.activeTabId });
-    }
+    goForward({ tabs: this.state.tabs, activeTabId: this.state.activeTabId, logger });
   }
-  /**
-   * 새로고침
-   */
   static reload() {
-    if (!this.activeTabId) return;
-    const tabData = this.tabs.get(this.activeTabId);
-    if (tabData) {
-      tabData.view.webContents.reload();
-      logger.info("[ViewManager] Reload", { tabId: this.activeTabId });
-    }
+    reload({ tabs: this.state.tabs, activeTabId: this.state.activeTabId, logger });
   }
-  /**
-   * 모든 탭 정리 (앱 종료 시)
-   */
   static destroy() {
     logger.info("[ViewManager] Destroying all tabs...");
-    for (const unsub of this.settingsUnsubscribers) {
-      try {
-        unsub();
-      } catch {
-      }
+    if (this.syncTimer) {
+      clearTimeout(this.syncTimer);
+      this.syncTimer = null;
     }
-    this.settingsUnsubscribers = [];
-    for (const [tabId] of this.tabs) {
+    disposeSettingsSubscriptions(this.state.settingsUnsubscribers);
+    this.state.settingsUnsubscribers = [];
+    for (const [tabId] of this.state.tabs) {
       try {
         this.closeTab(tabId);
       } catch (error) {
         logger.error("[ViewManager] Error closing tab:", { tabId, error });
       }
     }
-    this.tabs.clear();
-    this.activeTabId = null;
-    this.contentWindow = null;
-    this.uiWebContents = null;
+    this.state.tabs.clear();
+    this.state.activeTabId = null;
+    this.state.contentWindow = null;
+    this.state.uiWebContents = null;
     logger.info("[ViewManager] All tabs destroyed");
   }
-  /**
-   * 활성 탭의 WebContentsView 숨기기
-   * Settings 페이지 표시 시 사용
-   */
   static hideActiveView() {
-    if (!this.activeTabId) return;
-    const tabData = this.tabs.get(this.activeTabId);
-    if (tabData && this.contentWindow) {
+    if (!this.state.activeTabId) return;
+    const tabData = this.state.tabs.get(this.state.activeTabId);
+    if (tabData && this.state.contentWindow) {
       tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-      logger.info("[ViewManager] Active view hidden", { tabId: this.activeTabId });
+      logger.info("[ViewManager] Active view hidden", { tabId: this.state.activeTabId });
     }
   }
-  /**
-   * 활성 탭의 WebContentsView 다시 표시
-   * Settings 페이지 닫을 시 사용
-   */
   static showActiveView() {
-    if (!this.activeTabId) return;
-    const tabData = this.tabs.get(this.activeTabId);
+    if (!this.state.activeTabId) return;
+    const tabData = this.state.tabs.get(this.state.activeTabId);
     if (tabData) {
       this.layout();
-      logger.info("[ViewManager] Active view shown", { tabId: this.activeTabId });
+      logger.info("[ViewManager] Active view shown", { tabId: this.state.activeTabId });
     }
   }
-  /**
-   * 레이아웃 계산 및 적용
-   *
-   * React UI 영역 (TabBar + AddressBar)을 제외한 영역에 WebContentsView 배치
-   */
   static layout() {
-    if (!this.contentWindow) return;
+    if (!this.state.contentWindow) return;
     applyLayout({
-      contentWindow: this.contentWindow,
-      tabs: this.tabs,
-      externalActiveBounds: this.externalActiveBounds,
+      contentWindow: this.state.contentWindow,
+      tabs: this.state.tabs,
+      externalActiveBounds: this.state.externalActiveBounds,
       logger
     });
   }
-  /**
-   * Renderer 프로세스에 탭 상태 동기화
-   * 
-   * tabs:updated 이벤트를 Main Window의 webContents로 전송
-   */
   static syncToRenderer() {
-    if (!this.uiWebContents) return;
-    const state = {
-      tabs: this.getTabs(),
-      activeTabId: this.activeTabId
-    };
-    try {
-      this.uiWebContents.send("tabs:updated", state);
-      logger.info("[ViewManager] Synced to renderer", { tabCount: state.tabs.length });
-    } catch (error) {
-      logger.error("[ViewManager] Failed to sync to renderer:", error);
-    }
+    syncTabsToRenderer({
+      uiWebContents: this.state.uiWebContents,
+      tabs: this.state.tabs,
+      activeTabId: this.state.activeTabId,
+      logger
+    });
   }
-  /**
-   * 탭 이벤트 설정
-   *
-   * @param tabId - 탭 ID
-   * @param view - WebContentsView 인스턴스
-   */
   static setupTabEvents(tabId, view) {
     attachTabEvents({
       tabId,
       view,
-      getTabData: (id) => this.tabs.get(id),
-      getUiWebContents: () => this.uiWebContents,
-      syncToRenderer: () => this.syncToRenderer(),
+      getTabData: (id) => this.state.tabs.get(id),
+      getUiWebContents: () => this.state.uiWebContents,
+      syncToRenderer: () => this.scheduleSyncToRenderer(),
       createTab: (url) => this.createTab(url),
       logger
     });
   }
-  /**
-   * UI WebContents가 항상 최상위(마지막 인덱스)에 오도록 보장
-   * - UI View의 배경이 투명(#00000000)하므로 Web Content를 가리지 않음
-   * - UI 요소(헤더, 사이드바)만 Web Content 위에 overlay됨
-   */
-  /**
-   * UI View를 최상단(Z-Order top)으로 이동
-   */
   static ensureUITopmost() {
-    if (!this.contentWindow || !this.uiWebContents) return;
+    if (!this.state.contentWindow || !this.state.uiWebContents) return;
     ensureUITopmost({
-      contentWindow: this.contentWindow,
-      uiWebContents: this.uiWebContents,
-      lastReorderTarget: this.lastReorderTarget,
+      contentWindow: this.state.contentWindow,
+      uiWebContents: this.state.uiWebContents,
+      lastReorderTarget: this.state.lastReorderTarget,
       setLastReorderTarget: (next) => {
-        this.lastReorderTarget = next;
+        this.state.lastReorderTarget = next;
       },
       logger
     });
   }
-  /**
-   * Content View(웹탭)를 최상단으로 이동하여 클릭 가능하게 함
-   */
   static ensureContentTopmost() {
-    if (!this.contentWindow || !this.activeTabId) return;
+    if (!this.state.contentWindow || !this.state.activeTabId) return;
     ensureContentTopmost({
-      contentWindow: this.contentWindow,
-      activeTabId: this.activeTabId,
-      tabs: this.tabs,
-      lastReorderTarget: this.lastReorderTarget,
+      contentWindow: this.state.contentWindow,
+      activeTabId: this.state.activeTabId,
+      tabs: this.state.tabs,
+      lastReorderTarget: this.state.lastReorderTarget,
       setLastReorderTarget: (next) => {
-        this.lastReorderTarget = next;
+        this.state.lastReorderTarget = next;
       },
       logger
     });
   }
   static dumpContentViewTree(reason) {
-    if (!this.contentWindow) return;
+    if (!this.state.contentWindow) return;
     dumpContentViewTree({
       reason,
-      contentWindow: this.contentWindow,
-      uiWebContents: this.uiWebContents,
+      contentWindow: this.state.contentWindow,
+      uiWebContents: this.state.uiWebContents,
       logger
     });
   }
@@ -1936,7 +1996,6 @@ class OverlayController {
     this.contentWindow = contentWindow;
     this.uiWebContents = uiWebContents ?? null;
     this.setupFocusTracking();
-    this.startGlobalMouseTracking();
     this.setupKeyboardShortcuts();
     logger.info("[OverlayController] Attached (Arc/Zen style)");
   }
@@ -1981,6 +2040,7 @@ class OverlayController {
           const actuallyFocused = computeFocused();
           if (!actuallyFocused) {
             overlayStore.getState().setFocused(false);
+            this.stopGlobalMouseTracking();
             try {
               const target = this.uiWebContents ?? uiWindow.webContents;
               target.send("window:focus-changed", false);
@@ -1989,6 +2049,7 @@ class OverlayController {
             this.closeNonLatchedOverlays();
           } else {
             overlayStore.getState().setFocused(true);
+            this.startGlobalMouseTracking();
             try {
               const target = this.uiWebContents ?? uiWindow.webContents;
               target.send("window:focus-changed", true);
@@ -1999,6 +2060,7 @@ class OverlayController {
         }, this.FOCUS_DEBOUNCE_MS);
       } else {
         overlayStore.getState().setFocused(true);
+        this.startGlobalMouseTracking();
         try {
           const target = this.uiWebContents ?? uiWindow.webContents;
           target.send("window:focus-changed", true);
@@ -2028,8 +2090,8 @@ class OverlayController {
    */
   static startGlobalMouseTracking() {
     if (!this.uiWindow || !this.contentWindow) return;
+    if (this.hoverTrackingTimer) return;
     this.hoverTrackingTimer = setInterval(() => this.trackMouseAndUpdateState(), TRACKING_INTERVAL_MS);
-    this.cleanupFns.push(() => this.stopGlobalMouseTracking());
   }
   static stopGlobalMouseTracking() {
     if (this.hoverTrackingTimer) {
@@ -2041,7 +2103,6 @@ class OverlayController {
     if (!this.uiWindow || !this.contentWindow) return;
     const windowFocused = overlayStore.getState().focused;
     if (!windowFocused) {
-      logger.debug("[OverlayController] Window not focused, closing overlays");
       this.closeNonLatchedOverlays();
       return;
     }
@@ -2062,6 +2123,9 @@ class OverlayController {
     const { headerLatched, sidebarLatched } = overlayStore.getState();
     const metrics = this.hoverMetrics;
     const EDGE_THRESHOLD = 10;
+    if (!headerLatched && !sidebarLatched && !this.currentState.headerOpen && !this.currentState.sidebarOpen && relativeX > EDGE_THRESHOLD && relativeY > EDGE_THRESHOLD) {
+      return;
+    }
     const calc = computeEdgeOverlayState({
       relativeX,
       relativeY,

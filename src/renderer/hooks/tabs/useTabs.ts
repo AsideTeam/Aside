@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { IPC_CHANNELS } from '@shared/ipc/channels'
 import { logger } from '@renderer/lib/logger'
 import { useAppSettings } from '../settings/useAppSettings'
@@ -11,6 +11,27 @@ export interface Tab {
   isPinned?: boolean
   isFavorite?: boolean
   favicon?: string
+}
+
+function areTabsEqual(a: Tab[], b: Tab[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const ta = a[i]
+    const tb = b[i]
+    if (
+      ta.id !== tb.id ||
+      ta.title !== tb.title ||
+      ta.url !== tb.url ||
+      ta.isActive !== tb.isActive ||
+      ta.isPinned !== tb.isPinned ||
+      ta.isFavorite !== tb.isFavorite ||
+      ta.favicon !== tb.favicon
+    ) {
+      return false
+    }
+  }
+  return true
 }
 
 function isTab(value: unknown): value is Tab {
@@ -43,6 +64,7 @@ export function useTabs() {
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const { settings } = useAppSettings()
+  const lastRef = useRef<{ tabs: Tab[]; activeTabId: string | null } | null>(null)
 
   const fetchTabs = useCallback(async () => {
     if (!window.electronAPI) return
@@ -56,9 +78,15 @@ export function useTabs() {
         return
       }
 
-      setTabs(result.tabs)
-      const active = result.tabs.find((t) => t.isActive)
-      setActiveTabId(active ? active.id : null)
+      const nextTabs = result.tabs
+      const nextActive = nextTabs.find((t) => t.isActive)?.id ?? null
+
+      const prev = lastRef.current
+      if (!prev || prev.activeTabId !== nextActive || !areTabsEqual(prev.tabs, nextTabs)) {
+        lastRef.current = { tabs: nextTabs, activeTabId: nextActive }
+        setTabs(nextTabs)
+        setActiveTabId(nextActive)
+      }
     } catch (err) {
       logger.error('[useTabs] Failed to fetch tabs', err)
       setTabs([])
@@ -77,8 +105,12 @@ export function useTabs() {
         return
       }
 
-      setTabs(data.tabs)
-      setActiveTabId(data.activeTabId)
+      const prev = lastRef.current
+      if (!prev || prev.activeTabId !== data.activeTabId || !areTabsEqual(prev.tabs, data.tabs)) {
+        lastRef.current = { tabs: data.tabs, activeTabId: data.activeTabId }
+        setTabs(data.tabs)
+        setActiveTabId(data.activeTabId)
+      }
     }
 
     window.electronAPI.on(IPC_CHANNELS.TAB.UPDATED, handleTabsUpdated)

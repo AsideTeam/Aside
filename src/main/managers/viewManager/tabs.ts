@@ -177,7 +177,7 @@ export function syncTabsToRenderer(args: {
 
   try {
     uiWebContents.send('tabs:updated', state)
-    logger.info('[ViewManager] Synced to renderer', { tabCount: state.tabs.length })
+    logger.debug('[ViewManager] Synced to renderer', { tabCount: state.tabs.length })
   } catch (error) {
     logger.error('[ViewManager] Failed to sync to renderer:', error)
   }

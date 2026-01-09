@@ -217,7 +217,7 @@ const electronAPI = {
  */
 try {
   contextBridge.exposeInMainWorld('electronAPI', electronAPI)
-} catch (error) {
+} catch {
   // Intentionally ignore to avoid noisy stdout in production.
 }
 

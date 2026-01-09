@@ -20,6 +20,7 @@ model History {
   visitedAt DateTime @default(now())
 
   @@index([visitedAt]) // 최신순 조회 최적화
+  @@index([url, visitedAt])
 }
 
 /**
@@ -37,6 +38,7 @@ model Bookmark {
   createdAt DateTime @default(now())
 
   @@index([folder]) // 폴더별 조회 최적화
+  @@index([folder, createdAt])
 }
 
 /**
@@ -49,6 +51,12 @@ model AppSetting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+enum SessionTabSection {
+  icon
+  space
+  tab
 }
 
 /**
@@ -70,11 +78,10 @@ model SessionTab {
   title     String?
   favicon   String?
   isActive  Boolean  @default(false)
-  type      String   @default("tab")      // 'icon' | 'space' | 'tab'
-  isFavorite Boolean @default(false)      // Icon 섹션 표시 여부
-  isPinned  Boolean  @default(false)      // Space 섹션 표시 여부
+  section   SessionTabSection @default(tab) // 'icon' | 'space' | 'tab'
   position  Int      @default(0)          // 섹션 내 순서
 
   @@index([isActive])
-  @@index([type])
+  @@index([section])
+  @@index([section, position])
 }

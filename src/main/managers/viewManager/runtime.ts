@@ -45,7 +45,7 @@ export function applyPageZoomToWebContents(webContents: WebContents, zoomSetting
   try {
     const factor = getZoomFactorFromSetting(zoomSetting)
     webContents.setZoomFactor(factor)
-    logger.info('[ViewManager] Applied page zoom', { factor, zoomSetting })
+    logger.debug('[ViewManager] Applied page zoom', { factor, zoomSetting })
   } catch (error) {
     logger.warn('[ViewManager] Failed to apply page zoom', { error: String(error), zoomSetting })
   }

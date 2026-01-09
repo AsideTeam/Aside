@@ -12,7 +12,7 @@ export function computeExternalActiveBounds(args: {
   const contentBounds = contentWindow.getBounds()
   const { width, height } = contentBounds
 
-  logger.info('[📐 MAIN] Content Window actual bounds:', {
+  logger.debug('[📐 MAIN] Content Window actual bounds:', {
     x: contentBounds.x,
     y: contentBounds.y,
     width: contentBounds.width,

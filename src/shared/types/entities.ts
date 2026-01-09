@@ -33,9 +33,7 @@ export interface SessionTab {
   title?: string
   favicon?: string
   isActive: boolean
-  type: 'icon' | 'space' | 'tab'  // 섹션 타입
-  isFavorite: boolean              // Icon 섹션 표시 여부
-  isPinned: boolean                // Space 섹션 표시 여부
+  section: 'icon' | 'space' | 'tab' // 섹션 타입
   position: number                 // 섹션 내 순서
 }
 

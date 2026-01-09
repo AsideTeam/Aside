@@ -140,9 +140,8 @@ export class OverlayController {
     this.contentWindow = contentWindow
     this.uiWebContents = uiWebContents ?? null
 
-    // Arc 스타일: focus tracking + global mouse tracking + keyboard shortcuts
+    // Arc 스타일: focus tracking + (focused-only) global mouse tracking + keyboard shortcuts
     this.setupFocusTracking()
-    this.startGlobalMouseTracking()
     this.setupKeyboardShortcuts()
 
     logger.info('[OverlayController] Attached (Arc/Zen style)')
@@ -207,6 +206,9 @@ export class OverlayController {
           if (!actuallyFocused) {
             // Window is truly blurred, process it
             overlayStore.getState().setFocused(false)
+
+            // CPU optimization: pause global mouse tracking while unfocused.
+            this.stopGlobalMouseTracking()
             
             try {
               const target = this.uiWebContents ?? uiWindow.webContents
@@ -221,6 +223,9 @@ export class OverlayController {
             // False alarm - window is actually still focused
             // Make sure focus state is correct
             overlayStore.getState().setFocused(true)
+
+            // Ensure tracking is running when focused.
+            this.startGlobalMouseTracking()
             
             try {
               const target = this.uiWebContents ?? uiWindow.webContents
@@ -235,6 +240,9 @@ export class OverlayController {
       } else {
         // Immediate focus update (no debounce needed for gaining focus)
         overlayStore.getState().setFocused(true)
+
+        // CPU optimization: resume global mouse tracking on focus.
+        this.startGlobalMouseTracking()
         
         try {
           const target = this.uiWebContents ?? uiWindow.webContents
@@ -273,8 +281,8 @@ export class OverlayController {
   private static startGlobalMouseTracking(): void {
     if (!this.uiWindow || !this.contentWindow) return
 
+    if (this.hoverTrackingTimer) return
     this.hoverTrackingTimer = setInterval(() => this.trackMouseAndUpdateState(), TRACKING_INTERVAL_MS)
-    this.cleanupFns.push(() => this.stopGlobalMouseTracking())
   }
 
   private static stopGlobalMouseTracking(): void {
@@ -290,7 +298,6 @@ export class OverlayController {
     // ⭐ Arc Step 1: Window focused인가?
     const windowFocused = overlayStore.getState().focused
     if (!windowFocused) {
-      logger.debug('[OverlayController] Window not focused, closing overlays')
       this.closeNonLatchedOverlays()
       return
     }
@@ -338,6 +345,19 @@ export class OverlayController {
     
     // ⭐ UNIFIED STATE LOGIC (Edge-based opening, Bounds-based closing)
     const EDGE_THRESHOLD = 10 // Arc-style: 10px edge zone for easier triggering
+
+    // Fast-path: when everything is closed and not latched,
+    // and cursor is not near the edges, nothing can change.
+    if (
+      !headerLatched &&
+      !sidebarLatched &&
+      !this.currentState.headerOpen &&
+      !this.currentState.sidebarOpen &&
+      relativeX > EDGE_THRESHOLD &&
+      relativeY > EDGE_THRESHOLD
+    ) {
+      return
+    }
 
     const calc = computeEdgeOverlayState({
       relativeX,

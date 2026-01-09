@@ -52,26 +52,20 @@ import {
   reloadAllNonAboutTabs,
 } from './runtime'
 
-/**
- * ViewManager 싱글톤
- *
- * 상태:
- * - tabs: 모든 탭 리스트
- * - activeTabId: 현재 활성 탭 ID
- * - mainWindow: 부모 BrowserWindow
- */
 export class ViewManager {
   private static state: ViewManagerState = createInitialViewManagerState()
   private static readonly MAX_RECENT_CLOSED = DEFAULT_MAX_RECENT_CLOSED
+  private static syncTimer: ReturnType<typeof setTimeout> | null = null
+  private static readonly SYNC_DEBOUNCE_MS = 16
 
-  /**
-   * ViewManager 초기화
-   *
-   * 프로세스:
-   * 1. 메인 윈도우 저장
-   * 2. 기본 탭 1개 생성 (홈페이지)
-   * 3. 레이아웃 적용
-   */
+  private static scheduleSyncToRenderer(): void {
+    if (this.syncTimer) return
+    this.syncTimer = setTimeout(() => {
+      this.syncTimer = null
+      this.syncToRenderer()
+    }, this.SYNC_DEBOUNCE_MS)
+  }
+
   static async initialize(contentWindow: BrowserWindow, uiWebContents: WebContents): Promise<void> {
     if (this.state.contentWindow) {
       logger.warn('[ViewManager] Already initialized. Skipping.')
@@ -90,12 +84,10 @@ export class ViewManager {
       this.state.contentWindow = contentWindow
       this.state.uiWebContents = uiWebContents
 
-      // Apply runtime settings to content views (no renderer trust).
       const settingsStore = SettingsStore.getInstance()
       const initialZoom = settingsStore.get('pageZoom')
       applyPageZoomToAllTabs(this.state.tabs, initialZoom, logger)
 
-      // Subscribe to settings that affect WebContents behavior.
       this.state.settingsUnsubscribers.push(
         settingsStore.onChange('pageZoom', (newValue) => {
           const zoomSetting = typeof newValue === 'string' ? newValue : settingsStore.get('pageZoom')
@@ -103,7 +95,6 @@ export class ViewManager {
         })
       )
 
-      // Theme / language changes should be reflected in existing WebContentsViews.
       this.state.settingsUnsubscribers.push(
         settingsStore.onChange('theme', () => {
           applyThemeToAllTabs({
@@ -115,8 +106,6 @@ export class ViewManager {
         })
       )
 
-      // Language (Accept-Language) is applied at the session layer.
-      // Most sites only pick it up on navigation/reload.
       this.state.settingsUnsubscribers.push(
         settingsStore.onChange('language', () => {
           reloadAllNonAboutTabs({ tabs: this.state.tabs, logger })
@@ -125,24 +114,19 @@ export class ViewManager {
 
       this.dumpContentViewTree('after-initialize')
 
-      // 윈도우 리사이즈 시 레이아웃 재계산
       this.state.contentWindow.on('resize', () => {
         this.layout()
       })
 
-      // Step 1: 기본 탭 생성 (홈페이지)
-      const homepage = SettingsStore.getInstance().get('homepage')
+      const homepage = settingsStore.get('homepage')
       const homeTabId = await this.createTab(homepage)
       logger.info('[ViewManager] Home tab created', { tabId: homeTabId })
 
-      // ✅ 기본 탭을 활성화하지 않으면 모든 뷰가 0x0으로 남아 "웹이 안 뜸"
       this.switchTab(homeTabId)
 
-      // Step 2: 레이아웃 계산 및 적용
       this.layout()
       logger.info('[ViewManager] Layout applied')
 
-      // ⭐ UI 뷰를 최상위로 올려 Overlay 보장 (투명도 설정 후 안전)
       this.ensureUITopmost()
 
       this.dumpContentViewTree('after-layout')
@@ -156,16 +140,14 @@ export class ViewManager {
     }
   }
 
-  /**
-   * 새 탭 생성
-   */
   static async createTab(url: string): Promise<string> {
     if (!this.state.contentWindow) {
       throw new Error('[ViewManager] Not initialized. Call initialize() first.')
     }
 
     try {
-      const zoomSetting = SettingsStore.getInstance().get('pageZoom')
+      const settingsStore = SettingsStore.getInstance()
+      const zoomSetting = settingsStore.get('pageZoom')
       const tabId = await createTab({
         contentWindow: this.state.contentWindow,
         tabs: this.state.tabs,
@@ -191,27 +173,22 @@ export class ViewManager {
     }
   }
 
-  /**
-   * 탭 전환
-   */
   static switchTab(tabId: string): void {
+    const settingsStore = SettingsStore.getInstance()
     const next = switchTab({
       tabs: this.state.tabs,
       activeTabId: this.state.activeTabId,
       tabId,
       applyZoomToActive: (tab: TabData) =>
-        applyPageZoomToWebContents(tab.view.webContents, SettingsStore.getInstance().get('pageZoom'), logger),
+        applyPageZoomToWebContents(tab.view.webContents, settingsStore.get('pageZoom'), logger),
       layout: () => this.layout(),
-      syncToRenderer: () => this.syncToRenderer(),
+      syncToRenderer: () => this.scheduleSyncToRenderer(),
       logger,
     })
 
     this.state.activeTabId = next
   }
 
-  /**
-   * Renderer에서 들어온 safe-area 오프셋을 받아 실제 bounds 계산
-   */
   static setActiveViewBounds(safeArea: ViewBounds): void {
     if (!this.state.contentWindow) {
       logger.warn('[ViewManager] contentWindow not available; ignoring safe-area')
@@ -227,9 +204,6 @@ export class ViewManager {
     this.layout()
   }
 
-  /**
-   * 탭 닫기
-   */
   static closeTab(tabId: string): void {
     closeTab({
       tabs: this.state.tabs,
@@ -242,14 +216,11 @@ export class ViewManager {
       setActiveTabId: (next) => {
         this.state.activeTabId = next
       },
-      syncToRenderer: () => this.syncToRenderer(),
+      syncToRenderer: () => this.scheduleSyncToRenderer(),
       logger,
     })
   }
 
-  /**
-   * 탭 리스트 반환 (뷰 객체 제외)
-   */
   static getTabs(): Array<Omit<TabData, 'view'>> {
     return getTabsSnapshot(this.state.tabs)
   }
@@ -258,49 +229,31 @@ export class ViewManager {
     return this.state.activeTabId
   }
 
-  /**
-   * 탭 고정/해제 (Space 섹션에 표시)
-   */
   static setPinned(tabId: string, pinned: boolean): void {
     setPinned({ tabs: this.state.tabs, tabId, pinned, logger })
-    this.syncToRenderer()
+    this.scheduleSyncToRenderer()
   }
 
-  /**
-   * 탭 순서 변경 (드래그앤드롭)
-   */
   static reorderTab(tabId: string, targetId: string): void {
     reorderTab({ tabs: this.state.tabs, tabId, targetId, logger })
-    this.syncToRenderer()
+    this.scheduleSyncToRenderer()
   }
 
-  /**
-   * 같은 섹션 내에서 탭 순서 변경
-   */
   static reorderTabWithinSection(tabId: string, position: number): void {
     reorderTabWithinSection({ tabs: this.state.tabs, tabId, position, logger })
-    this.syncToRenderer()
+    this.scheduleSyncToRenderer()
   }
 
-  /**
-   * Icon 섹션의 앱 순서 변경 (고정 앱 순서)
-   */
   static reorderIcon(fromIndex: number, toIndex: number): void {
     logger.info('[ViewManager] Icon reordered', { fromIndex, toIndex })
   }
 
-  /**
-   * 탭을 다른 섹션으로 이동 (Icon/Space/Tab)
-   */
   static moveTabToSection(tabId: string, targetType: 'icon' | 'space' | 'tab'): void {
     moveTabToSection({ tabs: this.state.tabs, tabId, targetType, logger })
 
-    this.syncToRenderer()
+    this.scheduleSyncToRenderer()
   }
 
-  /**
-   * 탭 복제 (같은 URL로 새 탭 생성)
-   */
   static async duplicateTab(tabId: string): Promise<string> {
     return duplicateTab({
       tabs: this.state.tabs,
@@ -310,9 +263,6 @@ export class ViewManager {
     })
   }
 
-  /**
-   * 다른 탭 모두 닫기
-   */
   static closeOtherTabs(keepTabId: string): void {
     closeOtherTabs({
       tabs: this.state.tabs,
@@ -322,9 +272,6 @@ export class ViewManager {
     })
   }
 
-  /**
-   * 모든 탭 닫기 (최소 1개는 유지)
-   */
   static closeAllTabs(): void {
     const homepage = SettingsStore.getInstance().get('homepage')
     void closeAllTabs({
@@ -336,9 +283,6 @@ export class ViewManager {
     })
   }
 
-  /**
-   * 닫은 탭 복원 (가장 최근)
-   */
   static async restoreClosedTab(): Promise<string | null> {
     return restoreClosedTab({
       recentlyClosed: this.state.recentlyClosed,
@@ -352,9 +296,6 @@ export class ViewManager {
     return [...this.state.recentlyClosed]
   }
 
-  /**
-   * 현재 활성 탭에서 URL 이동
-   */
   static async navigate(url: string): Promise<void> {
     await navigateActiveTab({
       tabs: this.state.tabs,
@@ -363,7 +304,7 @@ export class ViewManager {
       applyAppearance: (tab) => {
         void AppearanceService.applyToWebContents(tab.view.webContents)
       },
-      syncToRenderer: () => this.syncToRenderer(),
+      syncToRenderer: () => this.scheduleSyncToRenderer(),
       logger,
     })
   }
@@ -380,16 +321,17 @@ export class ViewManager {
     reload({ tabs: this.state.tabs, activeTabId: this.state.activeTabId, logger })
   }
 
-  /**
-   * 모든 탭 정리 (앱 종료 시)
-   */
   static destroy(): void {
     logger.info('[ViewManager] Destroying all tabs...')
+
+    if (this.syncTimer) {
+      clearTimeout(this.syncTimer)
+      this.syncTimer = null
+    }
 
     disposeSettingsSubscriptions(this.state.settingsUnsubscribers)
     this.state.settingsUnsubscribers = []
 
-    // 모든 탭 정리
     for (const [tabId] of this.state.tabs) {
       try {
         this.closeTab(tabId)
@@ -406,9 +348,6 @@ export class ViewManager {
     logger.info('[ViewManager] All tabs destroyed')
   }
 
-  /**
-   * 활성 탭의 WebContentsView 숨기기
-   */
   static hideActiveView(): void {
     if (!this.state.activeTabId) return
 
@@ -419,9 +358,6 @@ export class ViewManager {
     }
   }
 
-  /**
-   * 활성 탭의 WebContentsView 다시 표시
-   */
   static showActiveView(): void {
     if (!this.state.activeTabId) return
 
@@ -432,9 +368,6 @@ export class ViewManager {
     }
   }
 
-  /**
-   * 레이아웃 계산 및 적용
-   */
   private static layout(): void {
     if (!this.state.contentWindow) return
     applyLayout({
@@ -445,9 +378,6 @@ export class ViewManager {
     })
   }
 
-  /**
-   * Renderer 프로세스에 탭 상태 동기화
-   */
   private static syncToRenderer(): void {
     syncTabsToRenderer({
       uiWebContents: this.state.uiWebContents,
@@ -457,24 +387,18 @@ export class ViewManager {
     })
   }
 
-  /**
-   * 탭 이벤트 설정
-   */
   private static setupTabEvents(tabId: string, view: WebContentsView): void {
     attachTabEvents({
       tabId,
       view,
       getTabData: (id) => this.state.tabs.get(id),
       getUiWebContents: () => this.state.uiWebContents,
-      syncToRenderer: () => this.syncToRenderer(),
+      syncToRenderer: () => this.scheduleSyncToRenderer(),
       createTab: (url) => this.createTab(url),
       logger,
     })
   }
 
-  /**
-   * UI View를 최상단(Z-Order top)으로 이동
-   */
   static ensureUITopmost(): void {
     if (!this.state.contentWindow || !this.state.uiWebContents) return
     ensureUITopmost({
@@ -488,9 +412,6 @@ export class ViewManager {
     })
   }
 
-  /**
-   * Content View(웹탭)를 최상단으로 이동하여 클릭 가능하게 함
-   */
   static ensureContentTopmost(): void {
     if (!this.state.contentWindow || !this.state.activeTabId) return
     ensureContentTopmost({
