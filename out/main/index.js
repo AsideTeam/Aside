@@ -980,10 +980,13 @@ function ensureUITopmost({
   setLastReorderTarget,
   logger: logger2
 }) {
-  if (lastReorderTarget === "ui") return;
   try {
     const contentView = contentWindow.getContentView();
     const uiId = uiWebContents.id;
+    const top = contentView.children[contentView.children.length - 1];
+    const topWcId = top.webContents?.id;
+    const isUiAlreadyTopmost = topWcId === uiId;
+    if (lastReorderTarget === "ui" && isUiAlreadyTopmost) return;
     const uiView = contentView.children.find((child) => {
       const maybe = child;
       return maybe.webContents?.id === uiId;
@@ -1004,11 +1007,13 @@ function ensureContentTopmost({
   setLastReorderTarget,
   logger: logger2
 }) {
-  if (lastReorderTarget === "content") return;
   try {
     const tabData = tabs.get(activeTabId);
     if (!tabData) return;
     const contentView = contentWindow.getContentView();
+    const top = contentView.children[contentView.children.length - 1];
+    const isActiveAlreadyTopmost = top === tabData.view;
+    if (lastReorderTarget === "content" && isActiveAlreadyTopmost) return;
     contentView.addChildView(tabData.view);
     setLastReorderTarget("content");
   } catch (error) {
@@ -1205,7 +1210,9 @@ class ViewManager {
       }
       contentView.addChildView(view);
       this.ensureUITopmost();
-      this.dumpContentViewTree("after-add-tab-view");
+      if (process.env.ASIDE_VIEW_TREE_DEBUG === "1") {
+        this.dumpContentViewTree("after-add-tab-view");
+      }
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
       this.setupTabEvents(tabId, view);
       void AppearanceService.applyToWebContents(view.webContents);
@@ -1835,9 +1842,9 @@ function computeEdgeOverlayState({
   };
 }
 const TRACKING_INTERVAL_MS = 16;
-const MAX_METRICS_AGE_MS = 1e4;
+const MAX_METRICS_AGE_MS = 3e4;
 const STATE_UPDATE_THROTTLE_MS = 16;
-const WINDOW_ADJUST_THROTTLE_MS = 80;
+const WINDOW_ADJUST_THROTTLE_MS = 32;
 const WINDOW_ADJUST_DEBOUNCE_MS = 100;
 class OverlayController {
   // ===== Window References =====
@@ -1855,6 +1862,9 @@ class OverlayController {
   // ===== Timers & Tracking =====
   static hoverTrackingTimer = null;
   static lastStateUpdateTime = 0;
+  static focusDebounceTimer = null;
+  static FOCUS_DEBOUNCE_MS = 75;
+  // Debounce blur events during view reordering
   // (Removed: no longer using hysteresis timestamps)
   /**
    * ⭐ Zen 방식: Window가 이동할 때 호출 (moved 이벤트)
@@ -1932,6 +1942,10 @@ class OverlayController {
   }
   static dispose() {
     this.stopGlobalMouseTracking();
+    if (this.focusDebounceTimer) {
+      clearTimeout(this.focusDebounceTimer);
+      this.focusDebounceTimer = null;
+    }
     for (const fn of this.cleanupFns.splice(0)) {
       try {
         fn();
@@ -1958,14 +1972,38 @@ class OverlayController {
       }
     };
     const broadcastFocus = (focused) => {
-      overlayStore.getState().setFocused(focused);
-      try {
-        const target = this.uiWebContents ?? uiWindow.webContents;
-        target.send("window:focus-changed", focused);
-      } catch {
+      if (this.focusDebounceTimer) {
+        clearTimeout(this.focusDebounceTimer);
+        this.focusDebounceTimer = null;
       }
       if (!focused) {
-        this.closeNonLatchedOverlays();
+        this.focusDebounceTimer = setTimeout(() => {
+          const actuallyFocused = computeFocused();
+          if (!actuallyFocused) {
+            overlayStore.getState().setFocused(false);
+            try {
+              const target = this.uiWebContents ?? uiWindow.webContents;
+              target.send("window:focus-changed", false);
+            } catch {
+            }
+            this.closeNonLatchedOverlays();
+          } else {
+            overlayStore.getState().setFocused(true);
+            try {
+              const target = this.uiWebContents ?? uiWindow.webContents;
+              target.send("window:focus-changed", true);
+            } catch {
+            }
+          }
+          this.focusDebounceTimer = null;
+        }, this.FOCUS_DEBOUNCE_MS);
+      } else {
+        overlayStore.getState().setFocused(true);
+        try {
+          const target = this.uiWebContents ?? uiWindow.webContents;
+          target.send("window:focus-changed", true);
+        } catch {
+        }
       }
     };
     const onAnyFocusBlur = () => {
@@ -2003,6 +2041,7 @@ class OverlayController {
     if (!this.uiWindow || !this.contentWindow) return;
     const windowFocused = overlayStore.getState().focused;
     if (!windowFocused) {
+      logger.debug("[OverlayController] Window not focused, closing overlays");
       this.closeNonLatchedOverlays();
       return;
     }
@@ -2016,14 +2055,13 @@ class OverlayController {
     }
     const metricsAgeMs = this.hoverMetrics ? Date.now() - this.hoverMetrics.timestamp : Number.POSITIVE_INFINITY;
     if (!Number.isFinite(metricsAgeMs) || metricsAgeMs > MAX_METRICS_AGE_MS) {
-      this.closeNonLatchedOverlays();
-      return;
+      this.hoverMetrics = null;
     }
     const relativeX = Math.max(0, Math.floor(mouseX - bounds.x));
     const relativeY = Math.max(0, Math.floor(mouseY - bounds.y));
     const { headerLatched, sidebarLatched } = overlayStore.getState();
     const metrics = this.hoverMetrics;
-    const EDGE_THRESHOLD = 3;
+    const EDGE_THRESHOLD = 10;
     const calc = computeEdgeOverlayState({
       relativeX,
       relativeY,
@@ -2037,7 +2075,7 @@ class OverlayController {
     const finalSidebarOpen = calc.nextState.sidebarOpen;
     const mouseInSidebar = calc.mouseInSidebar;
     const mouseInHeader = calc.mouseInHeader;
-    if (mouseInSidebar || mouseInHeader || headerLatched || sidebarLatched) {
+    if (calc.triggers.shouldOpenSidebar || calc.triggers.shouldOpenHeader || mouseInSidebar || mouseInHeader || headerLatched || sidebarLatched) {
       ViewManager.ensureUITopmost();
     }
     const now = Date.now();

@@ -7,7 +7,7 @@
  */
 
 import { logger } from '@main/utils/logger'
-import { ViewManager } from '@main/managers/ViewManager'
+import { ViewManager } from '@main/managers/viewManager/index'
 import type { ViewBounds } from '@shared/types/view'
 import { IPC_CHANNELS } from '@shared/ipc/channels'
 import { ViewNavigateSchema, ViewResizeSchema } from '@shared/validation/schemas'

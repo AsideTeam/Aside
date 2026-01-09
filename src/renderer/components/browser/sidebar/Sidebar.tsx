@@ -158,9 +158,9 @@ export const Sidebar: React.FC = () => {
       }}
       className={cn(
         'fixed left-0 z-9999',
-        'bg-[var(--zen-bg-sidebar)]',
-        'border-r border-[var(--zen-border-subtle)]',
-        'text-[var(--color-text-secondary)] text-sm',
+        'bg-(--zen-bg-sidebar)',
+        'border-r border-(--zen-border-subtle)',
+        'text-(--color-text-secondary) text-sm',
         'transition-all duration-300 ease-out',
         '-translate-x-full',
         (isOpen || isLatched) && 'translate-x-0',

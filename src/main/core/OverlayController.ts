@@ -16,7 +16,7 @@ import { BrowserWindow, WebContents, screen } from 'electron'
 import { logger } from '@main/utils/logger'
 import { overlayStore } from '@main/state/overlayStore'
 import { OverlayLatchChangedEventSchema } from '@shared/validation/schemas'
-import { ViewManager } from '@main/managers/ViewManager'
+import { ViewManager } from '@main/managers/viewManager/index'
 
 import type { OverlayHoverMetrics, OverlayState } from './overlay/types'
 import { mergeHoverMetrics } from './overlay/hoverMetrics'
@@ -30,9 +30,9 @@ type AttachArgs = {
 
 // ===== Constants =====
 const TRACKING_INTERVAL_MS = 16 // ~60fps (hover 반응성)
-const MAX_METRICS_AGE_MS = 10000 // 10초로 확대 (Liveness check용)
+const MAX_METRICS_AGE_MS = 30000 // 30초로 확대 (빠른 창 전환 허용)
 const STATE_UPDATE_THROTTLE_MS = 16 // 기본 throttle (~60fps)
-const WINDOW_ADJUST_THROTTLE_MS = 80 // 이동/크기조절 중 throttle (과도한 jitter 방지)
+const WINDOW_ADJUST_THROTTLE_MS = 32 // 이동/크기조절 중 throttle (반응성 개선)
 const WINDOW_ADJUST_DEBOUNCE_MS = 100 // 이동/크기조절 완료 debounce
 
 export class OverlayController {
@@ -54,6 +54,8 @@ export class OverlayController {
   // ===== Timers & Tracking =====
   private static hoverTrackingTimer: ReturnType<typeof setInterval> | null = null
   private static lastStateUpdateTime = 0
+  private static focusDebounceTimer: ReturnType<typeof setTimeout> | null = null
+  private static readonly FOCUS_DEBOUNCE_MS = 75 // Debounce blur events during view reordering
 
   // (Removed: no longer using hysteresis timestamps)
 
@@ -149,6 +151,12 @@ export class OverlayController {
   static dispose(): void {
     this.stopGlobalMouseTracking()
     
+    // Clear focus debounce timer
+    if (this.focusDebounceTimer) {
+      clearTimeout(this.focusDebounceTimer)
+      this.focusDebounceTimer = null
+    }
+    
     for (const fn of this.cleanupFns.splice(0)) {
       try {
         fn()
@@ -181,18 +189,59 @@ export class OverlayController {
     }
 
     const broadcastFocus = (focused: boolean) => {
-      overlayStore.getState().setFocused(focused)
-      
-      try {
-        const target = this.uiWebContents ?? uiWindow.webContents
-        target.send('window:focus-changed', focused)
-      } catch {
-        // ignore
+      // Clear any pending focus debounce timer
+      if (this.focusDebounceTimer) {
+        clearTimeout(this.focusDebounceTimer)
+        this.focusDebounceTimer = null
       }
 
-      // Arc 핵심: blur되면 즉시 모든 hover UI 닫음 (latch 제외)
       if (!focused) {
-        this.closeNonLatchedOverlays()
+        // Debounce blur events (might be transient during view reordering)
+        // Only close overlays if focus remains lost after debounce period
+        this.focusDebounceTimer = setTimeout(() => {
+          // ⭐ CRITICAL: Re-check actual window focus before processing blur
+          // During view reordering, we might get transient blur events
+          // but the window is actually still focused
+          const actuallyFocused = computeFocused()
+          
+          if (!actuallyFocused) {
+            // Window is truly blurred, process it
+            overlayStore.getState().setFocused(false)
+            
+            try {
+              const target = this.uiWebContents ?? uiWindow.webContents
+              target.send('window:focus-changed', false)
+            } catch {
+              // ignore
+            }
+
+            // Arc 핵심: blur되면 모든 hover UI 닫음 (latch 제외)
+            this.closeNonLatchedOverlays()
+          } else {
+            // False alarm - window is actually still focused
+            // Make sure focus state is correct
+            overlayStore.getState().setFocused(true)
+            
+            try {
+              const target = this.uiWebContents ?? uiWindow.webContents
+              target.send('window:focus-changed', true)
+            } catch {
+              // ignore
+            }
+          }
+          
+          this.focusDebounceTimer = null
+        }, this.FOCUS_DEBOUNCE_MS)
+      } else {
+        // Immediate focus update (no debounce needed for gaining focus)
+        overlayStore.getState().setFocused(true)
+        
+        try {
+          const target = this.uiWebContents ?? uiWindow.webContents
+          target.send('window:focus-changed', true)
+        } catch {
+          // ignore
+        }
       }
     }
 
@@ -241,6 +290,7 @@ export class OverlayController {
     // ⭐ Arc Step 1: Window focused인가?
     const windowFocused = overlayStore.getState().focused
     if (!windowFocused) {
+      logger.debug('[OverlayController] Window not focused, closing overlays')
       this.closeNonLatchedOverlays()
       return
     }
@@ -267,8 +317,10 @@ export class OverlayController {
     // Metrics stale check
     const metricsAgeMs = this.hoverMetrics ? Date.now() - this.hoverMetrics.timestamp : Number.POSITIVE_INFINITY
     if (!Number.isFinite(metricsAgeMs) || metricsAgeMs > MAX_METRICS_AGE_MS) {
-      this.closeNonLatchedOverlays()
-      return
+      // If renderer metrics are stale/missing, fall back to defaults instead of hard-closing.
+      // Hard-closing here can make hover-based opening impossible during renderer stalls or
+      // right after tab creation/switch.
+      this.hoverMetrics = null
     }
 
     // Arc Step 3: Hover zone 판정 (window 안에 있을 때만)
@@ -285,7 +337,7 @@ export class OverlayController {
     const metrics = this.hoverMetrics
     
     // ⭐ UNIFIED STATE LOGIC (Edge-based opening, Bounds-based closing)
-    const EDGE_THRESHOLD = 3 // Mouse must be within 3px of edge to trigger opening
+    const EDGE_THRESHOLD = 10 // Arc-style: 10px edge zone for easier triggering
 
     const calc = computeEdgeOverlayState({
       relativeX,
@@ -305,11 +357,17 @@ export class OverlayController {
     const mouseInSidebar = calc.mouseInSidebar
     const mouseInHeader = calc.mouseInHeader
 
-    // Keep UI overlay view topmost for stability.
-    // Z-order flipping based on hover can cause transient "UI disabled" states
-    // (especially around tab creation / view switching) because our UI layer
-    // relies on CSS pointer-events gating, not native view stacking.
-    if (mouseInSidebar || mouseInHeader || headerLatched || sidebarLatched) {
+    // Ensure UI overlay view is visible when we are about to open overlays.
+    // If the content view ended up topmost (e.g., after tab creation/switch),
+    // opening the overlay without reordering can look like "hover doesn't work".
+    if (
+      calc.triggers.shouldOpenSidebar ||
+      calc.triggers.shouldOpenHeader ||
+      mouseInSidebar ||
+      mouseInHeader ||
+      headerLatched ||
+      sidebarLatched
+    ) {
       ViewManager.ensureUITopmost()
     }
 

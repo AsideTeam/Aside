@@ -84,7 +84,6 @@ export function AddressBar({
           'no-drag', // Allow text selection/input, prevent dragging
           inputClassName,
         )}
-        style={{ height: '32px' }}
       />
     </form>
   )

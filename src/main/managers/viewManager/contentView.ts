@@ -15,11 +15,17 @@ export function ensureUITopmost({
   setLastReorderTarget: (next: 'ui' | 'content') => void
   logger: LoggerLike
 }): void {
-  if (lastReorderTarget === 'ui') return
-
   try {
     const contentView = contentWindow.getContentView()
     const uiId = uiWebContents.id
+
+    // Do not trust lastReorderTarget blindly.
+    // Other code paths (e.g. addChildView during tab creation) can change z-order
+    // without updating lastReorderTarget.
+    const top = contentView.children[contentView.children.length - 1]
+    const topWcId = (top as unknown as { webContents?: { id?: number } }).webContents?.id
+    const isUiAlreadyTopmost = topWcId === uiId
+    if (lastReorderTarget === 'ui' && isUiAlreadyTopmost) return
 
     const uiView = contentView.children.find((child) => {
       const maybe = child as unknown as { webContents?: { id?: number } }
@@ -50,13 +56,16 @@ export function ensureContentTopmost({
   setLastReorderTarget: (next: 'ui' | 'content') => void
   logger: LoggerLike
 }): void {
-  if (lastReorderTarget === 'content') return
-
   try {
     const tabData = tabs.get(activeTabId)
     if (!tabData) return
 
     const contentView = contentWindow.getContentView()
+
+    // Same reasoning as ensureUITopmost: verify actual z-order before skipping.
+    const top = contentView.children[contentView.children.length - 1]
+    const isActiveAlreadyTopmost = top === tabData.view
+    if (lastReorderTarget === 'content' && isActiveAlreadyTopmost) return
     contentView.addChildView(tabData.view)
     setLastReorderTarget('content')
   } catch (error) {

@@ -42,7 +42,7 @@ export const TabListItem: React.FC<TabListItemProps> = ({
               }}
             />
           ) : (
-            <Globe size={12} className="text-[var(--color-text-secondary)]" />
+            <Globe size={12} className="text-(--color-text-secondary)" />
           )}
         </div>
 

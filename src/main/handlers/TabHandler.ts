@@ -14,7 +14,7 @@
  */
 
 import { logger } from '@main/utils/logger'
-import { ViewManager } from '@main/managers/ViewManager'
+import { ViewManager } from '@main/managers/viewManager/index'
 import { AppState } from '@main/managers/AppState'
 import { IPC_CHANNELS } from '@shared/ipc/channels'
 import type { IpcRegistry } from './IpcRegistry'

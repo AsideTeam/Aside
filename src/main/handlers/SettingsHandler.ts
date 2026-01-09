@@ -10,7 +10,7 @@
  */
 
 import { logger } from '@main/utils/logger'
-import { ViewManager } from '@main/managers/ViewManager'
+import { ViewManager } from '@main/managers/viewManager/index'
 import { SettingsService } from '@main/services/SettingsService'
 import type { SettingsSchema } from '@shared/types'
 import { IPC_CHANNELS } from '@shared/ipc/channels'

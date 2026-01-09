@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef } from 'react'
-import { Pin, PanelLeft, ChevronLeft, ChevronRight, RotateCw } from 'lucide-react'
+import { Pin, PanelLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 
 import { AddressBar } from './AddressBar'
 import { useOverlayStore } from '@renderer/lib/overlayStore'
@@ -28,24 +28,14 @@ export const AsideHeader: React.FC = () => {
   useLayoutEffect(() => {
     const measureAndSend = async () => {
       if (!headerRef.current) return
-
       const hoverHeight = 128
-
       try {
         const payload = {
           headerBottomPx: hoverHeight,
           dpr: window.devicePixelRatio,
           timestamp: Date.now(),
         }
-
-        const response = (await window.electronAPI.invoke('overlay:update-hover-metrics', payload)) as {
-          success: boolean
-          error?: string
-        }
-
-        if (!response.success) {
-          logger.warn('[AsideHeader] Main process rejected metrics', { error: response.error })
-        }
+        await window.electronAPI.invoke('overlay:update-hover-metrics', payload)
       } catch (error) {
         logger.error('[AsideHeader] Failed to send hover metrics', error)
       }
@@ -53,16 +43,8 @@ export const AsideHeader: React.FC = () => {
 
     void measureAndSend()
     setTimeout(() => void measureAndSend(), 100)
-    setTimeout(() => void measureAndSend(), 300)
-    setTimeout(() => void measureAndSend(), 500)
-
     window.addEventListener('resize', measureAndSend)
-    const heartbeat = setInterval(measureAndSend, 2000)
-
-    return () => {
-      window.removeEventListener('resize', measureAndSend)
-      clearInterval(heartbeat)
-    }
+    return () => window.removeEventListener('resize', measureAndSend)
   }, [windowWidth])
 
   return (
@@ -72,6 +54,7 @@ export const AsideHeader: React.FC = () => {
         pointerEvents: isOpen || isHeaderLatched ? 'auto' : 'none',
         left: isSidebarLatched ? 'var(--aside-sidebar-width)' : '0',
         width: isSidebarLatched ? 'calc(100% - var(--aside-sidebar-width))' : '100%',
+        height: '52px',
       }}
       className={cn(
         'fixed top-0 z-10000',
@@ -85,123 +68,111 @@ export const AsideHeader: React.FC = () => {
     >
       <div
         className={cn(
-          'relative flex items-center gap-3',
-          'h-14 px-3 pl-3',
-          'border border-(--color-border-light) bg-(--color-bg-primary)',
-          'backdrop-blur-xl',
-          'shadow-lg shadow-black/10',
-          'drag-region'
+          'relative w-full h-full flex items-center justify-between',
+          'bg-(--color-bg-secondary)/95 backdrop-blur-xl', // Fixed syntax
+          'border-b border-(--color-border-primary)', // Fixed syntax
+          'drag-region',
+          'pr-6'
         )}
       >
-        {/* Left: Navigation */}
-        <div className="flex items-center gap-2 z-10 no-drag">
-          <button
-            className={cn(
-              'flex items-center justify-center w-8 h-8',
-              'rounded-lg border-none bg-transparent',
-              'text-(--color-text-secondary) hover:bg-(--color-bg-tertiary)',
-              'transition-all duration-150',
-              'disabled:opacity-30 disabled:cursor-not-allowed',
-              'no-drag'
-            )}
-            style={{ pointerEvents: 'auto' }}
-            onClick={web.goBack}
-            disabled={!web.canGoBack}
-            title={t('nav.back')}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+        {/* LEFT GROUP: Traffic Spacer + Nav */}
+        <div className="flex items-center h-full no-drag z-20">
+          {/* Traffic Light Spacer - Fixed non-shrinkable area */}
+          <div className="w-[85px] h-full shrink-0" />
 
-          <button
-            className={cn(
-              'flex items-center justify-center w-8 h-8',
-              'rounded-lg border-none bg-transparent',
-              'text-(--color-text-secondary) hover:bg-(--color-bg-tertiary)',
-              'transition-all duration-150',
-              'disabled:opacity-30 disabled:cursor-not-allowed',
-              'no-drag'
-            )}
-            style={{ pointerEvents: 'auto' }}
-            onClick={web.goForward}
-            disabled={!web.canGoForward}
-            title={t('nav.forward')}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-
-          <button
-            className={cn(
-              'flex items-center justify-center w-8 h-8',
-              'rounded-lg border-none bg-transparent',
-              'text-(--color-text-secondary) hover:bg-(--color-bg-tertiary)',
-              'transition-all duration-150',
-              'disabled:opacity-30 disabled:cursor-not-allowed',
-              'no-drag',
-              web.isLoading && 'animate-spin'
-            )}
-            style={{ pointerEvents: 'auto' }}
-            onClick={web.reload}
-            disabled={web.isLoading}
-            title={t('nav.reload')}
-          >
-            <RotateCw className="w-4 h-4" />
-          </button>
+          {/* Nav Buttons - Larger touch targets */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={web.goBack}
+              disabled={!web.canGoBack}
+              className={cn(
+                'w-8 h-8 flex items-center justify-center',
+                'rounded-lg bg-transparent border-none',
+                'text-(--color-text-secondary)',
+                'hover:bg-(--color-bg-hover) hover:text-(--color-text-primary)',
+                'disabled:opacity-30 disabled:cursor-not-allowed',
+                'transition-all duration-150 cursor-pointer'
+              )}
+              title={t('nav.back')}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              onClick={web.goForward}
+              disabled={!web.canGoForward}
+              className={cn(
+                'w-8 h-8 flex items-center justify-center',
+                'rounded-lg bg-transparent border-none',
+                'text-(--color-text-secondary)',
+                'hover:bg-(--color-bg-hover) hover:text-(--color-text-primary)',
+                'disabled:opacity-30 disabled:cursor-not-allowed',
+                'transition-all duration-150 cursor-pointer'
+              )}
+              title={t('nav.forward')}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
         </div>
 
-        {/* Center: Address bar */}
-        <div className="flex-1 flex justify-center items-center mx-3">
-          <AddressBar
-            currentUrl={activeTab?.url}
-            onNavigate={handleNavigate}
-            wrapperClassName="z-10 w-[40%]"
-            inputClassName={cn(
-              'w-full h-8 px-3',
-              'border-none bg-transparent',
-              'text-(--color-text-primary) text-sm text-center outline-none',
-              'placeholder:text-(--color-text-muted)',
-              'focus:bg-(--color-bg-tertiary)'
+        {/* CENTER GROUP: Address Bar (Absolute Centered) */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl px-4 no-drag z-10">
+          <div
+            className={cn(
+              'flex items-center w-full h-10 px-4',
+              'bg-(--color-bg-tertiary) rounded-xl',
+              'border border-transparent',
+              'hover:border-(--color-border-light)',
+              'focus-within:border-(--color-accent) focus-within:bg-(--color-bg-secondary)',
+              'transition-all duration-200 shadow-sm'
             )}
-          />
+          >
+            <AddressBar
+              currentUrl={activeTab?.url}
+              onNavigate={handleNavigate}
+              wrapperClassName="w-full"
+              inputClassName={cn(
+                'w-full h-full bg-transparent border-none',
+                'text-sm text-(--color-text-primary) text-center',
+                'placeholder:text-(--color-text-tertiary)',
+                'focus:outline-none'
+              )}
+            />
+          </div>
         </div>
 
-        {/* Right: Overlay controls */}
-        <div className="flex items-center gap-3 z-10 no-drag">
+        {/* RIGHT GROUP: Controls */}
+        <div className="flex items-center gap-3 ml-3 no-drag z-20">
           <button
             onClick={toggleSidebarLatch}
             className={cn(
-              'flex items-center justify-center w-8 h-8',
+              'w-9 h-9 flex items-center justify-center',
               'rounded-lg border-none',
-              'transition-all duration-150',
-              'no-drag',
+              'transition-all duration-150 cursor-pointer',
               isSidebarLatched
-                ? 'bg-(--color-bg-tertiary) text-(--color-text-primary)'
-                : 'bg-transparent text-(--color-text-secondary) hover:bg-(--color-bg-tertiary)'
+                ? 'bg-(--color-bg-active) text-(--color-text-primary)'
+                : 'bg-transparent text-(--color-text-secondary) hover:bg-(--color-bg-hover) hover:text-(--color-text-primary)'
             )}
-            style={{ pointerEvents: 'auto' }}
             title={isSidebarLatched ? t('overlay.sidebarLatch.off') : t('overlay.sidebarLatch.on')}
           >
-            <PanelLeft className="w-4 h-4" />
+            <PanelLeft size={18} />
           </button>
-
           <button
             onClick={toggleHeaderLatch}
             className={cn(
-              'flex items-center justify-center w-8 h-8',
+              'w-9 h-9 flex items-center justify-center',
               'rounded-lg border-none',
-              'transition-all duration-150',
-              'no-drag',
+              'transition-all duration-150 cursor-pointer',
               isHeaderLatched
-                ? 'bg-(--color-bg-tertiary) text-(--color-text-primary)'
-                : 'bg-transparent text-(--color-text-secondary) hover:bg-(--color-bg-tertiary)'
+                ? 'bg-(--color-bg-active) text-(--color-text-primary)'
+                : 'bg-transparent text-(--color-text-secondary) hover:bg-(--color-bg-hover) hover:text-(--color-text-primary)'
             )}
-            style={{ pointerEvents: 'auto' }}
             title={isHeaderLatched ? t('overlay.headerLatch.off') : t('overlay.headerLatch.on')}
           >
-            <Pin className="w-4 h-4" />
+            <Pin size={18} />
           </button>
         </div>
       </div>
     </div>
   )
 }
-
