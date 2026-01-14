@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export interface WindowSize {
   width: number
@@ -11,11 +11,27 @@ export function useWindowSize(): WindowSize {
     height: typeof window !== 'undefined' ? window.innerHeight : 0,
   })
 
+  const rafRef = useRef<number | null>(null)
+  const lastRef = useRef<WindowSize>(windowSize)
+
   useEffect(() => {
     const handleResize = () => {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight,
+      if (typeof window === 'undefined') return
+      if (rafRef.current != null) return
+
+      rafRef.current = window.requestAnimationFrame(() => {
+        rafRef.current = null
+
+        const next: WindowSize = {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }
+
+        const last = lastRef.current
+        if (last.width === next.width && last.height === next.height) return
+
+        lastRef.current = next
+        setWindowSize(next)
       })
     }
 
@@ -24,8 +40,16 @@ export function useWindowSize(): WindowSize {
 
     return () => {
       window.removeEventListener('resize', handleResize)
+      if (rafRef.current != null) {
+        window.cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
     }
   }, [])
+
+  useEffect(() => {
+    lastRef.current = windowSize
+  }, [windowSize])
 
   return windowSize
 }

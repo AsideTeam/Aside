@@ -91,7 +91,7 @@ export class AppLifecycle {
       // 단일 윈도우: WebContentsView는 mainWindow의 contentView에 붙는다.
       const uiWebContents = MainWindow.getUiOverlayWebContents()
       if (!uiWebContents) {
-        throw new Error('[AppLifecycle] UI overlay webContents not available')
+        throw new Error('[AppLifecycle] UI webContents not available')
       }
       await ViewManager.initialize(mainWindow, uiWebContents)
       logger.info('Step 5/8: ViewManager initialized')

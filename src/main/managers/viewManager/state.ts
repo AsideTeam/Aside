@@ -1,6 +1,7 @@
 import type { BrowserWindow, WebContents } from 'electron'
 
 import type { TabData } from './types'
+import type { ViewBounds } from '@shared/types/view'
 
 export type RecentlyClosedTab = {
   id: string
@@ -17,6 +18,7 @@ export type ViewManagerState = {
   uiWebContents: WebContents | null
   isInitializing: boolean
   lastReorderTarget: 'ui' | 'content' | null
+  lastSafeArea: ViewBounds | null
   externalActiveBounds: { x: number; y: number; width: number; height: number } | null
   recentlyClosed: RecentlyClosedTab[]
   settingsUnsubscribers: Array<() => void>
@@ -32,6 +34,7 @@ export function createInitialViewManagerState(): ViewManagerState {
     uiWebContents: null,
     isInitializing: false,
     lastReorderTarget: null,
+    lastSafeArea: null,
     externalActiveBounds: null,
     recentlyClosed: [],
     settingsUnsubscribers: [],

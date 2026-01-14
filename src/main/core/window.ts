@@ -14,7 +14,7 @@
  * 참고: 단일 메인 창만 관리 (타브 기반 UI는 ViewManager 담당)
  */
 
-import { BrowserWindow, WebContentsView, app, screen } from 'electron'
+import { BrowserWindow, app, screen } from 'electron'
 import { join } from 'node:path'
 import { logger } from '@main/utils/logger'
 import { Env } from '@main/config'
@@ -38,7 +38,6 @@ export class MainWindow {
   // uiWindow/contentWindow가 동일 인스턴스를 참조하도록 한다.
   private static uiWindow: BrowserWindow | null = null
   private static contentWindow: BrowserWindow | null = null
-  private static uiOverlayView: WebContentsView | null = null
   private static isCreating = false
 
   /**
@@ -112,6 +111,8 @@ export class MainWindow {
           preload: join(__dirname, '../preload/index.cjs'),
           contextIsolation: true,
           sandbox: Env.isDev ? false : true,
+          nodeIntegration: false,
+          webSecurity: true,
         },
 
         show: false,
@@ -121,38 +122,11 @@ export class MainWindow {
       // API 호환을 위해 contentWindow도 같은 인스턴스를 참조.
       this.contentWindow = this.uiWindow
 
-      // 단일 윈도우(Views) 구성:
-      // - BrowserWindow의 기본 webContents는 빈 바닥(about:blank)
-      // - React UI는 WebContentsView로 올려서(오버레이) 탭 WebContentsView 위에 항상 보이게 한다.
-      this.uiOverlayView = new WebContentsView({
-        webPreferences: {
-          preload: join(__dirname, '../preload/index.cjs'),
-          contextIsolation: true,
-          sandbox: Env.isDev ? false : true,
-          nodeIntegration: false,
-          webSecurity: true,
-        },
-      })
-      
-      // ⭐ 투명 배경 설정 (Electron WebContentsView 기본값은 흰색)
-      // 투명하지 않으면 아래에 있는 Guest WebContents(웹페이지)가 가려져서 안 보임
-      this.uiOverlayView.setBackgroundColor('#00000000')
-
       logger.info('[MainWindow] Windows created', {
         width,
         height,
         platform: process.platform,
       })
-
-      try {
-        const root = this.uiWindow.getContentView()
-        // UI overlay는 항상 topmost
-        root.addChildView(this.uiOverlayView)
-        this.uiOverlayView.setBounds({ x: 0, y: 0, width, height })
-      } catch (error) {
-        logger.error('[MainWindow] Failed to attach uiOverlayView', error)
-        throw error
-      }
 
       // Step 5: 이벤트 처리
       this.setupWindowEvents()
@@ -168,11 +142,11 @@ export class MainWindow {
           this.uiWindow.show()
           this.uiWindow.focus()
 
-          // 단일 윈도우(Views): UI는 overlay view에서 렌더링된다.
+          // 단일 윈도우(Views): UI는 BrowserWindow 기본 webContents에서 렌더링된다.
           OverlayController.attach({
             uiWindow: this.uiWindow,
             contentWindow: this.uiWindow,
-            uiWebContents: this.uiOverlayView?.webContents ?? undefined,
+            uiWebContents: this.uiWindow.webContents,
           })
 
           didShow = true
@@ -184,12 +158,10 @@ export class MainWindow {
 
       this.uiWindow.once('ready-to-show', showMain)
 
-      // Step 7: base는 빈 바닥, UI는 overlay view에서 로드
-      await this.uiWindow.loadURL('about:blank')
-
+      // Step 7: UI는 BrowserWindow 기본 webContents에서 로드
       const startUrl = this.getStartUrl()
-      await this.uiOverlayView.webContents.loadURL(startUrl)
-      logger.info('[MainWindow] UI URL loaded (overlay view)', { url: startUrl })
+      await this.uiWindow.loadURL(startUrl)
+      logger.info('[MainWindow] UI URL loaded (base webContents)', { url: startUrl })
 
       // Step 8: ready-to-show를 놓치거나 렌더러가 얇게 실패할 때 대비 (fallback)
       setTimeout(() => {
@@ -209,7 +181,7 @@ export class MainWindow {
 
       // Step 9: 개발 모드 DevTools는 UI에만
       if (Env.isDev) {
-        this.uiOverlayView.webContents.openDevTools({ mode: 'detach' })
+        this.uiWindow.webContents.openDevTools({ mode: 'detach' })
         logger.info('[MainWindow] DevTools opened (dev mode, detached)')
       }
 
@@ -233,8 +205,13 @@ export class MainWindow {
     return this.uiWindow
   }
 
+  static getWebContents(): Electron.WebContents | null {
+    return this.uiWindow?.webContents ?? null
+  }
+
   static getUiOverlayWebContents(): Electron.WebContents | null {
-    return this.uiOverlayView?.webContents ?? null
+    // Backward-compatible alias: UI now lives in the base BrowserWindow webContents.
+    return this.getWebContents()
   }
 
   /** 바닥(Content) 윈도우 반환 (WebContentsView 호스팅) */
@@ -260,12 +237,6 @@ export class MainWindow {
       win.destroy()
     }
 
-    try {
-      this.uiOverlayView?.webContents?.removeAllListeners()
-    } catch {
-      // ignore
-    }
-    this.uiOverlayView = null
     this.uiWindow = null
     this.contentWindow = null
 
@@ -311,11 +282,6 @@ export class MainWindow {
     const syncResize = () => {
       if (!this.uiWindow || !this.contentWindow) return
       const bounds = this.uiWindow.getBounds()
-      try {
-        this.uiOverlayView?.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height })
-      } catch {
-        // ignore
-      }
       OverlayController.onWindowResized(bounds)
     }
 

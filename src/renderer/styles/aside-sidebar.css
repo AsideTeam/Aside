@@ -556,21 +556,38 @@
 }
 
 /* Pinned state: Shift the frame to make room for Sidebar/Header */
+.aside-overlay--sidebar-open .aside-frame {
+  margin-left: var(--aside-sidebar-inset, 0);
+  width: calc(100% - var(--aside-sidebar-inset, 0));
+}
+
+.aside-overlay--header-open .aside-frame {
+  margin-top: var(--aside-header-inset, 0);
+  height: calc(100vh - var(--aside-header-inset, 0));
+}
+
+.aside-overlay--sidebar-open.aside-overlay--header-open .aside-frame {
+  margin-left: var(--aside-sidebar-inset, 0);
+  margin-top: var(--aside-header-inset, 0);
+  width: calc(100% - var(--aside-sidebar-inset, 0));
+  height: calc(100vh - var(--aside-header-inset, 0));
+}
+
 .aside-overlay--sidebar-pinned .aside-frame {
-  margin-left: var(--aside-sidebar-width, 0);
-  width: calc(100% - var(--aside-sidebar-width, 0));
+  margin-left: var(--aside-sidebar-inset, 0);
+  width: calc(100% - var(--aside-sidebar-inset, 0));
 }
 
 .aside-overlay--header-pinned .aside-frame {
-  margin-top: var(--aside-header-height, 0);
-  height: calc(100vh - var(--aside-header-height, 0));
+  margin-top: var(--aside-header-inset, 0);
+  height: calc(100vh - var(--aside-header-inset, 0));
 }
 
 .aside-overlay--sidebar-pinned.aside-overlay--header-pinned .aside-frame {
-  margin-left: var(--aside-sidebar-width, 0);
-  margin-top: var(--aside-header-height, 0);
-  width: calc(100% - var(--aside-sidebar-width, 0));
-  height: calc(100vh - var(--aside-header-height, 0));
+  margin-left: var(--aside-sidebar-inset, 0);
+  margin-top: var(--aside-header-inset, 0);
+  width: calc(100% - var(--aside-sidebar-inset, 0));
+  height: calc(100vh - var(--aside-header-inset, 0));
 }
 
 .aside-view-container {

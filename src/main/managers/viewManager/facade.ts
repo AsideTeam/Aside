@@ -127,7 +127,6 @@ export class ViewManager {
       this.layout()
       logger.info('[ViewManager] Layout applied')
 
-      this.ensureUITopmost()
 
       this.dumpContentViewTree('after-layout')
 
@@ -158,7 +157,6 @@ export class ViewManager {
         applyAppearance: (wc) => {
           void AppearanceService.applyToWebContents(wc)
         },
-        ensureUITopmost: () => this.ensureUITopmost(),
         dumpTree:
           process.env.ASIDE_VIEW_TREE_DEBUG === '1'
             ? (reason) => this.dumpContentViewTree(reason)
@@ -195,11 +193,24 @@ export class ViewManager {
       return
     }
 
-    this.state.externalActiveBounds = computeExternalActiveBounds({
+    // Dedupe: Renderer can send the same safe-area repeatedly during layout.
+    if (this.state.lastSafeArea && this.state.lastSafeArea.left === safeArea.left && this.state.lastSafeArea.top === safeArea.top) {
+      return
+    }
+    this.state.lastSafeArea = safeArea
+
+    const nextBounds = computeExternalActiveBounds({
       contentWindow: this.state.contentWindow,
       safeArea,
       logger,
     })
+
+    const prev = this.state.externalActiveBounds
+    if (prev && prev.x === nextBounds.x && prev.y === nextBounds.y && prev.width === nextBounds.width && prev.height === nextBounds.height) {
+      return
+    }
+
+    this.state.externalActiveBounds = nextBounds
 
     this.layout()
   }

@@ -14,6 +14,7 @@ import type { SettingsSchema } from '@shared/types'
 
 const DEFAULT_SETTINGS: SettingsSchema = {
   theme: 'dark',
+  layoutMode: 'zen',
   searchEngine: 'google',
   homepage: 'https://www.google.com',
   showHomeButton: true,
@@ -67,6 +68,11 @@ export class SettingsStore {
           type: 'string',
           enum: ['light', 'dark', 'system'],
           default: 'dark',
+        },
+        layoutMode: {
+          type: 'string',
+          enum: ['zen', 'chrome'],
+          default: 'zen',
         },
         searchEngine: {
           type: 'string',

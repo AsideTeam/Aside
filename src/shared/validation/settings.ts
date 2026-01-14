@@ -6,6 +6,7 @@ import { z } from 'zod'
  */
 export const SettingsSchemaZ = z.object({
   theme: z.enum(['light', 'dark', 'system']),
+  layoutMode: z.enum(['zen', 'chrome']),
   searchEngine: z.enum(['google', 'bing', 'duckduckgo', 'naver']),
   homepage: z.string(),
   showHomeButton: z.boolean(),

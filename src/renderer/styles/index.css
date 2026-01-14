@@ -6,6 +6,7 @@
 @import "./settings.css";
 @import "./sidebar.css";
 @import "./aside-sidebar.css";
+@import "./chrome-layout.css";
 
 /* ===== Electron App Region Utilities ===== */
 .drag-region {
@@ -44,6 +45,8 @@ body,
 .aside-overlay-mode body,
 .aside-overlay-mode #root {
   background-color: transparent;
+  /* ⭐ CRITICAL: Allow clicks to pass through body/root to WebContentsView (Content) */
+  pointer-events: none;
 }
 
 /* Input 기본 스타일 제거 */

@@ -1,0 +1,314 @@
+/**
+ * Chrome Layout CSS
+ *
+ * Chrome 브라우저 스타일 레이아웃 (탭 + 주소창 상단 바)
+ * ZenLayout의 aside-overlay 패턴과 동일한 pointer-events 전략 사용
+ */
+
+/* ===== Layout Root ===== */
+.chrome-layout {
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
+  /* ⭐ 핵심: 기본적으로 클릭 투과 (WebContentsView로 전달) */
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.chrome-layout--blurred {
+  opacity: 0.95;
+}
+
+/* ===== Top Bar (Tabs + Address Bar) ===== */
+.chrome-topbar {
+  /* ⭐ Top Bar는 클릭 가능해야 함 */
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  z-index: var(--z-sidebar, 9999);
+  background: var(--color-bg-secondary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* --- Tab Strip Row --- */
+.chrome-tabstrip {
+  height: 42px;
+  display: flex;
+  align-items: flex-end;
+  padding: 4px 8px 0;
+  gap: 4px;
+  -webkit-app-region: drag;
+  background: var(--color-bg-tertiary);
+}
+
+.chrome-tabstrip__traffic-lights-spacer {
+  width: 76px;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+.chrome-tabstrip__tabs {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  overflow-x: auto;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+/* Hide scrollbar for tabs */
+.chrome-tabstrip__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* --- Individual Tab --- */
+.chrome-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+  max-width: 240px;
+  height: 32px;
+  padding: 0 12px;
+  margin-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: default;
+  user-select: none;
+  transition: background 0.15s ease;
+  /* Tabs themselves are not draggable to move window, but will be draggable for reordering later */
+  -webkit-app-region: no-drag; 
+}
+
+.chrome-tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.chrome-tab--active {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  box-shadow: 0 -1px 5px rgba(0,0,0,0.15);
+}
+
+.chrome-tab__favicon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.chrome-tab__title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chrome-tab__close {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s;
+}
+
+.chrome-tab:hover .chrome-tab__close,
+.chrome-tab--active .chrome-tab__close {
+  opacity: 0.7;
+}
+
+.chrome-tab__close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* --- New Tab Button --- */
+.chrome-newtab-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  margin-left: 4px; /* Space from last tab */
+  flex-shrink: 0;
+  transition: background 0.15s;
+  /* CRITICAL: Must be no-drag to be clickable inside drag region */
+  -webkit-app-region: no-drag;
+}
+
+.chrome-newtab-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* --- Toolbar Row (Nav + Address Bar) --- */
+.chrome-toolbar {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  background: var(--color-bg-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  /* Use no-drag for toolbar to allow text selection if needed, or keep standard */
+  -webkit-app-region: no-drag; 
+}
+
+.chrome-toolbar__nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chrome-toolbar__nav-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.chrome-toolbar__nav-btn:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.chrome-toolbar__nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* --- Omnibox (Address Bar) --- */
+.chrome-omnibox {
+  flex: 1;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  border-radius: 100px; /* Pill shape */
+  background: var(--color-bg-tertiary);
+  transition: background 0.2s, box-shadow 0.2s;
+  /* Allow interaction */
+  -webkit-app-region: no-drag;
+}
+
+.chrome-omnibox:focus-within {
+  background: var(--color-bg-primary);
+  box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+}
+
+.chrome-omnibox__icon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.chrome-omnibox__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.chrome-omnibox__input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.chrome-omnibox__star {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chrome-omnibox__star:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-secondary);
+}
+
+/* --- Toolbar Actions (Right Side) --- */
+.chrome-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chrome-toolbar__action-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.chrome-toolbar__action-btn:hover {
+  background: var(--color-bg-tertiary);
+}
+
+/* ===== Content Area (WebContentsView Placeholder) ===== */
+.chrome-content {
+  flex: 1;
+  position: relative;
+  background: transparent;
+  /* ⭐ 컨텐츠 영역은 클릭 투과 - Native View가 받음 */
+  pointer-events: none;
+}
+
+.chrome-content__placeholder {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  pointer-events: none;
+}
+
+/* ===== Settings Overlay ===== */
+.chrome-settings-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  /* ⭐ 설정 창은 클릭 가능 */
+  pointer-events: auto;
+  background: var(--color-bg-primary);
+}

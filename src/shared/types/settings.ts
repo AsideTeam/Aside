@@ -11,6 +11,7 @@ export interface SettingsSchema {
   theme: 'light' | 'dark' | 'system'
   searchEngine: 'google' | 'bing' | 'duckduckgo' | 'naver'
   homepage: string
+  layoutMode: 'zen' | 'chrome'
   showHomeButton: boolean
   showBookmarksBar: boolean
   fontSize: 'small' | 'medium' | 'large' | 'xlarge'

@@ -92,7 +92,7 @@ export function setupTabHandlers(registry: IpcRegistry): void {
   // tab:list - 탭 리스트 조회
   registry.handle(IPC_CHANNELS.TAB.LIST, async () => {
     try {
-      logger.info('[TabHandler] tab:list requested')
+      logger.debug('[TabHandler] tab:list requested')
       const tabs = ViewManager.getTabs()
       return { success: true, tabs }
     } catch (error) {

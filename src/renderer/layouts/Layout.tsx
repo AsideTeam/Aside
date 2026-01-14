@@ -20,6 +20,9 @@ import { useOverlayStore } from '@renderer/lib/overlayStore';
 import { logger } from '@renderer/lib';
 import { SettingsPage } from '@renderer/pages';
 
+const DEFAULT_SIDEBAR_WIDTH_PX = 260
+const DEFAULT_HEADER_HEIGHT_PX = 52
+
 export const ZenLayout: React.FC = () => {
   // ⭐ 디버깅 로그 제거 (과도한 렌더링 로그 방지)
   // logger.info('[ZenLayout] Rendering component');
@@ -37,12 +40,14 @@ export const ZenLayout: React.FC = () => {
   const lastNormalUrlByTabIdRef = useRef<Record<string, string>>({})
 
 
-  // ⭐ Pinned 상태에서 WebContentsView가 차지할 수 없는 safe-area(inset)를 측정한다.
-  // width/height가 아니라 실제 경계(right/bottom)를 쓰면 transform/서브픽셀/보더로 인한 오차에 강하다.
-  const [pinnedInsets, setPinnedInsets] = useState<{ left: number; top: number }>({
-    left: 0,
-    top: 0,
+  // Actual UI sizes (used for overlay layout).
+  const [uiSize, setUiSize] = useState<{ sidebarWidth: number; headerHeight: number }>({
+    sidebarWidth: DEFAULT_SIDEBAR_WIDTH_PX,
+    headerHeight: DEFAULT_HEADER_HEIGHT_PX,
   })
+
+  // Pinned(latched) insets reserved for the native WebContentsView.
+  const [pinnedInsets, setPinnedInsets] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
 
   const viewPlaceholderRef = useRef<HTMLDivElement | null>(null)
   const { updateBounds } = useViewBounds(viewPlaceholderRef)
@@ -83,9 +88,30 @@ export const ZenLayout: React.FC = () => {
   // 1. Inset calculation & Bounds Sync
   useLayoutEffect(() => {
     const measure = () => {
-      // Pinned 상태일 때만 실제 Inset을 적용함 (Floating/Open일 때는 0)
-      const left = sidebarLatched ? 288 : 0; // Sidebar w-72 = 288px
-      const top = headerLatched ? 56 : 0;    // Header h-14 = 56px
+      const sidebarEl = document.querySelector(
+        '[data-overlay-zone="sidebar"][data-interactive]'
+      ) as HTMLElement | null
+      const headerEl = document.querySelector(
+        '[data-overlay-zone="header"][data-interactive]'
+      ) as HTMLElement | null
+
+      const sidebarWidth = sidebarEl
+        ? Math.max(0, Math.round(sidebarEl.getBoundingClientRect().width))
+        : DEFAULT_SIDEBAR_WIDTH_PX
+      const headerHeight = headerEl
+        ? Math.max(0, Math.round(headerEl.getBoundingClientRect().height))
+        : DEFAULT_HEADER_HEIGHT_PX
+
+      setUiSize((prev) => {
+        if (prev.sidebarWidth === sidebarWidth && prev.headerHeight === headerHeight) return prev
+        return { sidebarWidth, headerHeight }
+      })
+
+      // 단일 윈도우 + base UI 구조에서는
+      // UI가 보이는 동안(open/latched) native WebContentsView를 밀어내야 한다.
+      // (그렇지 않으면 WebContentsView가 UI를 완전히 덮어서 UI가 안 보임)
+      const left = sidebarOpen || sidebarLatched ? sidebarWidth : 0
+      const top = headerOpen || headerLatched ? headerHeight : 0
 
       setPinnedInsets({ left, top });
       
@@ -103,7 +129,7 @@ export const ZenLayout: React.FC = () => {
       window.removeEventListener('resize', measure);
       clearTimeout(timer);
     };
-  }, [headerLatched, sidebarLatched, updateBounds]);
+  }, [headerOpen, headerLatched, sidebarOpen, sidebarLatched, updateBounds]);
 
   return (
     <div
@@ -118,8 +144,12 @@ export const ZenLayout: React.FC = () => {
       )}
       style={
         {
-          '--aside-sidebar-width': `${pinnedInsets.left}px`,
-          '--aside-header-height': `${pinnedInsets.top}px`,
+          // Actual overlay UI sizes
+          '--aside-sidebar-width': `${uiSize.sidebarWidth}px`,
+          '--aside-header-height': `${uiSize.headerHeight}px`,
+          // Native WebContentsView offsets while UI is visible
+          '--aside-sidebar-inset': `${pinnedInsets.left}px`,
+          '--aside-header-inset': `${pinnedInsets.top}px`,
           pointerEvents: 'none', // ⚠️ CRITICAL: Let clicks pass through root
         } as React.CSSProperties
       }
@@ -143,8 +173,8 @@ export const ZenLayout: React.FC = () => {
           )}
           style={
             {
-              left: 'var(--aside-sidebar-width)',
-              top: 'var(--aside-header-height)',
+              left: 'var(--aside-sidebar-inset)',
+              top: 'var(--aside-header-inset)',
             } as React.CSSProperties
           }
         >

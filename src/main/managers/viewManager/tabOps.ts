@@ -206,7 +206,6 @@ export async function createTab(args: {
   applyZoom: (webContents: Electron.WebContents, zoomSetting: string) => void
   setupTabEvents: (tabId: string, view: WebContentsView) => void
   applyAppearance: (webContents: Electron.WebContents) => void
-  ensureUITopmost: () => void
   dumpTree?: (reason: string) => void
   logger: LoggerLike
 }): Promise<string> {
@@ -218,7 +217,6 @@ export async function createTab(args: {
     applyZoom,
     setupTabEvents,
     applyAppearance,
-    ensureUITopmost,
     dumpTree,
     logger,
   } = args
@@ -262,7 +260,8 @@ export async function createTab(args: {
 
   contentView.addChildView(view)
 
-  ensureUITopmost()
+  // Do not force the UI overlay view topmost here.
+  // The active tab view should remain clickable; UI is rendered in the remaining safe-area.
 
   dumpTree?.('after-add-tab-view')
   view.setBounds({ x: 0, y: 0, width: 0, height: 0 })

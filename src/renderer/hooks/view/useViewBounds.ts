@@ -30,37 +30,62 @@ export const useViewBounds = (
   const { margin = 0, scaleFactor = 1 } = options
   const margins = normalizeMargins(margin)
   const lastBoundsRef = useRef<ViewBounds | null>(null)
+  const pendingOffsetsRef = useRef<{ left: number; top: number } | null>(null)
+  const rafRef = useRef<number | null>(null)
   const isDragging = useOverlayStore((s) => s.isDragging)
+
+  const flush = useCallback(() => {
+    rafRef.current = null
+    if (isDragging) return
+    if (!window.electronAPI?.view) return
+
+    const explicitOffsets = pendingOffsetsRef.current
+    pendingOffsetsRef.current = null
+
+    try {
+      let left: number
+      let top: number
+
+      if (explicitOffsets) {
+        // Fast path: caller already measured offsets; avoid forced layout read.
+        left = explicitOffsets.left
+        top = explicitOffsets.top
+      } else {
+        const el = contentAreaRef.current
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        left = rect.x
+        top = rect.y
+      }
+
+      const nextBounds: ViewBounds = {
+        left: Math.round((left + margins.left) * scaleFactor),
+        top: Math.round((top + margins.top) * scaleFactor),
+      }
+
+      if (lastBoundsRef.current && areBoundsEqual(lastBoundsRef.current, nextBounds)) return
+
+      const parsed = ViewResizeSchema.safeParse(nextBounds)
+      if (!parsed.success) return
+
+      window.electronAPI.view.resize(parsed.data)
+      lastBoundsRef.current = nextBounds
+    } catch (error) {
+      logger.error('useViewBounds - Error updating bounds', { error })
+    }
+  }, [contentAreaRef, isDragging, margins.left, margins.top, scaleFactor])
 
   const updateBounds = useCallback(
     (explicitOffsets?: { left: number; top: number }) => {
       if (isDragging) return
+      if (!window.electronAPI?.view) return
 
-      if (!contentAreaRef.current || !window.electronAPI?.view) return
-
-      try {
-        const rect = contentAreaRef.current.getBoundingClientRect()
-
-        const left = explicitOffsets ? explicitOffsets.left : rect.x
-        const top = explicitOffsets ? explicitOffsets.top : rect.y
-
-        const newBounds: ViewBounds = {
-          left: Math.round((left + margins.left) * scaleFactor),
-          top: Math.round((top + margins.top) * scaleFactor),
-        }
-
-        if (!lastBoundsRef.current || !areBoundsEqual(lastBoundsRef.current, newBounds)) {
-          const parsed = ViewResizeSchema.safeParse(newBounds)
-          if (!parsed.success) return
-
-          window.electronAPI.view.resize(parsed.data)
-          lastBoundsRef.current = newBounds
-        }
-      } catch (error) {
-        logger.error('useViewBounds - Error updating bounds', { error })
-      }
+      // Coalesce multiple calls within the same frame.
+      if (explicitOffsets) pendingOffsetsRef.current = explicitOffsets
+      if (rafRef.current != null) return
+      rafRef.current = window.requestAnimationFrame(() => flush())
     },
-    [contentAreaRef, scaleFactor, margins.left, margins.top, isDragging]
+    [flush, isDragging]
   )
 
   return { updateBounds }

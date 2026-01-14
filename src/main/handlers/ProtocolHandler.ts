@@ -55,12 +55,12 @@ export function setupNavigationInterceptors(): void {
         event.preventDefault()
         logger.info('[ProtocolHandler] Blocked about:settings, redirecting to app:settings')
 
-        // UI overlay renderer에게 이벤트 보내기 (탭 webContents는 preload가 없어 수신 불가)
-        const ui = MainWindow.getUiOverlayWebContents()
+        // UI renderer에게 이벤트 보내기 (탭 webContents는 preload가 없어 수신 불가)
+        const ui = MainWindow.getWebContents()
         if (ui) {
           ui.send('navigate-to-settings')
         } else {
-          logger.warn('[ProtocolHandler] UI overlay webContents not available for settings navigation')
+          logger.warn('[ProtocolHandler] UI webContents not available for settings navigation')
         }
         return
       }

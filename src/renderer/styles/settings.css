@@ -14,6 +14,7 @@
   --zen-text-secondary: var(--color-text-secondary);
   --zen-border: var(--color-border-primary);
   --zen-border-light: var(--color-border-light);
+  --zen-border-subtle: var(--color-border-primary);
 
   --zen-input-bg: var(--color-bg-input);
   --zen-input-bg-focus: var(--color-bg-tertiary);

@@ -20,6 +20,7 @@ export const AsideHeader: React.FC = () => {
   const activeTab = tabs.find((t) => t.id === activeTabId)
   const { width: windowWidth } = useWindowSize()
   const headerRef = useRef<HTMLDivElement>(null)
+  const lastHoverMetricsRef = useRef<{ headerBottomPx: number; dpr: number } | null>(null)
 
   const handleNavigate = async (url: string) => {
     await window.electronAPI?.invoke('tab:navigate', { url })
@@ -28,11 +29,15 @@ export const AsideHeader: React.FC = () => {
   useLayoutEffect(() => {
     const measureAndSend = async () => {
       if (!headerRef.current) return
-      const hoverHeight = 128
       try {
+        const hoverHeight = Math.max(0, Math.round(headerRef.current.getBoundingClientRect().height))
+        const dpr = window.devicePixelRatio
+        const last = lastHoverMetricsRef.current
+        if (last && last.headerBottomPx === hoverHeight && last.dpr === dpr) return
+        lastHoverMetricsRef.current = { headerBottomPx: hoverHeight, dpr }
         const payload = {
           headerBottomPx: hoverHeight,
-          dpr: window.devicePixelRatio,
+          dpr,
           timestamp: Date.now(),
         }
         await window.electronAPI.invoke('overlay:update-hover-metrics', payload)

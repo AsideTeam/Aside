@@ -155,6 +155,37 @@ const buildItems = (t: ReturnType<typeof useI18n>['t']): SettingItem[] => [
     ),
   },
   {
+    subCategoryId: 'appearance',
+    label: 'Layout Mode', // TODO: Add i18n
+    description: 'Choose your preferred layout style',
+    render: ({ settings, updateSetting }) => (
+      <div className="theme-preview-grid mt-4">
+         <div 
+           className={`theme-card ${settings.layoutMode === 'zen' ? 'active' : ''}`}
+           onClick={() => void updateSetting('layoutMode', 'zen')}
+         >
+            <div className="theme-card-preview flex items-end justify-start p-2 gap-1 overflow-hidden" style={{ background: 'var(--color-bg-secondary)' }}>
+                {/* Visual approximation of Zen Mode */}
+                <div className="w-1/4 h-full rounded bg-(--color-bg-tertiary) opacity-50"></div>
+                <div className="w-3/4 h-full rounded bg-(--color-bg-primary) border border-white/10"></div>
+            </div>
+            <div className="text-center text-sm font-medium">Zen Mode</div>
+         </div>
+         <div 
+           className={`theme-card ${settings.layoutMode === 'chrome' ? 'active' : ''}`}
+           onClick={() => void updateSetting('layoutMode', 'chrome')}
+         >
+            <div className="theme-card-preview flex flex-col items-center justify-start p-2 gap-1 overflow-hidden" style={{ background: 'var(--color-bg-secondary)' }}>
+                {/* Visual approximation of Chrome Mode */}
+                <div className="w-full h-1/4 rounded bg-(--color-bg-tertiary) opacity-50 mb-1"></div>
+                <div className="w-full h-3/4 rounded bg-(--color-bg-primary) border border-white/10"></div>
+            </div>
+            <div className="text-center text-sm font-medium">Chrome Mode</div>
+         </div>
+      </div>
+    ),
+  },
+  {
      subCategoryId: 'appearance',
      label: t('item.showHomeButton.label'),
      description: t('item.showHomeButton.desc'),
@@ -355,11 +386,10 @@ export const SettingsPage: React.FC = () => {
     
     // Special Render for Theme Cards to take full width
     if (subCat.id === 'appearance') {
-       const themeItem = groupItems.find(it => it.label === t('category.appearance') || it.label.includes(t('item.theme.label'))) // Fallback matching
-       // Since I changed label to t('category.appearance'), I match that.
-       // Actually I set label to `t('category.appearance')` in buildItems for that item.
-       
-       const otherItems = groupItems.filter(it => it !== themeItem)
+       const themeItem = groupItems.find(it => it.label === t('category.appearance') || it.label.includes(t('item.theme.label'))) 
+       const layoutItem = groupItems.find(it => it.label === 'Layout Mode')
+
+       const otherItems = groupItems.filter(it => it !== themeItem && it !== layoutItem)
        
        return (
          <div key={subCat.id} className="mb-10">
@@ -371,6 +401,14 @@ export const SettingsPage: React.FC = () => {
                     <span className="zen-row-label mb-2 block">{themeItem.label}</span>
                     <span className="zen-row-desc block">{themeItem.description}</span>
                     {settings && themeItem.render({ settings, updateSetting, resetAll })}
+                 </div>
+              )}
+              {/* Layout Preview Section */}
+              {layoutItem && (
+                 <div className="p-5 border-b border-white/5">
+                    <span className="zen-row-label mb-2 block">{layoutItem.label}</span>
+                    <span className="zen-row-desc block">{layoutItem.description}</span>
+                    {settings && layoutItem.render({ settings, updateSetting, resetAll })}
                  </div>
               )}
               {/* Other Items */}

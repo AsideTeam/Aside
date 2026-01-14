@@ -350,6 +350,7 @@ function validateOrThrow(schema, data) {
 }
 const DEFAULT_SETTINGS = {
   theme: "dark",
+  layoutMode: "zen",
   searchEngine: "google",
   homepage: "https://www.google.com",
   showHomeButton: true,
@@ -394,6 +395,11 @@ class SettingsStore {
           type: "string",
           enum: ["light", "dark", "system"],
           default: "dark"
+        },
+        layoutMode: {
+          type: "string",
+          enum: ["zen", "chrome"],
+          default: "zen"
         },
         searchEngine: {
           type: "string",
@@ -847,16 +853,19 @@ function applyLayout({
     finalBounds: activeBounds,
     usingExternal: !!externalActiveBounds
   });
+  const hiddenBounds = { x: 0, y: 0, width: 0, height: 0 };
+  const boundsEqual = (a, b) => a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
   for (const [, tabData] of tabs) {
+    const current = tabData.view.getBounds();
     if (tabData.isActive) {
       if (tabData.url.startsWith("about:")) {
-        tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        if (!boundsEqual(current, hiddenBounds)) tabData.view.setBounds(hiddenBounds);
         logger2.debug("[ViewManager] Layout: hiding WebView for about page", { url: tabData.url });
       } else {
-        tabData.view.setBounds(activeBounds);
+        if (!boundsEqual(current, activeBounds)) tabData.view.setBounds(activeBounds);
       }
     } else {
-      tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+      if (!boundsEqual(current, hiddenBounds)) tabData.view.setBounds(hiddenBounds);
     }
   }
 }
@@ -869,6 +878,7 @@ function createInitialViewManagerState() {
     uiWebContents: null,
     isInitializing: false,
     lastReorderTarget: null,
+    lastSafeArea: null,
     externalActiveBounds: null,
     recentlyClosed: [],
     settingsUnsubscribers: []
@@ -1303,7 +1313,6 @@ async function createTab(args) {
     applyZoom,
     setupTabEvents,
     applyAppearance,
-    ensureUITopmost: ensureUITopmost2,
     dumpTree,
     logger: logger2
   } = args;
@@ -1335,7 +1344,6 @@ async function createTab(args) {
   } catch {
   }
   contentView.addChildView(view);
-  ensureUITopmost2();
   dumpTree?.("after-add-tab-view");
   view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
   setupTabEvents(tabId, view);
@@ -1563,7 +1571,6 @@ class ViewManager {
       this.switchTab(homeTabId);
       this.layout();
       logger.info("[ViewManager] Layout applied");
-      this.ensureUITopmost();
       this.dumpContentViewTree("after-layout");
       logger.info("[ViewManager] Initialization completed");
     } catch (error) {
@@ -1590,7 +1597,6 @@ class ViewManager {
         applyAppearance: (wc) => {
           void AppearanceService.applyToWebContents(wc);
         },
-        ensureUITopmost: () => this.ensureUITopmost(),
         dumpTree: process.env.ASIDE_VIEW_TREE_DEBUG === "1" ? (reason) => this.dumpContentViewTree(reason) : void 0,
         logger
       });
@@ -1618,11 +1624,20 @@ class ViewManager {
       logger.warn("[ViewManager] contentWindow not available; ignoring safe-area");
       return;
     }
-    this.state.externalActiveBounds = computeExternalActiveBounds({
+    if (this.state.lastSafeArea && this.state.lastSafeArea.left === safeArea.left && this.state.lastSafeArea.top === safeArea.top) {
+      return;
+    }
+    this.state.lastSafeArea = safeArea;
+    const nextBounds = computeExternalActiveBounds({
       contentWindow: this.state.contentWindow,
       safeArea,
       logger
     });
+    const prev = this.state.externalActiveBounds;
+    if (prev && prev.x === nextBounds.x && prev.y === nextBounds.y && prev.width === nextBounds.width && prev.height === nextBounds.height) {
+      return;
+    }
+    this.state.externalActiveBounds = nextBounds;
     this.layout();
   }
   static closeTab(tabId) {
@@ -2124,6 +2139,7 @@ class OverlayController {
     const metrics = this.hoverMetrics;
     const EDGE_THRESHOLD = 10;
     if (!headerLatched && !sidebarLatched && !this.currentState.headerOpen && !this.currentState.sidebarOpen && relativeX > EDGE_THRESHOLD && relativeY > EDGE_THRESHOLD) {
+      ViewManager.ensureContentTopmost();
       return;
     }
     const calc = computeEdgeOverlayState({
@@ -2139,8 +2155,10 @@ class OverlayController {
     const finalSidebarOpen = calc.nextState.sidebarOpen;
     const mouseInSidebar = calc.mouseInSidebar;
     const mouseInHeader = calc.mouseInHeader;
-    if (calc.triggers.shouldOpenSidebar || calc.triggers.shouldOpenHeader || mouseInSidebar || mouseInHeader || headerLatched || sidebarLatched) {
+    if (finalHeaderOpen || finalSidebarOpen || headerLatched || sidebarLatched || mouseInSidebar || mouseInHeader) {
       ViewManager.ensureUITopmost();
+    } else {
+      ViewManager.ensureContentTopmost();
     }
     const now = Date.now();
     const timeSinceLastUpdate = now - this.lastStateUpdateTime;
@@ -2165,6 +2183,9 @@ class OverlayController {
     if (this.currentState.headerOpen !== newState.headerOpen || this.currentState.sidebarOpen !== newState.sidebarOpen) {
       this.currentState = newState;
       this.broadcastOverlayState(newState);
+    }
+    if (!newState.headerOpen && !newState.sidebarOpen) {
+      ViewManager.ensureContentTopmost();
     }
   }
   static broadcastOverlayState(state) {
@@ -2227,7 +2248,6 @@ class MainWindow {
   // uiWindow/contentWindow가 동일 인스턴스를 참조하도록 한다.
   static uiWindow = null;
   static contentWindow = null;
-  static uiOverlayView = null;
   static isCreating = false;
   /**
    * MainWindow 생성
@@ -2282,35 +2302,19 @@ class MainWindow {
         webPreferences: {
           preload: join(__dirname, "../preload/index.cjs"),
           contextIsolation: true,
-          sandbox: Env.isDev ? false : true
+          sandbox: Env.isDev ? false : true,
+          nodeIntegration: false,
+          webSecurity: true
         },
         show: false
       };
       this.uiWindow = new BrowserWindow(uiWindowOptions);
       this.contentWindow = this.uiWindow;
-      this.uiOverlayView = new WebContentsView({
-        webPreferences: {
-          preload: join(__dirname, "../preload/index.cjs"),
-          contextIsolation: true,
-          sandbox: Env.isDev ? false : true,
-          nodeIntegration: false,
-          webSecurity: true
-        }
-      });
-      this.uiOverlayView.setBackgroundColor("#00000000");
       logger.info("[MainWindow] Windows created", {
         width,
         height,
         platform: process.platform
       });
-      try {
-        const root = this.uiWindow.getContentView();
-        root.addChildView(this.uiOverlayView);
-        this.uiOverlayView.setBounds({ x: 0, y: 0, width, height });
-      } catch (error) {
-        logger.error("[MainWindow] Failed to attach uiOverlayView", error);
-        throw error;
-      }
       this.setupWindowEvents();
       let didShow = false;
       const showMain = () => {
@@ -2322,7 +2326,7 @@ class MainWindow {
           OverlayController.attach({
             uiWindow: this.uiWindow,
             contentWindow: this.uiWindow,
-            uiWebContents: this.uiOverlayView?.webContents ?? void 0
+            uiWebContents: this.uiWindow.webContents
           });
           didShow = true;
           logger.info("[MainWindow] Main window shown (single-window)");
@@ -2331,10 +2335,9 @@ class MainWindow {
         }
       };
       this.uiWindow.once("ready-to-show", showMain);
-      await this.uiWindow.loadURL("about:blank");
       const startUrl = this.getStartUrl();
-      await this.uiOverlayView.webContents.loadURL(startUrl);
-      logger.info("[MainWindow] UI URL loaded (overlay view)", { url: startUrl });
+      await this.uiWindow.loadURL(startUrl);
+      logger.info("[MainWindow] UI URL loaded (base webContents)", { url: startUrl });
       setTimeout(() => {
         try {
           if (!this.uiWindow) return;
@@ -2348,7 +2351,7 @@ class MainWindow {
         }
       }, 1200);
       if (Env.isDev) {
-        this.uiOverlayView.webContents.openDevTools({ mode: "detach" });
+        this.uiWindow.webContents.openDevTools({ mode: "detach" });
         logger.info("[MainWindow] DevTools opened (dev mode, detached)");
       }
       return this.uiWindow;
@@ -2369,8 +2372,11 @@ class MainWindow {
   static getWindow() {
     return this.uiWindow;
   }
+  static getWebContents() {
+    return this.uiWindow?.webContents ?? null;
+  }
   static getUiOverlayWebContents() {
-    return this.uiOverlayView?.webContents ?? null;
+    return this.getWebContents();
   }
   /** 바닥(Content) 윈도우 반환 (WebContentsView 호스팅) */
   static getContentWindow() {
@@ -2391,11 +2397,6 @@ class MainWindow {
       win.webContents?.removeAllListeners();
       win.destroy();
     }
-    try {
-      this.uiOverlayView?.webContents?.removeAllListeners();
-    } catch {
-    }
-    this.uiOverlayView = null;
     this.uiWindow = null;
     this.contentWindow = null;
     logger.info("[MainWindow] Windows destroyed and cleaned up");
@@ -2432,10 +2433,6 @@ class MainWindow {
     const syncResize = () => {
       if (!this.uiWindow || !this.contentWindow) return;
       const bounds = this.uiWindow.getBounds();
-      try {
-        this.uiOverlayView?.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height });
-      } catch {
-      }
       OverlayController.onWindowResized(bounds);
     };
     this.uiWindow.on("moved", syncBoundsAfterMove);
@@ -2768,7 +2765,7 @@ class AppLifecycle {
       const mainWindow = await MainWindow.create();
       const uiWebContents = MainWindow.getUiOverlayWebContents();
       if (!uiWebContents) {
-        throw new Error("[AppLifecycle] UI overlay webContents not available");
+        throw new Error("[AppLifecycle] UI webContents not available");
       }
       await ViewManager.initialize(mainWindow, uiWebContents);
       logger.info("Step 5/8: ViewManager initialized");
@@ -3471,7 +3468,7 @@ function setupTabHandlers(registry2) {
   });
   registry2.handle(IPC_CHANNELS.TAB.LIST, async () => {
     try {
-      logger.info("[TabHandler] tab:list requested");
+      logger.debug("[TabHandler] tab:list requested");
       const tabs = ViewManager.getTabs();
       return { success: true, tabs };
     } catch (error) {
@@ -3905,16 +3902,39 @@ function setupSettingsHandlers(registry2) {
 }
 function setupViewHandlers(registry2) {
   logger.info("[ViewHandler] Setting up handlers...");
+  const RESIZE_BATCH_MS = 16;
+  let pendingBounds = null;
+  let lastAppliedBounds = null;
+  let resizeTimer = null;
+  const sameBounds = (a, b) => {
+    if (!a || !b) return false;
+    return a.left === b.left && a.top === b.top;
+  };
+  const flushResize = () => {
+    resizeTimer = null;
+    const next = pendingBounds;
+    pendingBounds = null;
+    if (!next) return;
+    if (sameBounds(lastAppliedBounds, next)) return;
+    lastAppliedBounds = next;
+    try {
+      ViewManager.setActiveViewBounds(next);
+    } catch (error) {
+      logger.error("[ViewHandler] view:resize flush failed:", error);
+    }
+  };
   registry2.on(IPC_CHANNELS.VIEW.RESIZE, (_event, bounds) => {
     try {
-      logger.info("[ViewHandler] 📥 Received VIEW.RESIZE from renderer:", { ...bounds });
       const parsed = ViewResizeSchema.safeParse(bounds);
       if (!parsed.success) {
         logger.warn("[ViewHandler] VIEW.RESIZE validation failed:", { error: parsed.error });
         return;
       }
-      logger.info("[ViewHandler] Calling ViewManager.setActiveViewBounds");
-      ViewManager.setActiveViewBounds(bounds);
+      if (sameBounds(pendingBounds, bounds) || sameBounds(lastAppliedBounds, bounds)) return;
+      pendingBounds = bounds;
+      if (!resizeTimer) {
+        resizeTimer = setTimeout(flushResize, RESIZE_BATCH_MS);
+      }
     } catch (error) {
       logger.error("[ViewHandler] view:resize failed:", error);
     }
@@ -4027,11 +4047,11 @@ function setupNavigationInterceptors() {
       if (url.startsWith("about:settings") || url.startsWith("chrome://settings")) {
         event.preventDefault();
         logger.info("[ProtocolHandler] Blocked about:settings, redirecting to app:settings");
-        const ui = MainWindow.getUiOverlayWebContents();
+        const ui = MainWindow.getWebContents();
         if (ui) {
           ui.send("navigate-to-settings");
         } else {
-          logger.warn("[ProtocolHandler] UI overlay webContents not available for settings navigation");
+          logger.warn("[ProtocolHandler] UI webContents not available for settings navigation");
         }
         return;
       }

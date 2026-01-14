@@ -67,16 +67,21 @@ export function applyLayout({
     usingExternal: !!externalActiveBounds,
   })
 
+  const hiddenBounds: Bounds = { x: 0, y: 0, width: 0, height: 0 }
+  const boundsEqual = (a: Bounds, b: Bounds): boolean =>
+    a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+
   for (const [, tabData] of tabs) {
+    const current = tabData.view.getBounds()
     if (tabData.isActive) {
       if (tabData.url.startsWith('about:')) {
-        tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+        if (!boundsEqual(current, hiddenBounds)) tabData.view.setBounds(hiddenBounds)
         logger.debug('[ViewManager] Layout: hiding WebView for about page', { url: tabData.url })
       } else {
-        tabData.view.setBounds(activeBounds)
+        if (!boundsEqual(current, activeBounds)) tabData.view.setBounds(activeBounds)
       }
     } else {
-      tabData.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+      if (!boundsEqual(current, hiddenBounds)) tabData.view.setBounds(hiddenBounds)
     }
   }
 }

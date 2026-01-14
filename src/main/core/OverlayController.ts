@@ -356,6 +356,9 @@ export class OverlayController {
       relativeX > EDGE_THRESHOLD &&
       relativeY > EDGE_THRESHOLD
     ) {
+      // Still enforce clickability: after tab creation/switch, view z-order can change
+      // without the overlay state changing.
+      ViewManager.ensureContentTopmost()
       return
     }
 
@@ -377,18 +380,13 @@ export class OverlayController {
     const mouseInSidebar = calc.mouseInSidebar
     const mouseInHeader = calc.mouseInHeader
 
-    // Ensure UI overlay view is visible when we are about to open overlays.
-    // If the content view ended up topmost (e.g., after tab creation/switch),
-    // opening the overlay without reordering can look like "hover doesn't work".
-    if (
-      calc.triggers.shouldOpenSidebar ||
-      calc.triggers.shouldOpenHeader ||
-      mouseInSidebar ||
-      mouseInHeader ||
-      headerLatched ||
-      sidebarLatched
-    ) {
+    // Z-order policy (single-window / stacked WebContentsViews):
+    // We cannot selectively ignore mouse events per-view in single-window mode.
+    // So we swap which view is topmost based on whether UI should be visible.
+    if (finalHeaderOpen || finalSidebarOpen || headerLatched || sidebarLatched || mouseInSidebar || mouseInHeader) {
       ViewManager.ensureUITopmost()
+    } else {
+      ViewManager.ensureContentTopmost()
     }
 
     // Throttle state updates
@@ -428,6 +426,11 @@ export class OverlayController {
       this.currentState = newState
       this.broadcastOverlayState(newState)
       // customButtonsOnHover가 자동으로 traffic lights를 관리함
+    }
+
+    // When everything is closed, keep content clickable.
+    if (!newState.headerOpen && !newState.sidebarOpen) {
+      ViewManager.ensureContentTopmost()
     }
   }
 

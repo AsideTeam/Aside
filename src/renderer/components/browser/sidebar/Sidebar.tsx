@@ -3,7 +3,7 @@
  * Multi-container: Icon ↔ Space ↔ Tab sections
  */
 
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Download, Settings, ChevronDown } from 'lucide-react'
 import {
   DndContext,
@@ -68,6 +68,34 @@ export const Sidebar: React.FC = () => {
 
   const shouldPushDown = headerOpen || headerLatched
   const sidebarRef = useRef<HTMLDivElement>(null)
+  const lastHoverMetricsRef = useRef<{ sidebarRightPx: number; dpr: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const sendMetrics = async () => {
+      if (!sidebarRef.current) return
+
+      try {
+        const width = Math.max(0, Math.round(sidebarRef.current.getBoundingClientRect().width))
+        const dpr = window.devicePixelRatio
+
+        const last = lastHoverMetricsRef.current
+        if (last && last.sidebarRightPx === width && last.dpr === dpr) return
+        lastHoverMetricsRef.current = { sidebarRightPx: width, dpr }
+
+        await window.electronAPI.invoke('overlay:update-hover-metrics', {
+          sidebarRightPx: width,
+          dpr,
+          timestamp: Date.now(),
+        })
+      } catch (error) {
+        logger.error('[Sidebar] Failed to send hover metrics', error)
+      }
+    }
+
+    void sendMetrics()
+    window.addEventListener('resize', sendMetrics)
+    return () => window.removeEventListener('resize', sendMetrics)
+  }, [])
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string)
@@ -152,9 +180,9 @@ export const Sidebar: React.FC = () => {
       ref={sidebarRef}
       style={{
         pointerEvents: isOpen || isLatched ? 'auto' : 'none',
-        width: 'var(--zen-sidebar-width, 260px)',
-        top: shouldPushDown ? '56px' : '0',
-        height: shouldPushDown ? 'calc(100% - 56px)' : '100%',
+        width: 'var(--aside-sidebar-width, 260px)',
+        top: shouldPushDown ? 'var(--aside-header-height, 52px)' : '0',
+        height: shouldPushDown ? 'calc(100% - var(--aside-header-height, 52px))' : '100%',
       }}
       className={cn(
         'fixed left-0 z-9999',
